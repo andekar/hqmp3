@@ -21,7 +21,7 @@ startNetwork chan port = bracket (listenOn $ PortNumber $ fromIntegral port)
 handler :: Show a => TChan (Command, TChan a) -> Socket -> IO ()
 handler chan s = forever $ do
     (h,_,_) <- accept s
-    forkIO $ do { hPutStrLn h "OK Amazing haskell player";
+    forkIO $ do { hPutStrLn h "OK HQmpd 0.1";
                   hFlush h;
                   clientHandler chan h}
     handler chan s
