@@ -1,2 +1,2 @@
 HQMpd is a mpd clone written in Haskell with default support
-for queues. 
+for queues. For more information see the project.pdf in docs/
