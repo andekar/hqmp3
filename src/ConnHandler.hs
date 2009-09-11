@@ -3,7 +3,6 @@ module ConnHandler (startNetwork) where
 import Data.IORef
 import Network
 import Types
-import Control.Concurrent.STM
 import Control.Concurrent
 import Data.Char
 import System.IO
@@ -14,11 +13,11 @@ import Control.Monad.Trans
 import Control.Monad.Reader
 import Control.Exception
 
-startNetwork :: Show a => TChan (Command, TChan a) -> PortNumber -> IO ()
+startNetwork :: Show a => Chan (Command, Chan a) -> PortNumber -> IO ()
 startNetwork chan port = bracket (listenOn $ PortNumber $ fromIntegral port)
-                          sClose (handler chan)
+                         sClose (handler chan)
 
-handler :: Show a => TChan (Command, TChan a) -> Socket -> IO ()
+handler :: Show a => Chan (Command, Chan a) -> Socket -> IO ()
 handler chan s = forever $ do
     (h,_,_) <- accept s
     forkIO $ do { hPutStrLn h "OK HQmpd 0.1";
@@ -26,7 +25,7 @@ handler chan s = forever $ do
                   clientHandler chan h}
     handler chan s
 
-clientHandler :: Show a => TChan (Command, TChan a) -> Handle -> IO ()
+clientHandler :: Show a => Chan (Command, Chan a) -> Handle -> IO ()
 clientHandler chan h = do
     str <- hGetLine h
     case parse str of
@@ -36,9 +35,9 @@ clientHandler chan h = do
             clientHandler chan h
         Right Close -> hClose h
         Right comm  -> do
-            retChan <- atomically newTChan
-            atomically $ writeTChan chan (comm,retChan)
-            reply <- atomically $ readTChan retChan
+            retChan <- newChan
+            writeChan chan (comm,retChan)
+            reply <- readChan retChan
             hPutStrLn h (show reply)
             hFlush h
             clientHandler chan h

@@ -1,18 +1,31 @@
-module ChanHandler (startChan) where
+module ChanHandler (server) where
 
 import Types
-import Control.Concurrent.STM
 import Control.Concurrent
-import Data.Char
-import System.IO
+import Control.Concurrent.Chan
 import Control.Monad
 import Control.Monad.Trans
+import Control.Monad.Reader
 import Player
+import Data.IORef
 
-startChan :: TChan (Command, TChan Command) -> Player ()
-startChan chan = do
-    (comm,rchan) <- lift $ atomically $ readTChan chan
-    case comm of
-        Play ->  do lift $ forkIO play
-                    lift $ atomically $ writeTChan rchan Ok
-        _    -> undefined
+server :: Server Song Song ()
+server = do
+    checkPlayerChan
+    checkCommandChan
+    lift $ threadDelay 100
+    server
+
+checkPlayerChan :: Server Song Song ()
+checkPlayerChan = do
+    return ()
+
+checkCommandChan :: Server Song Song ()
+checkCommandChan = do 
+    return ()
+
+-- Convenient function for getting values from a channel
+maybeGetChan :: Chan a -> IO (Maybe a)
+maybeGetChan c = isEmptyChan c >>= \e -> case e of
+    True -> return Nothing
+    _    -> readChan c >>= return . Just

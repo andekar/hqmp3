@@ -10,17 +10,11 @@ import Data.IORef
 import Control.Monad.Reader
 import System.Random
 
+main :: IO ()
 main = do
-    chan <- lift $ atomically newTChan
-    netPid <- lift $ forkIO $ startNetwork chan 6600
-    cPid <- lift $ forkIO startChan chan
-    -- remember to change 0 <----
-    gen <- lift $ newStdGen
-    ss <- newIORef $ defaultServerState netPid cPid 0 gen
-    return $ runReaderT start ss
+    -- start the network handler
+    newChan >>= \chan -> forkIO $ startNetwork chan 6600
+    gen    <- newStdGen
+    state  <- defaultServerState gen >>= newIORef
+    runReaderT server state
 
-start :: Player ()
-start = do
-    chan <- lift $ atomically newTChan
-    netpid <- lift $ forkIO $ startNetwork chan 6600
-    startChan chan
