@@ -9,18 +9,18 @@ import Control.Monad.Reader
 import Player
 import Data.IORef
 
-server :: Server Song Song ()
+server :: Server a b ()
 server = do
     checkPlayerChan
     checkCommandChan
     lift $ threadDelay 100
     server
 
-checkPlayerChan :: Server Song Song ()
+checkPlayerChan :: Server a b ()
 checkPlayerChan = do
     return ()
 
-checkCommandChan :: Server Song Song ()
+checkCommandChan :: Server a b ()
 checkCommandChan = do 
     return ()
 

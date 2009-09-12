@@ -1,13 +1,13 @@
 module Types where
 
 import Data.IORef
-import Control.Monad.Reader
 import Control.Monad.State
 import System.Posix.Types
 import Control.Concurrent
 import System.Random
-import Data.Array.MArray
-import Data.Array.IO
+import Data.Sequence as Seq
+import Data.Set as Set
+import Data.Map as Map
 import Control.Concurrent.MVar
 import System.Time
 
@@ -15,15 +15,26 @@ type CommandChan    = Chan (Command, Chan Command)
 type PlayerChan a b = ( Chan (ServerState a b -> ServerState a b)
                       , Chan PlayerCommand)
 
-type Server a b c = ReaderT (IORef (ServerState a b)) IO c
-type Playlist a = (IOUArray Int a, [Int])
-type Queue a    = [a]
-type Database   = [FilePath]
-type BaseDirs   = [FilePath]
-type Volume     = Int
+type Server a b c = StateT (ServerState a b) IO c
+
+-- Wrapper to make multiple roots work
+type Database  = Map FilePath Directory
+-- Structure          Dir       .mp3s           SubDirs
+data Directory = Dir FilePath (Set Song) (Map FilePath Directory) 
+
+instance Ord Directory where
+    Dir f _ _ <= Dir f' _ _ = f <= f'
+instance Eq Directory where
+    Dir p f d == Dir p' f' d' = 
+        p == p' && f == f' && d == d'
+
+type Playlist a   = Seq a
+type Queue a      = [a]
+type BaseDirs     = [FilePath]
+type Volume       = Int
 
 data ServerState a b = ServerState
-             { playlist'  :: !(Playlist a)
+             { playlist   :: !(Playlist a)
              , username   :: !String
              , password   :: !String
              , database   :: !Database
@@ -41,7 +52,7 @@ data Status = Status
              , repeat         :: Bool
              , single         :: Bool
              , consume        :: Bool
-             , playlist       :: Int
+             , playlistID     :: Int
              , playlistLength :: Int
              , state          :: PlayState
              , song           :: Int
@@ -70,6 +81,10 @@ data Song = Song
             , fileName :: FilePath
             , mTime    :: ClockTime
             }
+instance Eq Song where
+    Song p _ _ _ _ == Song p' _ _ _ _ = p == p'
+instance Ord Song where
+    Song p _ _ _ _ <= Song p' _ _ _ _ = p <= p'
 
 data ID3 = ID3 
         { title   :: String
@@ -86,9 +101,9 @@ defaultServerState gen = do
     commChan <- newChan
     player1  <- newChan
     player2  <- newChan
-    plist    <- newArray_ (0,0) :: IOUArray Int Song
-    return $ ServerState (plist, []) "" "" [] [] 
-                          defaultStatus gen [] (player1,player2) commChan
+    time     <- getClockTime
+    return $ ServerState Seq.empty "" "" Map.empty [] 
+                         defaultStatus gen [] (player1,player2) commChan
 
 defaultStatus :: Status
 defaultStatus = let
