@@ -17,20 +17,11 @@ type PlayerChan a b = ( Chan (ServerState a b -> ServerState a b)
 
 type Server a b c = StateT (ServerState a b) IO c
 
--- Wrapper to make multiple roots work
-type Database  = Map FilePath Directory
--- Structure          Dir       .mp3s           SubDirs
-data Directory = Dir FilePath (Set Song) (Map FilePath Directory) 
-
-instance Ord Directory where
-    Dir f _ _ <= Dir f' _ _ = f <= f'
-instance Eq Directory where
-    Dir p f d == Dir p' f' d' = 
-        p == p' && f == f' && d == d'
+-- Structure          Dir       .mp3s               SubDirs
+data Database = Dir FilePath (Set Song) (Map FilePath Database) 
 
 type Playlist a   = Seq a
 type Queue a      = [a]
-type BaseDirs     = [FilePath]
 type Volume       = Int
 
 data ServerState a b = ServerState
@@ -38,7 +29,7 @@ data ServerState a b = ServerState
              , username   :: !String
              , password   :: !String
              , database   :: !Database
-             , baseDirs   :: !BaseDirs 
+             , baseDir    :: !FilePath
              , status     :: !Status
              , randomGen  :: !StdGen
              , queue      :: !(Queue b)
@@ -102,7 +93,7 @@ defaultServerState gen = do
     player1  <- newChan
     player2  <- newChan
     time     <- getClockTime
-    return $ ServerState Seq.empty "" "" Map.empty [] 
+    return $ ServerState Seq.empty "" "" (Dir "" Set.empty Map.empty) [] 
                          defaultStatus gen [] (player1,player2) commChan
 
 defaultStatus :: Status
