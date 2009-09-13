@@ -16,7 +16,7 @@ modifyStatus f = modify $ \s -> s { status = f (status s) }
 -- Exported stuff below
 --
 
--- Set various status variables
+-- Setting various status variables
 
 modifyVolume :: (Eq a, Eq b) => (Volume -> Volume) -> Server a b ()
 modifyVolume f = modifyStatus $ \s -> s { volume = f (volume s) }
@@ -39,8 +39,15 @@ updateDB = do
     db <- gets baseDir >>= lift . addDir
     modify $ \s -> s { database = db }
 
+-- Authentication
 
--- Playlist stuff
+isAuthorized :: (Eq a, Eq b) => Username -> Password -> Server a b Bool
+isAuthorized user pass = do
+    u <- gets username
+    p <- gets password
+    return $ user == u && pass == p
+
+-- Playlist/Queue stuff
 
 addSong :: a -> Server a b ()
 addSong song = undefined
@@ -48,12 +55,20 @@ addSong song = undefined
 removeSong :: a -> Server a b ()
 removeSong song = undefined
 
+moveSong :: Int -> Int -> Server a b ()
+moveSong from to = undefined
+
 queueSong :: b -> Server a b ()
 queueSong song = undefined
 
 removeQueued :: b -> Server a b ()
 removeQueued song = undefined
 
+moveQueued :: Int -> Int -> Server a b ()
+moveQueued from to = undefined
+
+-- what if there is a song queued?
+-- what if there are no songs in the playlist?
 nextSong :: Server a b a
 nextSong = undefined
 

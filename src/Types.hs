@@ -20,14 +20,17 @@ type Server a b c = StateT (ServerState a b) IO c
 -- Structure          Dir       .mp3s               SubDirs
 data Database = Dir FilePath (Set Song) (Map FilePath Database) 
 
+-- Really, what type should this be?
 type Playlist a   = Seq a
 type Queue a      = [a]
 type Volume       = Int
+type Username     = String
+type Password     = String
 
 data (Eq a, Eq b) => ServerState a b = ServerState
              { playlist   :: !(Playlist a)
-             , username   :: !String
-             , password   :: !String
+             , username   :: !Username
+             , password   :: !Password
              , database   :: !Database
              , baseDir    :: !FilePath
              , status     :: !Status
