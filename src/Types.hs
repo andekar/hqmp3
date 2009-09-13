@@ -24,7 +24,7 @@ type Playlist a   = Seq a
 type Queue a      = [a]
 type Volume       = Int
 
-data ServerState a b = ServerState
+data (Eq a, Eq b) => ServerState a b = ServerState
              { playlist   :: !(Playlist a)
              , username   :: !String
              , password   :: !String
@@ -87,7 +87,7 @@ data ID3 = ID3
         , genre   :: String
         }
 
-defaultServerState :: StdGen -> IO (ServerState a b)
+defaultServerState :: (Eq a, Eq b) => StdGen -> IO (ServerState a b)
 defaultServerState gen = do
     commChan <- newChan
     player1  <- newChan
