@@ -33,16 +33,16 @@ data Commands =
     | AddId String
     | Clear
     | Delete Int
-    | DeleteID Int
+    | DeleteId Int
     | Move (Either Int (Int, Int)) Int
-    | MoveID Int Int
+    | MoveId Int Int
     | Playlist
     | PlaylistFind -- todo
-    | PlaylistID (Maybe Int)
+    | PlaylistId (Maybe Int)
     | PlaylistInfo (Maybe (Either Int (Int, Int)))
     | PlaylistSearch -- todo
     | PlChanges Int
-    | PlChangesPosID Int
+    | PlChangesPosId Int
     | Shuffle (Maybe (Int, Int))
     | Swap Int Int
     | SwapID Int Int
@@ -99,7 +99,7 @@ pCommand =  pClose
 
 --
 -- Parsing of commands below, in the same order they appear in 
--- the protocol specification and the 'Commands' data type
+-- the protocol specification and the 'Commands' data type, almost :-)
 --
 
 -- List of commands
@@ -128,10 +128,22 @@ pSingle    = string "single"    *> (Single    <$> pBool)
 
 -- Controlling playback 
 pNext     = string "next"     *> pure Next
+pPrevious = string "previous" *> pure Previous
+pStop     = string "stop"     *> pure Stop
 pPause    = string "pause"    *> (Pause  <$> pBool)
 pPlay     = string "play"     *> (Play   <$> optional pNumber)
 pPlayId   = string "playid"   *> (PlayId <$> optional pNumber)
-pPrevious = string "previous" *> pure Previous
+pSeek     = string "seek"     *> (Seek   <$> pNumber <*> pNumber)
+pSeekId   = string "seekid"   *> (SeekId <$> pNumber <*> pNumber)
+
+-- The current playlist
+pClear    = string "clear"    *> pure Clear
+pAdd      = string "add"      *> (Add      <$> many anyChar) --parse file name?
+pAddId    = string "addid"    *> (AddId    <$> many anyChar)
+pDelete   = string "delete"   *> (Delete   <$> pNumber)
+pDeleteId = string "deleteid" *> (DeleteId <$> pNumber)
+
+
 
 pClose = string "close" *> pure Close
 
