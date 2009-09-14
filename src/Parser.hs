@@ -1,8 +1,6 @@
 module Parser (parseCommand, toNumber) where
 
 import ApplicativeParsec
--- import Text.ParserCombinators.Parsec
-
 import Data.Char
 
 data Commands = 
@@ -110,32 +108,32 @@ pList = (string "command_list_begin" <|> string "command_list_ok_begin")
      <* string "command_list_end"
 
 -- Querying MPD's status
-pClearError   = ClearError  <$ string "clearerror"
-pCurrentSong  = CurrentSong <$ string "currentsong"
-pStatus       = Status      <$ string "status"
-pStats        = Stats       <$ string "stats"
-pIdle         = string "idle" *> Idle <$> optional (
+pClearError  = string "clearerror"  *> pure ClearError
+pCurrentSong = string "currentsong" *> pure CurrentSong
+pStatus      = string "status"      *> pure Status
+pStats       = string "stats"       *> pure Stats
+pIdle        = string "idle"        *> (pure Idle <$> optional (
                             string "database"        <|> string "update"
                         <|> string "stored_playlist" <|> string "playlist"
                         <|> string "player"          <|> string "mixer"
-                        <|> string "output"          <|> string "options")
+                        <|> string "output"          <|> string "options"))
 
--- Playback options, TODO parse keywords aswell...
-pConsume   = Consume   <* (string "consume" *> pBool)
-pCrossfade = Crossfade <$> pNumber
-pRandom    = Random    <$> pBool
-pRepeat    = Repeat    <$> pBool
-pSetvol    = Setvol    <$> pNumber
-pSingle    = Single    <$> pBool
+-- Playback options
+pConsume   = string "consume"   *> (Consume   <$> pBool)
+pCrossfade = string "crossfade" *> (Crossfade <$> pNumber)
+pRandom    = string "random"    *> (Random    <$> pBool)
+pRepeat    = string "repeat"    *> (Repeat    <$> pBool)
+pSetvol    = string "setvol"    *> (Setvol    <$> pNumber)
+pSingle    = string "single"    *> (Single    <$> pBool)
 
--- Controlling playback TODO keywords here too
-pNext     = Next     <$  string "next"
-pPause    = Pause    <$> string "pause" <*> pBool
-pPlay     = Play     <$> optional pNumber
-pPlayId   = PlayId   <$> optional pNumber
-pPrevious = Previous <$  string "previous"
+-- Controlling playback 
+pNext     = string "next"     *> pure Next
+pPause    = string "pause"    *> (Pause  <$> pBool)
+pPlay     = string "play"     *> (Play   <$> optional pNumber)
+pPlayId   = string "playid"   *> (PlayId <$> optional pNumber)
+pPrevious = string "previous" *> pure Previous
 
-pClose = Close <$ string "close" 
+pClose = string "close" *> pure Close
 
 
 --
