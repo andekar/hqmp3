@@ -18,7 +18,8 @@ type PlayerChan a b = ( Chan (ServerState a b -> ServerState a b)
 type Server a b c = StateT (ServerState a b) IO c
 
 -- Structure          Dir       .mp3s               SubDirs
-data Database = Dir FilePath (Set Song) (Map FilePath Database) 
+data Database = Dir FilePath (Set Song) (Map FilePath Database)
+    deriving Show
 
 -- Really, what type should this be?
 type Playlist a   = Seq a
@@ -75,6 +76,8 @@ data Song = Song
             , fileName :: FilePath
             , mTime    :: ClockTime
             }
+    deriving Show
+
 instance Eq Song where
     Song p _ _ _ _ == Song p' _ _ _ _ = p == p'
 instance Ord Song where
@@ -89,6 +92,7 @@ data ID3 = ID3
         , track   :: Int
         , genre   :: String
         }
+    deriving Show
 
 defaultServerState :: (Eq a, Eq b) => StdGen -> IO (ServerState a b)
 defaultServerState gen = do
