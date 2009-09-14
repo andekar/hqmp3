@@ -19,7 +19,7 @@ type Server a b c = StateT (ServerState a b) IO c
 
 -- Structure          Dir       .mp3s               SubDirs
 data Database = Dir FilePath (Set Song) (Map FilePath Database)
-    deriving Show
+    deriving (Show, Read)
 
 -- Really, what type should this be?
 type Playlist a   = Seq a
@@ -76,10 +76,11 @@ data Song = Song
             , fileName :: FilePath
             , mTime    :: ClockTime
             }
-    deriving Show
+    deriving (Show, Read)
 
 instance Eq Song where
     Song p _ _ _ _ == Song p' _ _ _ _ = p == p'
+
 instance Ord Song where
     Song p _ _ _ _ <= Song p' _ _ _ _ = p <= p'
 
@@ -92,15 +93,15 @@ data ID3 = ID3
         , track   :: Int
         , genre   :: String
         }
-    deriving Show
+    deriving (Show, Read)
 
-defaultServerState :: (Eq a, Eq b) => StdGen -> IO (ServerState a b)
+defaultServerState ::  StdGen -> IO (ServerState String String)
 defaultServerState gen = do
     commChan <- newChan
     player1  <- newChan
     player2  <- newChan
     time     <- getClockTime
-    return $ ServerState Seq.empty "" "" (Dir "" Set.empty Map.empty) [] 
+    return $ ServerState Seq.empty "" "" (Dir "" Set.empty Map.empty) []
                          defaultStatus gen [] (player1,player2) commChan
 
 defaultStatus :: Status
