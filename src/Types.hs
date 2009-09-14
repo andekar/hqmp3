@@ -28,7 +28,7 @@ type Volume       = Int
 type Username     = String
 type Password     = String
 
-data (Eq a, Eq b) => ServerState a b = ServerState
+data (Ord a, Ord b) => ServerState a b = ServerState
              { playlist   :: !(Playlist a)
              , username   :: !Username
              , password   :: !Password

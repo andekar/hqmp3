@@ -9,7 +9,7 @@ import System.Directory
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 
-modifyStatus :: (Eq a, Eq b) => (Status -> Status) -> Server a b ()
+modifyStatus :: (Ord a, Ord b) => (Status -> Status) -> Server a b ()
 modifyStatus f = modify $ \s -> s { status = f (status s) }
 
 --
@@ -18,30 +18,30 @@ modifyStatus f = modify $ \s -> s { status = f (status s) }
 
 -- Setting various status variables
 
-modifyVolume :: (Eq a, Eq b) => (Volume -> Volume) -> Server a b ()
+modifyVolume :: (Ord a, Ord b) => (Volume -> Volume) -> Server a b ()
 modifyVolume f = modifyStatus $ \s -> s { volume = f (volume s) }
 
-setRepeat, setSingle, setConsume :: (Eq a, Eq b) => Bool -> Server a b ()
+setRepeat, setSingle, setConsume :: (Ord a, Ord b) => Bool -> Server a b ()
 setRepeat b  = modifyStatus $ \s -> s { repeat = b }
 setSingle b  = modifyStatus $ \s -> s { single = b }
 setConsume b = modifyStatus $ \s -> s { consume = b }
 
-setPlayState :: (Eq a, Eq b) => PlayState -> Server a b ()
+setPlayState :: (Ord a, Ord b) => PlayState -> Server a b ()
 setPlayState ps = modifyStatus $ \s -> s { state = ps }
 
-setXFade :: (Eq a, Eq b) => Int -> Server a b ()
+setXFade :: (Ord a, Ord b) => Int -> Server a b ()
 setXFade i = modifyStatus $ \s -> s { xfade = i }
 
 -- Database stuff
 
-updateDB :: (Eq a, Eq b) => Server a b ()
+updateDB :: (Ord a, Ord b) => Server a b ()
 updateDB = do
     db <- gets baseDir >>= lift . addDir
     modify $ \s -> s { database = db }
 
 -- Authentication
 
-isAuthorized :: (Eq a, Eq b) => Username -> Password -> Server a b Bool
+isAuthorized :: (Ord a, Ord b) => Username -> Password -> Server a b Bool
 isAuthorized user pass = do
     u <- gets username
     p <- gets password

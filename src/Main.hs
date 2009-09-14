@@ -1,12 +1,9 @@
 module Main where
-import ConnHandler
+
 import Types
+import ConnHandler
 import ChanHandler
-import Player
-import Control.Monad.Trans
-import Control.Concurrent.STM
 import Control.Concurrent
-import Data.IORef
 import Control.Monad.State
 import System.Random
 

@@ -29,3 +29,5 @@ isMedia f = takeExtension f == ".mp3"
 -- Reads the file, and computes ID3 and such
 mkSong :: FilePath -> Song
 mkSong f = undefined
+
+

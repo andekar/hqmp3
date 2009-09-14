@@ -1,6 +1,5 @@
 module ConnHandler (startNetwork) where
 
-import Data.IORef
 import Network
 import Types
 import Control.Concurrent

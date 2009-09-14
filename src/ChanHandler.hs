@@ -5,11 +5,9 @@ import Control.Concurrent
 import Control.Concurrent.Chan
 import Control.Monad
 import Control.Monad.Trans
-import Control.Monad.Reader
 import Player
-import Data.IORef
 
-server :: Server a b ()
+server :: (Ord a, Ord b) => Server a b ()
 server = do
     checkPlayerChan
     checkCommandChan
