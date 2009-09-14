@@ -124,3 +124,6 @@ defaultStatus = let
     in Status vol repeat single consume playlist pllength state
               song songId time elapsed bitrate xfade audio nextSong 
               nextSongID 
+
+instance Read ClockTime where
+    readList x = [([toClockTime (read x :: CalendarTime)], "")]
