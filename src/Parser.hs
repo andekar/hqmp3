@@ -240,7 +240,7 @@ pBool       = digit >>= return . (== '1')
 pNum        = many1 digit >>= return . toNumber
 pTuple f g  = f >>= \a -> g >>= \b -> return (a,b)
 pEither l r = (Left <$> l) <|> (Right <$> r)
-pString     = pString
+pString     = many anyChar
 
 toNumber :: [Char] -> Int
 toNumber xs = foldl (\a x -> a*10 + (ord x - 48)) 0 xs
