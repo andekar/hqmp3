@@ -20,3 +20,7 @@ instance Applicative (GenParser s a) where
 instance Alternative (GenParser s a) where
     empty = mzero
     (<|>) = mplus
+
+-- However, this one we wrote ourselves ;-)
+(<||>) :: GenParser a b c -> GenParser a b c -> GenParser a b c
+p <||> q = try p <|> try q
