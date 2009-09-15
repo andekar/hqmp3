@@ -4,6 +4,7 @@ module ApplicativeParsec
     (
       module Control.Applicative
     , module Text.ParserCombinators.Parsec
+    , (<||>)
     ) where
 
 import Control.Applicative
