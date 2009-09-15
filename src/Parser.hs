@@ -141,10 +141,10 @@ pCurrentSong = string "currentsong" *> pure CurrentSong
 pStatus      = Status <$ string "status"
 pStats       = Stats  <$ string "stats"
 pIdle        = string "idle"        *> (Idle <$> optional (
-                            string "database"        <|> string "update"
-                        <|> string "stored_playlist" <|> string "playlist"
-                        <|> string "player"          <|> string "mixer"
-                        <|> string "output"          <|> string "options"))
+                             string "database"        <||> string "update"
+                        <||> string "stored_playlist" <||> string "playlist"
+                        <||> string "player"          <||> string "mixer"
+                        <||> string "output"          <||> string "options"))
 
 -- Playback options
 pConsume   = string "consume"   *> (Consume   <$> pBool)
