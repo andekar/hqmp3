@@ -1,5 +1,6 @@
 module Types where
 
+import Parser
 import Data.IORef
 import Control.Monad.State
 import System.Posix.Types
@@ -28,13 +29,15 @@ type Volume       = Int
 type Username     = String
 type Password     = String
 
+data PlayerCommand = NexSong
+
 data (Ord a, Ord b) => ServerState a b = ServerState
              { playlist   :: !(Playlist a)
              , username   :: !Username
              , password   :: !Password
              , database   :: !Database
              , baseDir    :: !FilePath
-             , status     :: !Status
+             , status     :: !PlayerStatus
              , randomGen  :: !StdGen
              , queue      :: !(Queue b)
              , playerChan :: PlayerChan a b
@@ -42,7 +45,7 @@ data (Ord a, Ord b) => ServerState a b = ServerState
              }
 
 -- | The same things that mpd outputs when asked for 'status'
-data Status = Status 
+data PlayerStatus = PlayerStatus 
              { volume         :: Volume
              , repeat         :: Bool
              , single         :: Bool
@@ -63,11 +66,6 @@ data Status = Status
 
 data PlayState = Playing | Stopped | Paused
     deriving Show
-
-data Command =  Close | Play | UnknownCommand | Ok
-    deriving Show
-
-data PlayerCommand = NextSong
 
 data Song = Song 
             { path     :: FilePath
@@ -104,7 +102,7 @@ defaultServerState gen = do
     return $ ServerState Seq.empty "" "" (Dir "" Set.empty Map.empty) []
                          defaultStatus gen [] (player1,player2) commChan
 
-defaultStatus :: Status
+defaultStatus :: PlayerStatus
 defaultStatus = let
     vol         = 0
     repeat      = False
@@ -122,7 +120,7 @@ defaultStatus = let
     audio       = (0, 0, 0)
     nextSong    = 0
     nextSongID  = 0
-    in Status vol repeat single consume playlist pllength state
+    in PlayerStatus vol repeat single consume playlist pllength state
               song songId time elapsed bitrate xfade audio nextSong 
               nextSongID 
 
