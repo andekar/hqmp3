@@ -1,11 +1,21 @@
-module Parser (parseCommand, toNumber) where
+module Parser (
+    parseCommand
+  , Ack (..)
+  , Command (..) 
+  ) where
 
 import ApplicativeParsec
 import Data.Char
 
+data Ack = Ack
+    deriving Show
+
+
 data Command = 
     -- A command may be a list of commands
-      CList [Command] 
+      CListBegin
+    | CListOkBegin
+    | CListEnd
     -- Querying status
     | ClearError
     | CurrentSong
@@ -84,10 +94,10 @@ data Command =
     | NotCommands
     | TagTypes
     | URLHandlers
-    deriving Show
+    deriving (Show,Eq)
 
 parseCommand = parse pCommand "(unknown)"
-pCommand     =  pCommList
+pCommand     =  pCListBegin     <||> pCListOkBegin  <||> pCListEnd
             -- Querying status
            <||> pClearError     <||> pCurrentSong   <||> pStatus
            <||> pStats          <||> pIdle
@@ -131,9 +141,9 @@ pCommand     =  pCommList
 --
 
 -- List of commands
-pCommList = (string "command_list_begin" <|> string "command_list_ok_begin")
-     *> (CList <$> many pCommand)
-     <* string "command_list_end"
+pCListBegin   = string "command_list_begin"    *> pure CListBegin
+pCListOkBegin = string "command_list_ok_begin" *> pure CListOkBegin
+pCListEnd     = string "command_list_end"      *> pure CListEnd
 
 -- Querying status
 pClearError  = string "clearerror"  *> pure ClearError
@@ -240,7 +250,7 @@ pBool       = digit >>= return . (== '1')
 pNum        = many1 digit >>= return . toNumber
 pTuple f g  = f >>= \a -> g >>= \b -> return (a,b)
 pEither l r = (Left <$> l) <|> (Right <$> r)
-pString     = many anyChar
+pString     = many1 anyChar
 
 toNumber :: [Char] -> Int
 toNumber xs = foldl (\a x -> a*10 + (ord x - 48)) 0 xs
