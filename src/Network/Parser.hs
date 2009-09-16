@@ -1,10 +1,6 @@
-module Parser (
-    parseCommand
-  , Ack (..)
-  , Command (..) 
-  ) where
+module Network.Parser ( parseCommand ) where
 
-import ApplicativeParsec
+import Network.ApplicativeParsec
 import Data.Char
 
 data Ack = Ack

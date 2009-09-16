@@ -1,5 +1,5 @@
 -- This module can extract PCM data and frequensies from WAV files.
-module Wav ( RiffChunk(..)
+module Codecs.Wav.Wav ( RiffChunk(..)
            , Chunkdata(..)
            , DataChunk(..)
            , getRiffChunk) where

@@ -1,17 +1,16 @@
-module ConnHandler (startNetwork) where
+module Network.ConnHandler (startNetwork) where
+
+import Types
+import ChanHandler
+import Network.Parser
 
 import Network
-import Types
-import Control.Concurrent
-import Data.Char
 import System.IO
 import Control.Monad
-import ChanHandler
-import Parser
-import Control.Monad.Trans
 import Control.Exception
-import Data.Maybe
+import Control.Concurrent
 
+-- Starts the network, or exits if there was a problem
 startNetwork :: Show a => Chan (Command, Chan a) -> PortNumber -> IO ()
 startNetwork chan port = bracket (listenOn $ PortNumber $ fromIntegral port)
                          sClose (handler chan)
@@ -33,17 +32,13 @@ clientHandler chan h = do
         Left err    -> undefined
         Right comm  -> 
             if (comm == CListBegin || comm == CListOkBegin)
-            then do
-                cs    <- getListCommands h [comm]
-                reply <- runCommands cs
-                hPutStrLn h (show $ fromJust reply) --fixme
-                hFlush h
-                clientHandler chan h
-            else do
-                reply <- runCommands [comm]
-                hPutStrLn h (show $ fromJust reply) --fixme
-                hFlush h
-                clientHandler chan h
+            then getListCommands h [comm] >>= runCommands >>= reply
+            else runCommands [comm] >>= reply
+  where
+    reply response = do
+        hPutStrLn h $ show' response
+        hFlush h
+        clientHandler chan h
             
 -- Read a list of commands from the network, and parse these
 getListCommands :: Handle -> [Command] -> IO [Command]
@@ -56,5 +51,10 @@ getListCommands h cs = do
 
 -- TODO
 -- Will create reply channels  
-runCommands :: [Command] -> IO (Maybe Ack)
+runCommands :: [Command] -> IO (Either Ok Ack)
 runCommands xs = undefined
+
+-- Show for either includes ugly "Right/Left"
+show' :: (Show a, Show b) => Either a b -> String
+show' (Left a)  = show a
+show' (Right b) = show b

@@ -1,6 +1,6 @@
 -- This part is taken from http://book.realworldhaskell.org/read/using-parsec.html
 
-module ApplicativeParsec
+module Network.ApplicativeParsec
     (
       module Control.Applicative
     , module Text.ParserCombinators.Parsec

@@ -1,7 +1,7 @@
 module Main where
 
 import Types
-import ConnHandler
+import Network.ConnHandler
 import ChanHandler
 import Control.Concurrent
 import Control.Monad.State
