@@ -6,29 +6,33 @@ import Data.Bits
 import ApplicativeParsec
 import Data.Maybe
 
+-- | A list of not supported frames
+unsup = map B.pack 
+        [ "AENC"
+        , "APIC"
+        , "COMR"
+        , "ENCR"
+        , "ETCO"
+        , "GEOB"
+        , "GRID"
+        , "IPLS"
+        , "MLLT"
+        , "POSS"
+        , "RVRB"
+        , "SYLT"
+        , "SYTC" ]
+
 data ID3 = 
-      AENC String
-    | APIC String -- will not work!!!
-    | COMM String
-    | ENCR String
+      COMM String
     | ENQUA String
-    | ETCO String
-    | GEOB String
-    | GRIB String
-    | IPLS String
     | LINK String
     | MCDI String
-    | MLLT String
     | OWNE String
     | PRIV String
     | PCNT String
     | POPM String
-    | POSS String
     | RBUF String
     | RVAD String
-    | RVRB String
-    | SYLT String
-    | SYLTC String
     -- | All text frame identifiers begin with "T". Only text frame identifiers
     -- begin with "T", with the exception of the "TXXX" frame
 
@@ -79,115 +83,11 @@ data ID3 =
     | TSSE String
     | TYER String
     deriving (Show, Eq, Read)
--- 
--- -- | The different available frames in id3v2.3
--- frames = foldl1 (<||>) (map string
---          [ "TALB" , "TBPM", "TCOM" , "TCON"
---          , "TCOP" , "TDAT", "TDLY" , "TENC"
---          , "TEXT" , "TFLT", "TIME" , "TIT1"
---          , "TIT2" , "TIT3", "TKEY" , "TLAN"
---          , "TLEN" , "TMED", "TOAL" , "TOFN"
---          , "TOLY" , "TOPY", "TOPE" , "TORY"
---          , "TOWN" , "TPE1", "TPE2" , "TPE3"
---          , "TPE4" , "TPOS", "TPUB" , "TRCK"
---          , "TRDA" , "TRSN", "TRSO" , "TSIZ"
---          , "TSRC" , "TSSE", "TYER" ])
-
-
--- pp = parse pTit2 "(unknown)"
--- 
--- -- | Parse until a frame is seen
--- pUF = manyTill anyToken frames
--- 
--- -- | Album/Movie/Show title
--- pTalb = string "PTALB" *> (TALB <$> pUF)
--- 
--- -- | The 'BPM' frame contains the number of beats per minute in the mainpart of
--- --  the audio. The BPM is an integer and represented as a numerical string.
--- pTbpm = string "TBPM" *> (TBPM <$> pUF)
--- 
--- -- | The 'Composer(s)' frame is intended for the name of the composer(s). They
--- --  are seperated with the "/" character. 
--- pTcom = string "TCOM" *> (TCOM <$> sepBy pUF (char '\\'))
--- 
--- -- |The 'Content type', which previously was stored as a one byte numeric value
--- -- only, is now a numeric string. You may use one or several of the types as
--- -- ID3v1.1 did or, since the category list would be impossible to maintain with
--- -- accurate and up to date categories, define your own.
--- pTcon = string "TCON" *> (TCON <$> pUF)
--- 
--- -- | The 'Copyright message' frame
--- pTcop = string "TCOP" *> (TCOP <$> pUF)
--- 
--- -- |The 'Date' frame is a numeric string in the DDMM format containing the date
--- -- for the recording. This field is always four characters long.
--- -- TODO: parse INTS instead
--- pTdat = string "TDAT" *> (TDAT <$> pUF)
--- 
--- -- | Playlist delay
--- -- TODO Integer
--- pTdly = string "TDLY" *> (TDLY <$> pUF)
--- 
--- -- | The 'Encoded by' frame
--- pTenc = string "PTENC" *> (TENC <$> pUF)
--- 
--- -- | The 'Lyricist(s)/Text writer(s)' frame is intended for the writer(s)
--- -- of the text or lyrics in the recording. They are seperated with the "/"
--- -- character
--- pText = string "TEXT" *> (TEXT <$> sepBy pUF (char '\\'))
--- 
--- -- | The 'File type' frame indicates which type of audio this tag defines.
--- -- TODO!!!
--- pTflt = string "TFLT" *> (TFLT <$> undefined)
--- 
--- -- | The 'Time' frame is a numeric string in the HHMM format containing the
--- -- time for the recording. This field is always four characters long. TODO INT
--- pTime = string "TIME" *> (TIME <$> pUF)
--- 
--- -- | Content group description
--- pTit1 = string "TIT1" *> (TIT1 <$> pUF)
--- 
--- -- | Title/Songname/Content description
--- pTit2 = string "TIT2" *> (TIT2 <$> pUF)
--- 
--- -- | Subtitle/Description refinement
--- pTit3 = string "TIT3" *> (TIT3 <$> pUF)
--- 
--- -- | The 'Initial key' frame contains the musical key in which the sound
--- -- starts. 
--- -- TODO check so it is correct
--- pTkey = string "TKEY" *> (TKEY <$> pUF)
--- 
--- -- | The 'Language(s)' frame should contain the languages of the text or lyrics
--- -- spoken or sung in the audio.
--- pTlan = string "TLAN" *> (TLAN <$> pUF)
--- 
--- -- | The 'Length' frame contains the length of the audiofile in milliseconds,
--- -- represented as a numeric string. 
--- -- TODO NUMERICAL STRING
--- pTlen = string "TLEN" *> (TLEN <$> pUF)
--- 
--- -- TODO
--- pTmed = undefined
--- 
--- -- TODO
--- pToal = undefined
--- 
--- pTofn = undefined
--- 
--- pToly = undefined
--- 
--- pTope = undefined
-
--- This data is NOT wanted and will probably not be seen
--- | Encoding stuff
--- pAenc = string "AENC" *> (AENC <$> manyTill anyToken frames)
 
 data Header = Header { version :: Version
                      , flags :: B.ByteString
                      , siz :: Word32
-                     , body :: B.ByteString                       
-                     }
+                     , body :: B.ByteString }
     deriving Show
 
 -- | The different id3 versions
@@ -253,7 +153,9 @@ id3Frames bs  | B.null bs = []
           (flags, rest'') = B.splitAt 2 rest'
           sizeInt = fromIntegral . calcVal . map fromIntegral $ Bc.unpack size
           (content, bs')  = B.splitAt sizeInt rest''
-      in (Frame id sizeInt flags (filt content)):id3Frames bs'
+      in if (notElem id unsup) then
+            (Frame id sizeInt flags (filt content)):id3Frames bs'
+            else id3Frames bs'
     where calcVal :: [Word32] -> Word32
           calcVal (x0:x1:x2:x3:[]) = let x0' = shiftL x0 24
                                          x1' = shiftL x1 16
