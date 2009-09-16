@@ -287,7 +287,7 @@ getSize :: [Word32] -> Word32
 getSize (x0:x1:x2:x3:[])
     = let x0' = shiftL x0 21
           x1' = shiftL x1 14
-          x2' = shiftL x2 7 
+          x2' = shiftL x2 7
           x3' = x3
       in x0' .|. x1' .|. x2' .|. x3'
 getSize _ = error "Wrong argument to getSize"
