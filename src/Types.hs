@@ -205,7 +205,7 @@ data Command =
     | Search Tag -- not a full tag, see Parser TODO
     | Update (Maybe String)
     -- Stickers
-    | Sticker -- todo, contain a sticker type?
+    | Sticker Sticker
     -- Connection Settings
     | Close
     | Kill
@@ -221,10 +221,20 @@ data Command =
     | TagTypes
     | URLHandlers
 
+-- TODO be more specific about the types here
+data Sticker = 
+    StickerGet  String FilePath String
+  | StickerSet  String FilePath String String
+  | StickerDel  String FilePath String
+  | StickerList String FilePath
+  | StickerFind String FilePath String
+
 data ListTag = 
     ListArtist
   | ListAlbum (Maybe String)
 
+-- Note that not all constructors are usable in all functions
+-- However, the parser makes sure that this is safe. Ugly?
 data Tag = 
     Artist String 
   | Album String
@@ -238,4 +248,5 @@ data Tag =
   | Performer String
   | Comment String
   | Disc Int
+  | File FilePath
 

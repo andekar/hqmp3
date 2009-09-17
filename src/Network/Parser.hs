@@ -58,7 +58,7 @@ pClearError  = string "clearerror"  *> pure ClearError
 pCurrentSong = string "currentsong" *> pure CurrentSong
 pStatus      = string "status"      *> pure Status
 pStats       = string "stats"       *> pure Stats
-pIdle        = string "idle"        *> (Idle <$> optional (
+pIdle        = string "idle"        *> (Idle <$> optional ( 
                              string "database"        <||> string "update"
                         <||> string "stored_playlist" <||> string "playlist"
                         <||> string "player"          <||> string "mixer"
@@ -139,7 +139,7 @@ pListplaylists    = string "listplaylists"    *> pure Listplaylists
 pListplaylist     = string "listplaylist"     *> (Listplaylist     <$> pString)
 pListplaylistInfo = string "listplaylistinfo" *> (ListplaylistInfo <$> pString)
 
--- The music database, mostly TODO here ;-)
+-- The music database
 pCount       = string "count"       *> (Count       <$> pTag)
 pFind        = string "find"        *> (Find        <$> (pAlbum <||> pArtist 
                                                                 <||> pTitle))
@@ -147,15 +147,28 @@ pFindAdd     = string "findadd"     *> (FindAdd     <$> pTag)
 pList        = string "list"        *> (List        <$> (
                                 (pString *> pure ListArtist)
                            <||> (pString *> (ListAlbum <$> optional pString))))
-pSearch      = string "search"      *> (Search      <$> (pAlbum <||> pArtist
-                                                    <||> pAlbum <||> pString))
+
+-- The "File" constructor in Tag type is only for search
+pSearch      = string "search" *> (Search <$> (pAlbum <||> pArtist <||> pAlbum 
+                             <||> (string "filename" *> (File <$> pString))))
+
 pListAll     = string "listall"     *> (ListAll     <$> optional pString)
 pListAllInfo = string "listallinfo" *> (ListAllInfo <$> optional pString)
 pLsInfo      = string "lsinfo"      *> (LsInfo      <$> optional pString)
 pUpdate      = string "update"      *> (Update      <$> optional pString)
 
 -- Stickers, TODO here aswell ;-)
-pSticker = undefined
+pSticker     = string "sticker" *> (Sticker <$> pStickAction)
+pStickAction = pGetSticker  <||> pSetSticker <||> pDelSticker
+          <||> pListSticker <||> pFindSticker
+
+pGetSticker = string "get" *> (StickerGet <$> pString <*> pString <*> pString)
+pSetSticker = string "set" *> (StickerSet <$> pString <*> pString 
+                                          <*> pString <*> pString)
+pDelSticker = string "delete" *> (StickerDel <$> pString <*> pString
+                                             <*> pString)
+pListSticker = string "list" *> (StickerList <$> pString <*> pString)
+pFindSticker = string "find" *> (StickerFind <$> pString <*> pString <*> pString)
 
 -- Connection settings
 pClose    = string "close"    *> pure Close
