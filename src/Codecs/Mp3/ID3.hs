@@ -8,31 +8,17 @@ import Data.Maybe
 -- | A list of not supported frames
 unsup :: [B.ByteString]
 unsup = map B.pack 
-        [ "AENC"
-        , "APIC"
-        , "COMR"
-        , "ENCR"
-        , "ETCO"
-        , "GEOB"
-        , "GRID"
-        , "IPLS"
-        , "MLLT"
-        , "POSS"
-        , "RVRB"
-        , "SYLT"
+        [ "AENC", "APIC", "COMR", "ENCR"
+        , "ETCO", "GEOB", "GRID", "IPLS"
+        , "MLLT", "POSS", "RVRB", "SYLT"
         , "SYTC" ]
 
 data ID3 = 
-      COMM String
-    | ENQUA String
-    | LINK String
-    | MCDI String
-    | OWNE String
-    | PRIV String
-    | PCNT String
-    | POPM String
-    | RBUF String
-    | RVAD String
+      COMM String | ENQUA String
+    | LINK String | MCDI String
+    | OWNE String | PRIV String
+    | PCNT String | POPM String
+    | RBUF String | RVAD String
     -- | All text frame identifiers begin with "T". Only text frame identifiers
     -- begin with "T", with the exception of the "TXXX" frame
 
@@ -46,45 +32,18 @@ data ID3 =
     -- | The 'Composer(s)' frame is intended for the name of the composer(s).
     -- They are seperated with the "/" character.
     | TCOM String
-    | TCON String
-    | TCOP String
-    | TDAT String
-    | TDLY String
-    | TENC String
-    | TEXT String
-    | TFLT String
-    | TIME String
-    | TIT1 String
-    | TIT2 String
-    | TIT3 String
-    | TKEY String
-    | TLAN String
-    | TLEN String
-    | TMED String
-    | TOAL String
-    | TOFN String
-    | TOLY String
-    | TOPY String
-    | TOPE String
-    | TORY String
-    | TOWN String
-    | TPE1 String
-    | TPE2 String
-    | TPE3 String
-    | TPE4 String
-    | TPOS String
-    | TPUB String
-    | TRCK String
-    | TRDA String
-    | TRSN String
-    | TRSO String
-    | TSIZ String
-    | TSRC String
-    | TSSE String
-    | TYER String
+    | TCON String | TCOP String | TDAT String | TDLY String
+    | TENC String | TEXT String | TFLT String | TIME String
+    | TIT1 String | TIT2 String | TIT3 String | TKEY String
+    | TLAN String | TLEN String | TMED String | TOAL String
+    | TOFN String | TOLY String | TOPY String | TOPE String
+    | TORY String | TOWN String | TPE1 String | TPE2 String
+    | TPE3 String | TPE4 String | TPOS String | TPUB String
+    | TRCK String | TRDA String | TRSN String | TRSO String
+    | TSIZ String | TSRC String | TSSE String | TYER String
     deriving (Show, Eq, Read)
 
-data Header = Header { version :: Version
+data Header = Header { version :: Maybe Version
                      , flags :: B.ByteString
                      , siz :: Word32
                      , body :: B.ByteString }
@@ -92,7 +51,6 @@ data Header = Header { version :: Version
 
 -- | The different id3 versions
 data Version = ID3v1 | ID3v2 | ID3v2_2 | ID3v2_4
-    | Uknown
     deriving (Show, Eq)
 
 -- | A ID3 Frame contains flags, theese are not considered in this file!!
@@ -102,12 +60,17 @@ data Frame = Frame { id      :: B.ByteString
                    , content :: B.ByteString }
     deriving Eq
 
+-- | This instance will make it easier to avoid parsing, instead we can use
+-- read
 instance Show Frame where
     show (Frame id _ _ c) = B.unpack id ++ " \"" ++ B.unpack c ++ "\""
 
+-- | Produce a list of ID3 information instead of a list of frames containing
+-- unneccessary information.
 frameToData :: [Frame] -> [ID3]
 frameToData = map (read . show)
 
+-- | Simple test function
 mains :: IO ()
 mains = do content <- B.readFile "song.mp3"
            let (Just x) = getId3v2_2 content
@@ -115,11 +78,13 @@ mains = do content <- B.readFile "song.mp3"
            print $ frameToData x
            return () -- $ frameToData x
 
+-- | Will if possible extract frames from an mp3 file that is given as a 
+-- ByteString as input.
 getId3v2_2 :: B.ByteString -> Maybe [Frame]
 getId3v2_2 content = let (tags,rest)  = B.splitAt 3 content
                          (ver, rest') = B.splitAt 2 rest
                          ver'         = version' ver 
-                         res = if (tags == tag && ver' == ID3v2_2) then
+                         res = if (tags == tag && ver' == Just ID3v2_2) then
                                calID3 ver' rest'
                                else Nothing
                      in res
@@ -127,7 +92,7 @@ getId3v2_2 content = let (tags,rest)  = B.splitAt 3 content
           calID3 v rs = let (flags, rest) = B.splitAt 1 rs
                             (size, rest') = B.splitAt 4 rest
                             sizes           = byteSize $ Bc.unpack size
-                            body = filt $ B.take (fromIntegral sizes) rest'
+                            body = filtNull $ B.take (fromIntegral sizes) rest'
                         in Just $ id3Frames (B.take (fromIntegral sizes) rest')
                         -- B.take (fromIntegral sizes) rest'
                         -- Header v flags (fromIntegral sizes) body
@@ -150,11 +115,12 @@ getID3v1 f = let l = B.length f
                  (comment, r)    = B.splitAt 30 rest'''
              in (tag, title, artist, album, year, comment, filter (== 0) (Bc.unpack r))
 
--- Filter all \NUL and dirty data
-filt :: B.ByteString -> B.ByteString
-filt r = Bc.filter (flip notElem [ 0x00 -- \NUL
+-- Filter all \NUL data
+filtNull :: B.ByteString -> B.ByteString
+filtNull r = Bc.filter (flip notElem [ 0x00 -- \NUL
                                  ]) r
 
+-- | Collect ID3 frames
 id3Frames :: B.ByteString -> [Frame]
 id3Frames bs  | B.null bs = []
               | otherwise
@@ -164,7 +130,7 @@ id3Frames bs  | B.null bs = []
           sizeInt = fromIntegral . calcVal . map fromIntegral $ Bc.unpack size
           (content, bs')  = B.splitAt sizeInt rest''
       in if (notElem id unsup) then
-            (Frame id sizeInt flags (filt content)):id3Frames bs'
+            (Frame id sizeInt flags (filtNull content)):id3Frames bs'
             else id3Frames bs'
     where calcVal :: [Word32] -> Word32
           calcVal (x0:x1:x2:x3:[]) = let x0' = shiftL x0 24
@@ -172,17 +138,18 @@ id3Frames bs  | B.null bs = []
                                          x2' = shiftL x2 8
                                      in x0' .|. x1' .|. x2' .|. x3
 
--- The first TAG indicating we have an id3 tag
+-- | The first TAG indicating we have an id3 tag
 tag :: B.ByteString
 tag = Bc.pack [ 0x49
               , 0x44
               , 0x33]
 
-version' :: B.ByteString -> Version
-version' r | r == v2    = ID3v2
-           | r == v2_2  = ID3v2_2
-           | r == v2_4  = ID3v2_4
-           | otherwise = Uknown
+-- | Checks which version of ID3 the file is using
+version' :: B.ByteString -> Maybe Version
+version' r | r == v2    = Just ID3v2
+           | r == v2_2  = Just ID3v2_2
+           | r == v2_4  = Just ID3v2_4
+           | otherwise = Nothing
     where v2 :: B.ByteString
           v2 = Bc.pack [ 0x02
                        , 0x00]
