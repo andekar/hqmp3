@@ -28,7 +28,7 @@ type Volume       = Int
 type Username     = String
 type Password     = String
 
-data PlayerCommand = NexSong
+data PlayerCommand = NextSong
 
 data (Ord a, Ord b) => ServerState a b = ServerState
              { playlist   :: !(Playlist a)
@@ -130,8 +130,11 @@ instance Read ClockTime where
 -- Types used primarily in the parser below
 --
 
--- Write real show instances for these TODO
-data Ok  = Ok | ListOk deriving Show
+type Reply = Either Ack Ok
+data Ok  = Ok | ListOk 
+instance Show Ok where
+    show Ok     = "OK"
+    show ListOk = "list_OK"
 data Ack = Ack         deriving Show
 
 data Command = 
@@ -170,10 +173,10 @@ data Command =
     | Move (Either Int (Int, Int)) Int
     | MoveId Int Int
     | Playlist
-    | PlaylistFind -- todo
+    | PlaylistFind Tag
     | PlaylistId (Maybe Int)
     | PlaylistInfo (Maybe (Either Int (Int, Int)))
-    | PlaylistSearch -- todo
+    | PlaylistSearch Tag
     | PlChanges Int
     | PlChangesPosId Int
     | Shuffle (Maybe (Int, Int))
@@ -192,14 +195,14 @@ data Command =
     | Rm String
     | Save String
     -- The music database
-    | Count -- todo
-    | Find -- todo
-    | FindAdd -- todo
-    | List -- todo
+    | Count Tag
+    | Find Tag -- not a full tag, see Parser
+    | FindAdd Tag 
+    | List ListTag
     | ListAll (Maybe FilePath)
     | ListAllInfo (Maybe FilePath)
     | LsInfo (Maybe FilePath)
-    | Search --todo
+    | Search Tag -- not a full tag, see Parser TODO
     | Update (Maybe String)
     -- Stickers
     | Sticker -- todo, contain a sticker type?
@@ -217,4 +220,22 @@ data Command =
     | NotCommands
     | TagTypes
     | URLHandlers
-    deriving (Show,Eq)
+
+data ListTag = 
+    ListArtist
+  | ListAlbum (Maybe String)
+
+data Tag = 
+    Artist String 
+  | Album String
+  | AlbumArtist String
+  | Title String
+  | Track Int
+  | Name String
+  | Genre String
+  | Date String
+  | Composer String
+  | Performer String
+  | Comment String
+  | Disc Int
+

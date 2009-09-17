@@ -1,7 +1,6 @@
 module Network.Parser ( parseCommand ) where
 
 import Network.ApplicativeParsec
-import Data.Char
 import Types
 
 -- Entrypoint to parsing
@@ -57,8 +56,8 @@ pCListEnd     = string "command_list_end"      *> pure CListEnd
 -- Querying status
 pClearError  = string "clearerror"  *> pure ClearError
 pCurrentSong = string "currentsong" *> pure CurrentSong
-pStatus      = Status <$ string "status"
-pStats       = Stats  <$ string "stats"
+pStatus      = string "status"      *> pure Status
+pStats       = string "stats"       *> pure Stats
 pIdle        = string "idle"        *> (Idle <$> optional (
                              string "database"        <||> string "update"
                         <||> string "stored_playlist" <||> string "playlist"
@@ -92,17 +91,37 @@ pDelete   = string "delete"   *> (Delete   <$> pNum)
 pDeleteId = string "deleteid" *> (DeleteId <$> pNum)
 pSwap     = string "swap"     *> (Swap     <$> pNum <*> pNum)
 pSwapId   = string "swapid"   *> (SwapId   <$> pNum <*> pNum)
-pShuffle  = string "shuffle"  *> (Shuffle  <$> optional (pTuple pNum pNum))
+pShuffle  = string "shuffle"  *> (Shuffle  <$> optional (pTuple pNum pNum)) -- fixme with :
 pMoveId   = string "moveid"   *> (MoveId   <$> pNum <*> pNum)
-pMove     = string "move"     *> (Move     <$> pEither pNum (pTuple pNum pNum)
+pMove     = string "move"     *> (Move     <$> pEither pNum (pTuple pNum pNum) --fixme with :
                                            <*> pNum)
 pPlChanges      = string "plchanges"      *> (PlChanges      <$> pNum)
 pPlChangesPosId = string "plchangesposid" *> (PlChangesPosId <$> pNum)
 pPlaylistId     = string "playlistid"     *> (PlaylistId     <$> optional pNum)
 pPlaylistInfo   = string "playlistinfo"   *> (PlaylistInfo   <$> optional 
                                              (pEither pNum (pTuple pNum pNum)))
-pPlaylistSearch = undefined --TODO
-pPlaylistFind   = undefined --TODO
+pPlaylistSearch = string "playlistsearch" *> (PlaylistSearch <$> pTag)
+pPlaylistFind   = string "playlistfind"   *> (PlaylistFind   <$> pTag)
+
+-- Only used by playlistsearch and playlistfind, above
+pTag = pArtist          <||> pAlbum      <||> pAlbumArtist
+  <||> pTitle           <||> pTrack      <||> pName
+  <||> pGenre           <||> pDate       <||> pComposer
+  <||> pPerformer       <||> pComment    <||> pDisc
+
+-- All those are TAGs
+pArtist      = string "Artist"      *> (Artist      <$> pString)
+pAlbum       = string "Album"       *> (Album       <$> pString)
+pAlbumArtist = string "AlbumArtist" *> (AlbumArtist <$> pString)
+pTitle       = string "Title"       *> (Title       <$> pString)
+pTrack       = string "Track"       *> (Track       <$> pNum)
+pName        = string "Name"        *> (Name        <$> pString)
+pGenre       = string "Genre"       *> (Genre       <$> pString)
+pDate        = string "Date"        *> (Date        <$> pString)
+pComposer    = string "Composer"    *> (Composer    <$> pString)
+pPerformer   = string "Performer"   *> (Performer   <$> pString)
+pComment     = string "Comment"     *> (Comment     <$> pString)
+pDisc        = string "Disc"        *> (Disc        <$> pNum)
 
 -- Stored playlists
 pLoad           = string "load"   *> (Load   <$> pString)
@@ -121,11 +140,15 @@ pListplaylist     = string "listplaylist"     *> (Listplaylist     <$> pString)
 pListplaylistInfo = string "listplaylistinfo" *> (ListplaylistInfo <$> pString)
 
 -- The music database, mostly TODO here ;-)
-pCount       = undefined
-pFind        = undefined
-pFindAdd     = undefined
-pList        = undefined
-pSearch      = undefined
+pCount       = string "count"       *> (Count       <$> pTag)
+pFind        = string "find"        *> (Find        <$> (pAlbum <||> pArtist 
+                                                                <||> pTitle))
+pFindAdd     = string "findadd"     *> (FindAdd     <$> pTag)
+pList        = string "list"        *> (List        <$> (
+                                (pString *> pure ListArtist)
+                           <||> (pString *> (ListAlbum <$> optional pString))))
+pSearch      = string "search"      *> (Search      <$> (pAlbum <||> pArtist
+                                                    <||> pAlbum <||> pString))
 pListAll     = string "listall"     *> (ListAll     <$> optional pString)
 pListAllInfo = string "listallinfo" *> (ListAllInfo <$> optional pString)
 pLsInfo      = string "lsinfo"      *> (LsInfo      <$> optional pString)
@@ -156,10 +179,7 @@ pURLHandlers = string "urlhandlers" *> pure URLHandlers
 --
 
 pBool       = digit >>= return . (== '1')
-pNum        = many1 digit >>= return . toNumber
+pNum        = many1 digit >>= return . read
 pTuple f g  = f >>= \a -> g >>= \b -> return (a,b)
 pEither l r = (Left <$> l) <|> (Right <$> r)
 pString     = many1 anyChar
-
-toNumber :: [Char] -> Int
-toNumber xs = foldl (\a x -> a*10 + (ord x - 48)) 0 xs
