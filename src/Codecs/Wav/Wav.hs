@@ -37,9 +37,10 @@ data DataChunk = DataChunk { dchId   :: String
                            }
     deriving Show
 
-mains = do src <- B.readFile "song.wav"
-           print $ getRiffChunk src
-           return ()
+mains :: FilePath -> IO ()
+mains f = do src <- B.readFile f 
+             print $ getRiffChunk src
+             return ()
 
 getRiffChunk :: B.ByteString -> RiffChunk
 getRiffChunk src = let (ids, bs')   = B.splitAt 4 src
