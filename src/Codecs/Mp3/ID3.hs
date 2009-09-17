@@ -3,10 +3,10 @@ import qualified Data.ByteString as Bc
 import qualified Data.ByteString.Char8 as B
 import Data.Word
 import Data.Bits
-import ApplicativeParsec
 import Data.Maybe
 
 -- | A list of not supported frames
+unsup :: [B.ByteString]
 unsup = map B.pack 
         [ "AENC"
         , "APIC"
@@ -108,12 +108,14 @@ instance Show Frame where
 frameToData :: [Frame] -> [ID3]
 frameToData = map (read . show)
 
+mains :: IO ()
 mains = do content <- B.readFile "song.mp3"
            let (Just x) = getId3v2_2 content
            print x
            print $ frameToData x
            return () -- $ frameToData x
 
+getId3v2_2 :: B.ByteString -> Maybe [Frame]
 getId3v2_2 content = let (tags,rest)  = B.splitAt 3 content
                          (ver, rest') = B.splitAt 2 rest
                          ver'         = version' ver 
@@ -131,6 +133,13 @@ getId3v2_2 content = let (tags,rest)  = B.splitAt 3 content
                         -- Header v flags (fromIntegral sizes) body
 
 -- | Get ID3v1
+getID3v1 :: B.ByteString -> (  B.ByteString
+                            , B.ByteString
+                            , B.ByteString
+                            , B.ByteString
+                            , B.ByteString
+                            , B.ByteString
+                            , [Word8])
 getID3v1 f = let l = B.length f
                  (_, con)        = B.splitAt (l - 128) f
                  (tag, con')     = B.splitAt 3 con
@@ -142,6 +151,7 @@ getID3v1 f = let l = B.length f
              in (tag, title, artist, album, year, comment, filter (== 0) (Bc.unpack r))
 
 -- Filter all \NUL and dirty data
+filt :: B.ByteString -> B.ByteString
 filt r = Bc.filter (flip notElem [ 0x00 -- \NUL
                                  ]) r
 
@@ -168,6 +178,7 @@ tag = Bc.pack [ 0x49
               , 0x44
               , 0x33]
 
+version' :: B.ByteString -> Version
 version' r | r == v2    = ID3v2
            | r == v2_2  = ID3v2_2
            | r == v2_4  = ID3v2_4
