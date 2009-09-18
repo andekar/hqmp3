@@ -4,7 +4,7 @@ import Network.ApplicativeParsec
 import Types
 
 -- Entrypoint to parsing
-parseCommand = parse pCommand "(unknown)"
+parseCommand = parse pCommand "()"
 pCommand     =  pCListBegin     <||> pCListOkBegin  <||> pCListEnd
             -- Querying status
            <||> pClearError     <||> pCurrentSong   <||> pStatus
@@ -91,9 +91,11 @@ pDelete   = string "delete"   *> (Delete   <$> pNum)
 pDeleteId = string "deleteid" *> (DeleteId <$> pNum)
 pSwap     = string "swap"     *> (Swap     <$> pNum <*> pNum)
 pSwapId   = string "swapid"   *> (SwapId   <$> pNum <*> pNum)
-pShuffle  = string "shuffle"  *> (Shuffle  <$> optional (pTuple pNum pNum)) -- fixme with :
+-- fixme with : below
+pShuffle  = string "shuffle"  *> (Shuffle  <$> optional (pTuple pNum pNum)) 
 pMoveId   = string "moveid"   *> (MoveId   <$> pNum <*> pNum)
-pMove     = string "move"     *> (Move     <$> pEither pNum (pTuple pNum pNum) --fixme with :
+--fixme with : below
+pMove     = string "move"     *> (Move     <$> pEither pNum (pTuple pNum pNum) 
                                            <*> pNum)
 pPlChanges      = string "plchanges"      *> (PlChanges      <$> pNum)
 pPlChangesPosId = string "plchangesposid" *> (PlChangesPosId <$> pNum)
@@ -168,7 +170,8 @@ pSetSticker = string "set" *> (StickerSet <$> pString <*> pString
 pDelSticker = string "delete" *> (StickerDel <$> pString <*> pString
                                              <*> pString)
 pListSticker = string "list" *> (StickerList <$> pString <*> pString)
-pFindSticker = string "find" *> (StickerFind <$> pString <*> pString <*> pString)
+pFindSticker = string "find" *> (StickerFind <$> pString <*> pString 
+                                                         <*> pString)
 
 -- Connection settings
 pClose    = string "close"    *> pure Close
@@ -194,5 +197,5 @@ pURLHandlers = string "urlhandlers" *> pure URLHandlers
 pBool       = digit >>= return . (== '1')
 pNum        = many1 digit >>= return . read
 pTuple f g  = f >>= \a -> g >>= \b -> return (a,b)
-pEither l r = (Left <$> l) <|> (Right <$> r)
+pEither l r = (Left <$> l) <||> (Right <$> r)
 pString     = many1 anyChar
