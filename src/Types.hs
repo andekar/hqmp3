@@ -18,7 +18,7 @@ type PlayerChan a b = ( Chan (ServerState a b -> ServerState a b)
 type Server a b c = StateT (ServerState a b) IO c
 
 -- Structure          Dir       .mp3s               SubDirs
-data Database = Dir FilePath (Set Song) (Map FilePath Database)
+data Database = Dir FilePath (Set String) (Map FilePath Database)
     deriving (Show, Read)
 
 -- Really, what type should this be?
