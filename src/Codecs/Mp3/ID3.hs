@@ -1,4 +1,14 @@
 -- Comments in this file is partly taken from http://www.id3.org/id3v2.3.0
+module ID3 ( -- functions
+             skipId3
+           , getId3v1
+           , getId3v2_2
+             -- constructors
+           , ID3(..)
+           , Version(..)
+           , Frame (..)) where
+
+
 import qualified Data.ByteString as Bc
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy as L
@@ -50,18 +60,18 @@ data Header = Header { version :: Maybe Version
                      , flags :: B.ByteString
                      , siz :: Word32
                      , body :: B.ByteString }
-    deriving Show
+    deriving (Show, Eq, Read)
 
 -- | The different id3 versions
 data Version = ID3v1 | ID3v2 | ID3v2_2 | ID3v2_4
-    deriving (Show, Eq)
+    deriving (Show, Eq, Read)
 
 -- | A ID3 Frame contains flags, theese are not considered in this file!!
 data Frame = Frame { id      :: B.ByteString
                    , fSize   :: Int
                    , flag    :: B.ByteString
                    , content :: B.ByteString }
-    deriving Eq
+    deriving (Eq, Read)
 
 -- | This instance will make it easier to avoid parsing, instead we can use
 -- read
@@ -82,13 +92,13 @@ mains = do content <- L.readFile "song.mp3"
            return ()
 
 -- | Get ID3v1
-getID3v1 :: Get (  B.ByteString
+getId3v1 :: Get (  B.ByteString
                 , B.ByteString
                 , B.ByteString
                 , B.ByteString
                 , B.ByteString
                 , B.ByteString )
-getID3v1 = do rem     <- remaining
+getId3v1 = do rem     <- remaining
               skip (fromIntegral rem - 128)
               tag     <- getBytes 3
               title   <- getBytes 30
@@ -99,6 +109,26 @@ getID3v1 = do rem     <- remaining
               return (f tag, f title, f artist, f album, f year, f comment)
     where f = Bc.filter (flip notElem [ 0x00 -- \NUL
                                       ])
+
+-- | Skip an ID3 header and frames
+-- first we peek at 3 bytes to check that it indeed is a Id3v2_* tag at the
+-- beginning of the stream we are given. This function is lazy and might need
+-- to be changes into a strict if we have speed issues
+skipId3 :: Get (Maybe B.ByteString)
+skipId3 = do maybeTag <- lookAhead checkTag
+             case maybeTag of
+                 Just x ->  do skip 6 -- skip TAG, version and flags
+                               size <- getBytes 4
+                               let size' = byteSize size
+                               skip size'
+                               return $ Just size
+                 Nothing -> return Nothing
+
+    where checkTag = do tag <- getBytes 3
+                        case tag == B.pack "TAG" of
+                            True  -> return $ Just tag
+                            False -> return Nothing
+          byteSize = fromIntegral . getSize . (map fromIntegral) . Bc.unpack
 
 -- | Will if possible extract frames from an mp3 file that is given as a 
 -- ByteString as input.
@@ -115,7 +145,6 @@ getId3v2_2 = do tags <- getBytes 3
                         body <- getLazyByteString sizes
                         return $ Just $ runGet id3Frames body
           byteSize = fromIntegral . getSize . (map fromIntegral) . Bc.unpack
-
 
 -- | Collect ID3 frames
 id3Frames :: Get [Frame]
@@ -144,7 +173,6 @@ filtNull :: B.ByteString -> B.ByteString
 filtNull r = Bc.filter (flip notElem [ 0x00 -- \NUL
                                  ]) r
 
-
 -- | The first TAG indicating we have an id3 tag
 tag :: B.ByteString
 tag = Bc.pack [ 0x49
@@ -170,6 +198,8 @@ version' r | r == v2    = Just ID3v2
                          , 0x00]
 
 -- The size is calculated from 4 Word8 that is concatenated into a Word32
+-- in this calcualtion the most significant bit is unused and should not be
+-- considered in the calculation.
 getSize :: [Word32] -> Word32
 getSize (x0:x1:x2:x3:[])
     = let x0' = shiftL x0 21
