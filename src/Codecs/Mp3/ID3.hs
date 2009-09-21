@@ -1,6 +1,6 @@
 {-# OPTIONS -w #-}
 -- Comments in this file is partly taken from http://www.id3.org/id3v2.3.0
-module ID3 ( -- functions
+module Codecs.Mp3.ID3 ( -- functions
              skipId3
            , getId3v1
            , getId3v2_2
@@ -93,7 +93,7 @@ mains = do content <- L.readFile "song.mp3"
            return ()
 
 -- | Get ID3v1
-getId3v1 :: Get (  B.ByteString
+getId3v1 :: Get ( B.ByteString
                 , B.ByteString
                 , B.ByteString
                 , B.ByteString
