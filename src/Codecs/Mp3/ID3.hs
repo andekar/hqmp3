@@ -1,3 +1,4 @@
+{-# OPTIONS -w #-}
 -- Comments in this file is partly taken from http://www.id3.org/id3v2.3.0
 module ID3 ( -- functions
              skipId3

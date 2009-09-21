@@ -1,3 +1,4 @@
+{-# OPTIONS -w #-}
 -- This module can extract PCM data and frequensies from WAV files.
 module Codecs.Wav.Wav ( RiffChunk(..)
            , Chunkdata(..)
