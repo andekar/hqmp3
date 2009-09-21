@@ -4,7 +4,6 @@ import qualified Data.ByteString.Lazy as B
 import qualified Data.Map as M
 import Data.Word
 import Data.List
-import Data.Bits
 import Data.PriorityQueue
 import Control.Monad.ST
 
