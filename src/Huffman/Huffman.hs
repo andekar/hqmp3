@@ -23,8 +23,8 @@ analyze b = B.foldr f M.empty b
     f w m = M.insertWith (+) w 1 m 
 
 data (Eq a, Num b) => HuffTree a b =
-    Leaf b a
-  | Node b (HuffTree a b) (HuffTree a b)
+    Leaf !b !a
+  | Node !b !(HuffTree a b) !(HuffTree a b)
     deriving Show
 
 instance (Eq a, Num b) => Eq (HuffTree a b) where
