@@ -73,3 +73,9 @@ decode (x:xs) t (Node _ t1 t2) i j
     | otherwise = decode (x:xs) t (tree x i t1 t2) (i+1) j
 
 tree bit num t1 t2 = if testBit bit num then t2 else t1
+
+tree2Map :: (Num b, Num c, Ord a) => HuffTree a b -> c -> M.Map a c -> M.Map a c
+tree2Map (Leaf _ a) i  m    = M.insert a i m
+tree2Map (Node _ t1 t2) i m = 
+    let m' = tree2Map t1 (i*2) m
+    in tree2Map t2 (i*2+1) m'
