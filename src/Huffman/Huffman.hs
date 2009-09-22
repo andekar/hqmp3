@@ -6,6 +6,7 @@ import Data.Word
 import Data.List
 import Data.PriorityQueue
 import Control.Monad.ST
+import Data.Bits
 
 --main :: FilePath -> IO (HuffTree (Word8,Int)) 
 main file = do
@@ -56,3 +57,19 @@ create' p = do
 getVal (Leaf w _)   = w
 getVal (Node w _ _) = w
 
+-- | Decode takes the list of bits, an original tree, an recursed tree
+-- an int describing which bit to check, an int describing the number of
+-- padding bits.
+decode :: (Num b, Eq a) =>
+     [Word8] -> HuffTree a b -> HuffTree a b -> Int -> Int -> [a]
+
+decode xs t (Leaf _ v) i j = v : decode xs t t i j
+decode [] _ _ i j   = if i == j && j == 0 then [] else error "error"
+decode (x:[]) t (Node _ t1 t2) i j
+    | i == j = []
+    | otherwise = decode [x] t (tree x i t1 t2) (i+1) j
+decode (x:xs) t (Node _ t1 t2) i j 
+    | i == 7 = decode xs t (tree x i t1 t2) 0 j
+    | otherwise = decode (x:xs) t (tree x i t1 t2) (i+1) j
+
+tree bit num t1 t2 = if testBit bit num then t2 else t1
