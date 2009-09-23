@@ -19,6 +19,7 @@ import qualified Data.Map as M
 import Data.List
 
 type HuffArray = Array Word8 (Word8,Word8)
+type STHuff s  = STArray s Word8 (Word8,Word8)
 type HuffTree  = Huff.HuffTree Word8 Int
 
 main = test "test"
@@ -26,12 +27,12 @@ main = test "test"
 test :: FilePath -> IO ()
 test file = do
     f <- B.readFile file
-    let analyzed = Huff.create $ M.toList $ Huff.analyze f
---        arr  = tree2arr analyzed
---        res  = encode arr f
+    let freqs = Huff.create $ Huff.analyze f
+        arr  = tree2arr freqs
+        res  = arr `seq` encode arr f
 --        res' = Huff.decode (B.unpack res) analyzed analyzed 0 0
 --        B.writeFile (file++".huff") res
-    analyzed `seq` print "hej" -- arr
+    res `seq` print "hej" -- arr
  where
      s :: (Word8, Int) -> (Word8, Int) -> Ordering
      s (_,i) (_,j) = compare i j
@@ -45,17 +46,18 @@ tree2arr t = runSTArray (do
                 walkTree t arr 0 0
                 return arr)
   where
-    walkTree :: HuffTree -> STArray s Word8 (Word8,Word8) -> Word8 -> Word8 -> ST s ()
+    walkTree :: HuffTree -> STHuff s -> Word8 -> Word8 -> ST s ()
     walkTree (Huff.Leaf _ w) arr i d     = writeArray arr w (i,d)
     walkTree (Huff.Node _ t1 t2) arr i d = do
         walkTree t1 arr (i * 2) (d+1)     -- Left branch
         walkTree t2 arr (i * 2 + 1) (d+1) -- Right branch
 
--- Only for testing, the argument should be between 0 and 8
+-- Only for testing, creates a tree of depth x
 mkTree :: Word8 -> HuffTree
 mkTree 0 = Huff.Leaf 0 3
 mkTree x = Huff.Node 0 (mkTree (x - 1)) (mkTree (x - 1))
 
+-- Wrapper for encode'
 encode :: HuffArray -> B.ByteString -> B.ByteString
 encode arr bs = B.pack $ encode' bs arr 0 8 0
 

@@ -10,22 +10,29 @@ import qualified Data.Map as M
 import Data.Word
 import Data.List
 import Data.PriorityQueue
+import Control.Monad
 import Control.Monad.ST
 import Data.Bits
 import Data.Array.ST
-import Data.Array
+import Data.Array.Unboxed
 
 --main :: FilePath -> IO (HuffTree (Word8,Int)) 
 main file = do
     f <- B.readFile file
-    return $ create $ sortBy s $ M.toList $ analyze f
-  where
-    s :: (Word8, Int) -> (Word8, Int) -> Ordering
-    s (_,i) (_,j) = compare i j
+    return $ create $ analyze f
+
+analyzeArr :: B.ByteString -> [(Word8,Int)]
+analyzeArr b = filter (\(i,e) -> i /= 0) $ assocs $ runSTUArray $ do
+    arr <- newArray (0,255) 0 
+    forM_ [0.. B.length b - 1] $ \i -> do
+        let w = B.index b i
+        val <- readArray arr w
+        writeArray arr w $! (val+1)
+    return arr
 
 -- Can probably be speeded up (TODO)
-analyze :: B.ByteString -> M.Map Word8 Int
-analyze b = B.foldr f M.empty b
+analyze :: B.ByteString -> [(Word8,Int)]
+analyze b = M.toList $ B.foldr f M.empty b
   where
     f :: Word8 -> M.Map Word8 Int -> M.Map Word8 Int
     f w m = M.insertWith (+) w 1 m
