@@ -1,6 +1,8 @@
-module Huffman where
+module Huffman ( analyze
+               , HuffTree (..)
+               , create) where
 
-import qualified Data.ByteString.Lazy as B
+import qualified Data.ByteString as B
 import qualified Data.Map as M
 import Data.Word
 import Data.List
@@ -13,7 +15,7 @@ main file = do
     f <- B.readFile file
     return $ create $ sortBy s $ M.toList $ analyze f
   where
-    s :: (Word8,Int) -> (Word8,Int) -> Ordering
+    s :: (Word8, Int) -> (Word8, Int) -> Ordering
     s (_,i) (_,j) = compare i j
 
 analyze :: B.ByteString -> M.Map Word8 Int
@@ -41,7 +43,8 @@ create xs = runST $ do
     mapM_ (\(e,i) -> enqueue q (Leaf i e)) xs
     create' q
 
-create' :: (Eq a, Num b, Ord b) => PriorityQueue (ST s) (HuffTree a b) -> (ST s (HuffTree a b))
+create' :: (Eq a, Num b, Ord b) => PriorityQueue (ST s) (HuffTree a b)
+           -> (ST s (HuffTree a b))
 create' p = do
     (Just x1) <- dequeue p
     x         <- dequeue p
@@ -67,15 +70,15 @@ decode xs t (Leaf _ v) i j = v : decode xs t t i j
 decode [] _ _ i j   = if i == j && j == 0 then [] else error "error"
 decode (x:[]) t (Node _ t1 t2) i j
     | i == j = []
-    | otherwise = decode [x] t (tree x i t1 t2) (i+1) j
+    | otherwise = decode [x] t (tree x i t1 t2) (i + 1) j
 decode (x:xs) t (Node _ t1 t2) i j 
     | i == 7 = decode xs t (tree x i t1 t2) 0 j
-    | otherwise = decode (x:xs) t (tree x i t1 t2) (i+1) j
+    | otherwise = decode (x:xs) t (tree x i t1 t2) (i + 1) j
 
 tree bit num t1 t2 = if testBit bit num then t2 else t1
 
 tree2Map :: (Num b, Num c, Ord a) => HuffTree a b -> c -> M.Map a c -> M.Map a c
 tree2Map (Leaf _ a) i  m    = M.insert a i m
 tree2Map (Node _ t1 t2) i m = 
-    let m' = tree2Map t1 (i*2) m
-    in tree2Map t2 (i*2+1) m'
+    let m' = tree2Map t1 (i * 2) m
+    in tree2Map t2 (i * 2 + 1) m'
