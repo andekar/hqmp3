@@ -28,7 +28,7 @@ analyze :: B.ByteString -> M.Map Word8 Int
 analyze b = B.foldr f M.empty b
   where
     f :: Word8 -> M.Map Word8 Int -> M.Map Word8 Int
-    f w m = M.insertWith (+) w 1 m 
+    f w m = M.insertWith (+) w 1 m
 
 data (Eq a, Num b) => HuffTree a b =
     Leaf !b !a
@@ -76,15 +76,15 @@ decode xs t (Leaf _ v) i j = v : decode xs t t i j
 decode [] _ _ i j   = if i == j && j == 0 then [] else error "error"
 decode (x:[]) t (Node _ t1 t2) i j
     | i == j = []
-    | otherwise = decode [x] t (tree x i t1 t2) (i + 1) j
-decode (x:xs) t (Node _ t1 t2) i j 
-    | i == 7 = decode xs t (tree x i t1 t2) 0 j
-    | otherwise = decode (x:xs) t (tree x i t1 t2) (i + 1) j
+    | otherwise = decode [x] t (tree x i t1 t2) (i - 1) j
+decode (x:xs) t (Node _ t1 t2) i j
+    | i == 0 = decode xs t (tree x i t1 t2) 7 j
+    | otherwise = decode (x:xs) t (tree x i t1 t2) (i - 1) j
 
 tree bit num t1 t2 = if testBit bit num then t2 else t1
 
 tree2Map :: (Num b, Num c, Ord a) => HuffTree a b -> c -> M.Map a c -> M.Map a c
 tree2Map (Leaf _ a) i  m    = M.insert a i m
-tree2Map (Node _ t1 t2) i m = 
+tree2Map (Node _ t1 t2) i m =
     let m' = tree2Map t1 (i * 2) m
     in tree2Map t2 (i * 2 + 1) m'
