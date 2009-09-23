@@ -19,7 +19,7 @@ data HuffTree =
 
 -- This function takes a Huffman tree (that is the tree that contains the
 -- compressed representations), and creates a kind of HashMap by using
--- the fact that Word8s are never larger than 255, and never smaller that 0
+-- the fact that Word8s are never larger than 255, and never smaller than 0
 tree2arr :: HuffTree -> HuffArray
 tree2arr t = runSTUArray (do
                 arr <- newArray_ (0,255) 
