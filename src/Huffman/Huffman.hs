@@ -1,6 +1,7 @@
 module Huffman ( analyze
                , HuffTree (..)
-               , create) where
+               , create
+               , decode ) where
 
 import qualified Data.ByteString as B
 import qualified Data.Map as M
