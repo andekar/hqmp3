@@ -70,7 +70,8 @@ getDataChunk bs = let (cId, bs')    = B.splitAt 4 bs
                       (cSize, bs'') = B.splitAt 4 bs'
                       cSize'        = calcValue cSize
                       (chunk, _) = B.splitAt cSize' bs''
-                  in DataChunk (B.unpack cId) cSize' chunk
+                  in DataChunk (B.unpack cId) cSize' (chunk' chunk)
+    where chunk' chunk = let (x, _) = B.splitAt 128 chunk in x
 
 -- | calculates a value the "INTEL style"
 calcValue :: B.ByteString -> Int

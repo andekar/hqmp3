@@ -110,6 +110,12 @@ getId3v1 = do rem     <- remaining
               return (f tag, f title, f artist, f album, f year, f comment)
     where f = Bc.filter (flip notElem [ 0x00 -- \NUL
                                       ])
+          track bs = do --let bs' = Bc.unpack (drop 28 bs)
+                        return Nothing
+--                         case head bs' == 0x00 of
+--                             True -> return Nothing
+--                             _ -> return Nothing
+--                      
 
 -- | Skip an ID3 header and frames
 -- first we peek at 3 bytes to check that it indeed is a Id3v2_* tag at the
