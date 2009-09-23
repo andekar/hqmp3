@@ -11,6 +11,7 @@ import Data.Array.Unboxed
 import Data.Array.ST 
 import Control.Monad.ST (ST)
 import qualified Data.ByteString as B
+import Data.Bits
 
 type HuffArray = UArray Word8 Word8
 data HuffTree = 
@@ -38,17 +39,26 @@ mkTree 0 = Leaf 3
 mkTree x = Node (mkTree (x - 1)) (mkTree (x - 1))
 
 encode :: HuffArray -> B.ByteString -> B.ByteString
-encode arr bs = B.pack $ encode' arr bs 0 0
+encode arr bs = B.pack $ encode' bs arr 0 0 0
 
 -- i tells us where in the bytestring we are
 -- j tells us where in i we are
-encode' :: HuffArray -> B.ByteString -> Int -> Int -> [Word8]
-encode' arr bs i j
+encode' :: B.ByteString -> HuffArray -> Int -> Int -> Word8 -> [Word8]
+encode' bs arr i j acc
     | B.length bs == i = []
-    | otherwise      = undefined
-    -- One can "split" a byte with two calls,
-    -- shiftR and shiftL easily
+    | otherwise =
+        let c = arr ! (B.index bs i)
+            b = bits c
+        in allaFlickor c b
   where
+    allaFlickor c b
+        | b < j = let acc' = acc .|. (c `shiftL` (j - b))
+                  in  encode' bs arr (i + 1) (j + b) acc'
+        | b == j = let acc' = acc .|. (c `shiftL` (j - b))
+                  in  acc' : encode' bs arr (i + 1) 0 0
+        | otherwise = let f = c `shiftR` (b - j)
+                          r = c `shiftL` (8 - (b-j))
+                      in  (acc .|. f) : encode' bs arr (i + 1) (8 - (b - j)) r
     -- Check how many bits some number require
     bits w
         | w > 127   = 8
