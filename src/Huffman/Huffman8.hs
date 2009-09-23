@@ -1,4 +1,6 @@
-module HuffMan8 (test) where
+{-# LANGUAGE BangPatterns #-}
+
+module Main (test) where
 
 --
 -- This implementation of Huffman codes is designed to be very specific
@@ -16,17 +18,20 @@ import qualified Huffman as Huff
 import qualified Data.Map as M
 import Data.List
 
-type HuffArray = UArray Word8 Word8
+type HuffArray = Array Word8 (Word8,Word8)
 type HuffTree  = Huff.HuffTree Word8 Int
 
+main = test "test"
+
+test :: FilePath -> IO ()
 test file = do
     f <- B.readFile file
-    let analyzed = Huff.create $ sortBy s $ M.toList $ Huff.analyze f
-        arr  = tree2arr analyzed
-        res  = encode arr f
-        res' = Huff.decode (B.unpack res) analyzed analyzed 0 0
-    print res
-    return ()
+    let analyzed = Huff.create $ M.toList $ Huff.analyze f
+--        arr  = tree2arr analyzed
+--        res  = encode arr f
+--        res' = Huff.decode (B.unpack res) analyzed analyzed 0 0
+--        B.writeFile (file++".huff") res
+    analyzed `seq` print "hej" -- arr
  where
      s :: (Word8, Int) -> (Word8, Int) -> Ordering
      s (_,i) (_,j) = compare i j
@@ -35,16 +40,16 @@ test file = do
 -- compressed representations), and creates a kind of HashMap by using
 -- the fact that Word8s are never larger than 255, and never smaller than 0
 tree2arr :: HuffTree -> HuffArray
-tree2arr t = runSTUArray (do
+tree2arr t = runSTArray (do
                 arr <- newArray_ (0, 255)
-                walkTree t arr 0
+                walkTree t arr 0 0
                 return arr)
   where
-    walkTree :: HuffTree -> STUArray s Word8 Word8 -> Word8 -> ST s ()
-    walkTree (Huff.Leaf _ w) arr i     = writeArray arr i w
-    walkTree (Huff.Node _ t1 t2) arr i = do
-        walkTree t1 arr (i * 2)     -- Left branch
-        walkTree t2 arr (i * 2 + 1) -- Right branch
+    walkTree :: HuffTree -> STArray s Word8 (Word8,Word8) -> Word8 -> Word8 -> ST s ()
+    walkTree (Huff.Leaf _ w) arr i d     = writeArray arr w (i,d)
+    walkTree (Huff.Node _ t1 t2) arr i d = do
+        walkTree t1 arr (i * 2) (d+1)     -- Left branch
+        walkTree t2 arr (i * 2 + 1) (d+1) -- Right branch
 
 -- Only for testing, the argument should be between 0 and 8
 mkTree :: Word8 -> HuffTree
@@ -58,11 +63,10 @@ encode arr bs = B.pack $ encode' bs arr 0 8 0
 -- j tells us where in i we are
 encode' :: B.ByteString -> HuffArray -> Int -> Int -> Word8 -> [Word8]
 encode' bs arr i j acc
-    | B.length bs == i = []
+    | B.length bs == i = [acc]
     | otherwise =
-        let c = arr ! (B.index bs i)
-            b = bits c
-        in calcWords c b
+        let !(c,b) = arr ! (B.index bs i)
+        in calcWords c (fromIntegral b)
   where
     calcWords c b
          | b < j = let acc' = acc .|. (c `shiftL` (j - b))
@@ -72,13 +76,3 @@ encode' bs arr i j acc
          | otherwise = let f = c `shiftR` (b - j)
                            r = c `shiftL` (8 - (b - j))
                        in  (acc .|. f) : encode' bs arr (i + 1) (8 - (b - j)) r
-    -- Check how many bits some number require
-    bits w
-        | w > 127   = 8
-        | w > 63    = 7
-        | w > 31    = 6
-        | w > 15    = 5
-        | w > 7     = 4
-        | w > 3     = 3
-        | w > 1     = 2
-        | otherwise = 1

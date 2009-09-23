@@ -1,3 +1,5 @@
+{-# LANGUAGE BangPatterns #-}
+
 module Huffman ( analyze
                , HuffTree (..)
                , create
@@ -10,6 +12,8 @@ import Data.List
 import Data.PriorityQueue
 import Control.Monad.ST
 import Data.Bits
+import Data.Array.ST
+import Data.Array
 
 --main :: FilePath -> IO (HuffTree (Word8,Int)) 
 main file = do
@@ -19,6 +23,7 @@ main file = do
     s :: (Word8, Int) -> (Word8, Int) -> Ordering
     s (_,i) (_,j) = compare i j
 
+-- Can probably be speeded up (TODO)
 analyze :: B.ByteString -> M.Map Word8 Int
 analyze b = B.foldr f M.empty b
   where
