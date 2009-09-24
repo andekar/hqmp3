@@ -1,7 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# OPTIONS -Wall #-}
 
-module Main where
+module Main (decoder, encoder) where
 
 --
 -- This implementation of Huffman codes is designed to be very specific
@@ -12,23 +12,32 @@ module Main where
 import Data.Word (Word8)
 import Data.Array.Unboxed
 import Data.Array.ST
-import Control.Monad.ST (ST)
+import Control.Monad.ST (ST, runST)
 import Control.Monad (forM_)
 import qualified Data.ByteString as B
 import Data.Bits
 import qualified Huffman as Huff
 import Data.List
 import System.Environment
+import Data.PriorityQueue
+
 
 type HuffArray = Array Word8 (Word8,Word8)
 type STHuff s  = STArray s Word8 (Word8,Word8)
 type HuffTree  = Huff.HuffTree Word8 Int
 
+-- Simple main function
+main :: IO ()
 main = do
-    [m,f] <- getArgs
-    case m of
-        "encode" -> encoder f
-        "decode" -> decoder f
+    args <- getArgs
+    case args of
+        [m,f] -> case m of
+            "encode" -> encoder f
+            "decode" -> decoder f
+            _        -> print "valid actions are \"encode\" and \"decode\""
+        [_] -> print "you need to supply a file"
+        []  -> print "you need to supply action and file"
+        _   -> print "usage: program <action> <file>"
 
 decoder :: FilePath -> IO ()
 decoder file = do
@@ -36,27 +45,38 @@ decoder file = do
     let !tree = read treeFile :: HuffTree
     enc <- B.readFile file
     let res = Huff.decode (B.unpack enc) tree tree 7 0
-    print res
+    return ()
 
 encoder :: FilePath -> IO ()
 encoder file = do
     f <- B.readFile file
     f `seq` print "Read file"
-    let freqs  = Huff.create $ analyze f
-        arr  = tree2arr freqs
+    let tree  = runST (analyze f >>= createArr)
+        arr  = tree2arr tree
         (res, pad)  = encode arr f
     B.writeFile (file ++ ".huff") res
-    writeFile (file ++ ".huff.tree") (show freqs)
+    writeFile (file ++ ".huff.tree") (show tree)
 
--- This should be a faster version
-analyze :: B.ByteString -> [(Word8,Int)]
-analyze b = filter ((0 /=) . snd) $ assocs $ runSTUArray $ do
-    arr <- newArray (0, 255) 0 
+-- One would want to be able to use only the array
+analyze :: B.ByteString -> ST s (STUArray s Word8 Int)
+analyze b = do
+    arr <- newArray (0, 255) 0
     forM_ [0.. B.length b - 1] $ \i -> do
         let !w = B.index b i
         val <- readArray arr w
         writeArray arr w $! (val + 1)
     return arr
+
+-- This one should execute faster than the
+createArr :: STUArray s Word8 Int -> ST s HuffTree
+createArr arr = do
+    q <- newPriorityQueue id
+    (l,h) <- getBounds arr 
+    forM_ [l..h] $ \i -> do
+        !e <- readArray arr i
+        if e /= 0 then enqueue q (Huff.Leaf e i)
+                     else return ()
+    Huff.create' q
 
 -- This function takes a Huffman tree (that is the tree that contains the
 -- compressed representations), and creates a kind of HashMap by using
