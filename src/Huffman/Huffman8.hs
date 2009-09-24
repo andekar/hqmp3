@@ -1,6 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
+{-# OPTIONS -Wall #-}
 
-module Main (test) where
+module Main where
 
 --
 -- This implementation of Huffman codes is designed to be very specific
@@ -16,27 +17,36 @@ import Control.Monad (forM_)
 import qualified Data.ByteString as B
 import Data.Bits
 import qualified Huffman as Huff
-import qualified Data.Map as M
 import Data.List
-import Data.Char (chr)
+import System.Environment
 
 type HuffArray = Array Word8 (Word8,Word8)
 type STHuff s  = STArray s Word8 (Word8,Word8)
 type HuffTree  = Huff.HuffTree Word8 Int
 
-main = test "test"
+main = do
+    [m,f] <- getArgs
+    case m of
+        "encode" -> encoder f
+        "decode" -> decoder f
 
-test :: FilePath -> IO ()
-test file = do
+decoder :: FilePath -> IO ()
+decoder file = do
+    treeFile <- readFile $ file++".tree"
+    let !tree = read treeFile :: HuffTree
+    enc <- B.readFile file
+    let res = Huff.decode (B.unpack enc) tree tree 7 0
+    print res
+
+encoder :: FilePath -> IO ()
+encoder file = do
     f <- B.readFile file
     f `seq` print "Read file"
     let freqs  = Huff.create $ analyze f
         arr  = tree2arr freqs
-        (res, pad)  = arr `seq` encode arr f
-        res' = Huff.decode (B.unpack res) freqs
-               freqs 7 (fromIntegral $ head $ B.unpack pad)
-    print $ res' == (B.unpack f)
-    arr `seq` print "Done"
+        (res, pad)  = encode arr f
+    B.writeFile (file ++ ".huff") res
+    writeFile (file ++ ".huff.tree") (show freqs)
 
 -- This should be a faster version
 analyze :: B.ByteString -> [(Word8,Int)]
@@ -63,23 +73,19 @@ tree2arr t = runSTArray (do
         walkTree t1 arr (i * 2) (d + 1)     -- Left branch
         walkTree t2 arr (i * 2 + 1) (d + 1) -- Right branch
 
--- Only for testing, creates a tree of depth x
-mkTree :: Word8 -> HuffTree
-mkTree 0 = Huff.Leaf 0 3
-mkTree x = Huff.Node 0 (mkTree (x - 1)) (mkTree (x - 1))
-
 -- Wrapper for encode'
 -- the second in the tuple describes the number of "padding" bits
-encode :: HuffArray -> B.ByteString -> (B.ByteString, B.ByteString)
-encode arr bs = let bs = B.pack $ encode' bs arr 0 8 0
-                in B.splitAt (B.length bs - 1) bs
+encode :: HuffArray -> B.ByteString -> (B.ByteString,Word8)
+encode arr bs = (B.init bs', B.last bs')
+  where
+    bs' = B.pack $ encode' bs arr 0 8 0
 
 -- i tells us where in the bytestring we are
 -- j tells us what is left in i
 encode' :: B.ByteString -> HuffArray -> Int -> Int -> Word8 -> [Word8]
 encode' bs arr i j acc
       -- add the number of bits that is padding
-    | B.length bs == i = acc:[fromIntegral i]
+    | B.length bs == i = acc : [fromIntegral j]
     | otherwise =
         let !(c,b) = arr ! (B.index bs i)
         in calcWords c (fromIntegral b)

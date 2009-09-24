@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
+{-# OPTIONS -Wall #-}
 
 module Huffman ( analyze
                , HuffTree (..)
@@ -29,7 +30,7 @@ analyze b = M.toList $ B.foldr f M.empty b
 data (Eq a, Num b) => HuffTree a b =
     Leaf !b !a
   | Node !b !(HuffTree a b) !(HuffTree a b)
-    deriving Show
+    deriving (Show,Read)
 
 instance (Eq a, Num b) => Eq (HuffTree a b) where
     Leaf b a     == Leaf b' a'      = b == b && a == a'
@@ -61,17 +62,23 @@ create' p = do
 
 getVal (Leaf w _)   = w
 getVal (Node w _ _) = w
-
--- | Decode takes the list of bits, an original tree, an recursed tree
--- an int describing which bit to check, an int describing the number of
--- padding bits.
+ 
+-- Decodes a list of Words, using a Huffman tree
+-- 
+-- xs is the list of words
+-- t is the huffman tree
+-- the other tree is also a huffman tree, recursed on
+-- i is the current bit in the current byte, sort of 
+-- j is how many padding bits this stream has
+--
+-- Please do not change this code, checks are not checked
 decode :: (Num b, Eq a) =>
      [Word8] -> HuffTree a b -> HuffTree a b -> Int -> Int -> [a]
 
 decode xs t (Leaf _ v) i j = v : decode xs t t i j
 decode [] _ _ i j   = if i == j && j == 0 then [] else error "error"
 decode (x:[]) t (Node _ t1 t2) i j
-    | i == j = []
+    | i+1 == j = [] 
     | otherwise = decode [x] t (tree x i t1 t2) (i - 1) j
 decode (x:xs) t (Node _ t1 t2) i j
     | i == 0 = decode xs t (tree x i t1 t2) 7 j
