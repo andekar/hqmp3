@@ -32,19 +32,20 @@ test file = do
     f `seq` print "Read file"
     let freqs  = Huff.create $ analyze f
         arr  = tree2arr freqs
-        res  = arr `seq` encode arr f
-        res' = Huff.decode (B.unpack res) freqs freqs 7 0
+        (res, pad)  = arr `seq` encode arr f
+        res' = Huff.decode (B.unpack res) freqs
+               freqs 7 (fromIntegral $ head $ B.unpack pad)
     print $ res' == (B.unpack f)
     arr `seq` print "Done"
 
 -- This should be a faster version
 analyze :: B.ByteString -> [(Word8,Int)]
 analyze b = filter ((0 /=) . snd) $ assocs $ runSTUArray $ do
-    arr <- newArray (0,255) 0 
+    arr <- newArray (0, 255) 0 
     forM_ [0.. B.length b - 1] $ \i -> do
         let !w = B.index b i
         val <- readArray arr w
-        writeArray arr w $! (val+1)
+        writeArray arr w $! (val + 1)
     return arr
 
 -- This function takes a Huffman tree (that is the tree that contains the
@@ -59,8 +60,8 @@ tree2arr t = runSTArray (do
     walkTree :: HuffTree -> STHuff s -> Word8 -> Word8 -> ST s ()
     walkTree (Huff.Leaf _ w) arr i d     = writeArray arr w (i,d)
     walkTree (Huff.Node _ t1 t2) arr i d = do
-        walkTree t1 arr (i * 2) (d+1)     -- Left branch
-        walkTree t2 arr (i * 2 + 1) (d+1) -- Right branch
+        walkTree t1 arr (i * 2) (d + 1)     -- Left branch
+        walkTree t2 arr (i * 2 + 1) (d + 1) -- Right branch
 
 -- Only for testing, creates a tree of depth x
 mkTree :: Word8 -> HuffTree
@@ -68,14 +69,17 @@ mkTree 0 = Huff.Leaf 0 3
 mkTree x = Huff.Node 0 (mkTree (x - 1)) (mkTree (x - 1))
 
 -- Wrapper for encode'
-encode :: HuffArray -> B.ByteString -> B.ByteString
-encode arr bs = B.pack $ encode' bs arr 0 8 0
+-- the second in the tuple describes the number of "padding" bits
+encode :: HuffArray -> B.ByteString -> (B.ByteString, B.ByteString)
+encode arr bs = let bs = B.pack $ encode' bs arr 0 8 0
+                in B.splitAt (B.length bs - 1) bs
 
 -- i tells us where in the bytestring we are
--- j tells us where in i we are
+-- j tells us what is left in i
 encode' :: B.ByteString -> HuffArray -> Int -> Int -> Word8 -> [Word8]
 encode' bs arr i j acc
-    | B.length bs == i = [acc]
+      -- add the number of bits that is padding
+    | B.length bs == i = acc:[fromIntegral i]
     | otherwise =
         let !(c,b) = arr ! (B.index bs i)
         in calcWords c (fromIntegral b)
