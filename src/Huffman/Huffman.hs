@@ -13,22 +13,11 @@ import Data.PriorityQueue
 import Control.Monad
 import Control.Monad.ST
 import Data.Bits
-import Data.Array.ST
-import Data.Array.Unboxed
 
 --main :: FilePath -> IO (HuffTree (Word8,Int)) 
 main file = do
     f <- B.readFile file
     return $ create $ analyze f
-
-analyzeArr :: B.ByteString -> [(Word8,Int)]
-analyzeArr b = filter (\(i,e) -> i /= 0) $ assocs $ runSTUArray $ do
-    arr <- newArray (0,255) 0 
-    forM_ [0.. B.length b - 1] $ \i -> do
-        let w = B.index b i
-        val <- readArray arr w
-        writeArray arr w $! (val+1)
-    return arr
 
 -- Can probably be speeded up (TODO)
 analyze :: B.ByteString -> [(Word8,Int)]
