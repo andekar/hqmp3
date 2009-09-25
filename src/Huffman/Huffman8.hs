@@ -24,7 +24,7 @@ import Data.PriorityQueue
 
 type HuffArray = Array Word8 (Word8,Word8)
 type STHuff s  = STArray s Word8 (Word8,Word8)
-type HuffTree  = Huff.HuffTree Word8 Int
+type HuffTree  = Huff.HuffTree Word8
 
 -- Simple main function
 main :: IO ()
@@ -66,12 +66,13 @@ mkTree b = runST $ do
         let !w = B.index b i
         val <- readArray arr w
         writeArray arr w $! (val + 1)
+    
     -- Create the tree
-    q <- newPriorityQueue id
+    q <- newPriorityQueue fst
     (l,h) <- getBounds arr
-    forM_ [l..h] $ \i -> do
-        !e <- readArray arr i
-        if e /= 0 then enqueue q (Huff.Leaf e i)
+    forM_ [l..h] $ \e -> do
+        !i <- readArray arr e
+        if e /= 0 then enqueue q (i,Huff.Leaf e)
                   else return ()
     Huff.create' q
 
@@ -85,8 +86,8 @@ tree2arr t = runSTArray (do
                 return arr)
   where
     walkTree :: HuffTree -> STHuff s -> Word8 -> Word8 -> ST s ()
-    walkTree (Huff.Leaf _ w) arr i d     = writeArray arr w (i,d)
-    walkTree (Huff.Node _ t1 t2) arr i d = do
+    walkTree (Huff.Leaf w) arr i d     = writeArray arr w (i,d)
+    walkTree (Huff.Node t1 t2) arr i d = do
         walkTree t1 arr (i * 2) (d + 1)     -- Left branch
         walkTree t2 arr (i * 2 + 1) (d + 1) -- Right branch
 

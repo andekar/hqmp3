@@ -67,9 +67,7 @@ create' p = do
 -- j is how many padding bits this stream has
 --
 -- Please do not change this code, checks are not checked
-decode :: (Eq a) =>
-     [Word8] -> HuffTree a -> HuffTree a -> Int -> Int -> [a]
-
+decode :: Eq a => [Word8] -> HuffTree a -> HuffTree a -> Int -> Int -> [a]
 decode xs t (Leaf v) i j = v : decode xs t t i j
 decode [] _ _ i j   = if i == j && j == 0 then [] else error "error"
 decode (x:[]) t (Node t1 t2) i j
