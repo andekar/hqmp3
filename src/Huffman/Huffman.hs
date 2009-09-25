@@ -35,14 +35,13 @@ instance (Eq a) => Eq (HuffTree a) where
 -- instance (Eq a) => Ord (HuffTree a) where
 --     t1 <= t2 = getVal t1 <= getVal t2
 
--- create :: (Eq a, Num b, Ord b) => [(a,b)] -> HuffTree a b
+create :: Eq a => [(a, Int)] -> HuffTree a
 create xs = runST $ do
     q <- newPriorityQueue fst
     mapM_ (\(e,i) -> enqueue q (i, (Leaf e))) xs
     create' q
 
-create' :: (Eq a) => PriorityQueue (ST s) (Int, HuffTree a)
-           -> (ST s (HuffTree a))
+create' :: Eq a => PriorityQueue (ST s) (Int, HuffTree a) -> (ST s (HuffTree a))
 create' p = do
     (Just x1) <- dequeue p
     x         <- dequeue p
@@ -55,9 +54,6 @@ create' p = do
     merge :: Eq a => (Int, HuffTree a) -> (Int, HuffTree a) -> (Int, HuffTree a)
     merge (i, x1) (i', x2) = (i + i', Node x1 x2)
 
--- getVal (Leaf w _)   = w
--- getVal (Node w _ _) = w
- 
 -- Decodes a list of Words, using a Huffman tree
 -- 
 -- xs is the list of words
@@ -77,4 +73,5 @@ decode (x:xs) t (Node t1 t2) i j
     | i == 0 = decode xs t (tree x i t1 t2) 7 j
     | otherwise = decode (x:xs) t (tree x i t1 t2) (i - 1) j
 
+tree :: Bits b => b -> Int -> HuffTree a -> HuffTree a -> HuffTree a
 tree bits num t1 t2 = if testBit bits num then t2 else t1

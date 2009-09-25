@@ -76,7 +76,7 @@ mkTree b = runST $ do
                   else return ()
     Huff.create' q
 
--- This function takes a Huffman tree (that is the tree that contains the
+-- | This function takes a Huffman tree (that is the tree that contains the
 -- compressed representations), and creates a kind of HashMap by using
 -- the fact that Word8s are never larger than 255, and never smaller than 0
 tree2arr :: HuffTree -> HuffArray
@@ -91,7 +91,7 @@ tree2arr t = runSTArray (do
         walkTree t1 arr (i * 2) (d + 1)     -- Left branch
         walkTree t2 arr (i * 2 + 1) (d + 1) -- Right branch
 
--- Wrapper for encode'
+-- | Wrapper for encode'
 -- the second in the tuple describes the number of "padding" bits
 encode :: HuffArray -> B.ByteString -> (B.ByteString,Word8)
 encode arr bs = (B.init bs', B.last bs')
