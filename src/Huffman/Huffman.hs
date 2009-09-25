@@ -22,18 +22,10 @@ analyze b = M.toList $ B.foldr f M.empty b
     f :: Word8 -> M.Map Word8 Int -> M.Map Word8 Int
     f w m = M.insertWith (+) w 1 m
 
-data (Eq a) => HuffTree a =
-    Leaf !a
-  | Node !(HuffTree a) !(HuffTree a)
-    deriving (Show, Read)
-
-instance (Eq a) => Eq (HuffTree a) where
-    Leaf a     == Leaf a'      = a == a'
-    Node t1 t2 == Node t1' t2' = t1 == t1' && t2 == t2'
-    _            == _               = False
-
--- instance (Eq a) => Ord (HuffTree a) where
---     t1 <= t2 = getVal t1 <= getVal t2
+data Eq a => HuffTree a = 
+      Leaf !a 
+    | Node !(HuffTree a) !(HuffTree a)
+  deriving (Show, Read)
 
 create :: Eq a => [(a, Int)] -> HuffTree a
 create xs = runST $ do

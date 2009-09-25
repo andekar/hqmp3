@@ -19,8 +19,6 @@ import Control.Monad (forM_)
 import Data.Bits
 import qualified Huffman as Huff
 import qualified Data.ByteString as B
-import Data.List
-import System.Environment
 import Data.PriorityQueue
 
 type HuffArray = Array Word8 (Word8,Word8)
