@@ -1,7 +1,11 @@
 {-# LANGUAGE BangPatterns #-}
 {-# OPTIONS -Wall #-}
 
-module Main (decoder, encoder) where
+module Main (decoder
+            , encoder
+            , encode
+            , mkTree
+            , tree2arr) where
 
 --
 -- This implementation of Huffman codes is designed to be very specific
@@ -45,7 +49,7 @@ decoder file = do
     let !tree = read treeFile :: HuffTree
     enc <- B.readFile file
     let res = Huff.decode (B.unpack enc) tree tree 7 0
-    return ()
+    res `seq` return ()
 
 encoder :: FilePath -> IO ()
 encoder file = do
@@ -53,7 +57,7 @@ encoder file = do
     f `seq` print "Read file"
     let tree = mkTree f -- (analyze f >>= createArr)
         arr  = tree2arr tree
-        (res, pad)  = encode arr f
+        (res, _)  = encode arr f
     B.writeFile (file ++ ".huff") res
     writeFile (file ++ ".huff.tree") (show tree)
 
@@ -74,7 +78,7 @@ mkTree b = runST $ do
         !i <- readArray arr e
         if e /= 0 then enqueue q (i,Huff.Leaf e)
                   else return ()
-    Huff.create' q
+    Huff.createTree q
 
 -- | This function takes a Huffman tree (that is the tree that contains the
 -- compressed representations), and creates a kind of HashMap by using

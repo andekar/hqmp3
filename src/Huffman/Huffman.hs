@@ -4,7 +4,7 @@
 module Huffman ( analyze
                , HuffTree (..)
                , create
-               , create'
+               , createTree
                , decode ) where
 
 import qualified Data.ByteString as B
@@ -39,17 +39,18 @@ create :: Eq a => [(a, Int)] -> HuffTree a
 create xs = runST $ do
     q <- newPriorityQueue fst
     mapM_ (\(e,i) -> enqueue q (i, (Leaf e))) xs
-    create' q
+    createTree q
 
-create' :: Eq a => PriorityQueue (ST s) (Int, HuffTree a) -> (ST s (HuffTree a))
-create' p = do
+createTree :: Eq a => PriorityQueue (ST s) (Int, HuffTree a)
+              -> (ST s (HuffTree a))
+createTree p = do
     (Just x1) <- dequeue p
     x         <- dequeue p
     case x of
         Nothing -> return $ snd x1
         Just x2 -> do
             enqueue p $ merge x1 x2
-            create' p
+            createTree p
   where
     merge :: Eq a => (Int, HuffTree a) -> (Int, HuffTree a) -> (Int, HuffTree a)
     merge (i, x1) (i', x2) = (i + i', Node x1 x2)
