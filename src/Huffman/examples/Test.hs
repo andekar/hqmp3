@@ -33,7 +33,7 @@ decoder file = do
     treeFile <- readFile $ file++".tree"
     let !tree = read treeFile :: HuffTree Word8
     enc <- B.readFile file
-    let res = decode (B.unpack enc) tree tree 7 0
+    let res = decode (B.unpack enc) tree
     return res
 
 encoder :: FilePath -> IO ()

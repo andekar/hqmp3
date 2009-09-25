@@ -59,15 +59,17 @@ createTree p = do
 -- j is how many padding bits this stream has
 --
 -- Please do not change this code, checks are not checked
-decode :: Eq a => [Word8] -> HuffTree a -> HuffTree a -> Int -> Int -> [a]
-decode xs t (Leaf v) i j = v : decode xs t t i j
-decode [] _ _ i j   = if i == j && j == 0 then [] else error "error"
-decode (x:[]) t (Node t1 t2) i j
-    | i+1 == j = [] 
-    | otherwise = decode [x] t (tree x i t1 t2) (i - 1) j
-decode (x:xs) t (Node t1 t2) i j
-    | i == 0 = decode xs t (tree x i t1 t2) 7 j
-    | otherwise = decode (x:xs) t (tree x i t1 t2) (i - 1) j
-
-tree :: Bits b => b -> Int -> HuffTree a -> HuffTree a -> HuffTree a
-tree bits num t1 t2 = if testBit bits num then t2 else t1
+decode :: Eq a => [Word8] -> HuffTree a -> [a]
+decode bs ts = decode' bs ts ts 7 0
+    where decode' :: Eq a => [Word8] -> HuffTree a -> HuffTree a
+                     -> Int -> Int -> [a]
+          decode' xs t (Leaf v) i j = v : decode' xs t t i j
+          decode' [] _ _ i j   = if i == j && j == 0 then [] else error "error"
+          decode' (x:[]) t (Node t1 t2) i j
+              | i+1 == j = [] 
+              | otherwise = decode' [x] t (tree x i t1 t2) (i - 1) j
+          decode' (x:xs) t (Node t1 t2) i j
+              | i == 0 = decode' xs t (tree x i t1 t2) 7 j
+              | otherwise = decode' (x:xs) t (tree x i t1 t2) (i - 1) j
+          tree :: Bits b => b -> Int -> HuffTree a -> HuffTree a -> HuffTree a
+          tree bits num t1 t2 = if testBit bits num then t2 else t1
