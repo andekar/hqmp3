@@ -51,31 +51,28 @@ encoder :: FilePath -> IO ()
 encoder file = do
     f <- B.readFile file
     f `seq` print "Read file"
-    let tree  = runST (analyze f >>= createArr)
+    let tree = mkTree f -- (analyze f >>= createArr)
         arr  = tree2arr tree
         (res, pad)  = encode arr f
     B.writeFile (file ++ ".huff") res
     writeFile (file ++ ".huff.tree") (show tree)
 
 -- One would want to be able to use only the array
-analyze :: B.ByteString -> ST s (STUArray s Word8 Int)
-analyze b = do
-    arr <- newArray (0, 255) 0
+mkTree :: B.ByteString -> HuffTree
+mkTree b = runST $ do
+    -- Analyze
+    arr <- newArray (0, 255) 0 :: ST s (STUArray s Word8 Int)
     forM_ [0.. B.length b - 1] $ \i -> do
         let !w = B.index b i
         val <- readArray arr w
         writeArray arr w $! (val + 1)
-    return arr
-
--- This one should execute faster than the
-createArr :: STUArray s Word8 Int -> ST s HuffTree
-createArr arr = do
+    -- Create the tree
     q <- newPriorityQueue id
-    (l,h) <- getBounds arr 
+    (l,h) <- getBounds arr
     forM_ [l..h] $ \i -> do
         !e <- readArray arr i
         if e /= 0 then enqueue q (Huff.Leaf e i)
-                     else return ()
+                  else return ()
     Huff.create' q
 
 -- This function takes a Huffman tree (that is the tree that contains the

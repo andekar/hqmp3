@@ -4,6 +4,7 @@
 module Huffman ( analyze
                , HuffTree (..)
                , create
+               , create'
                , decode ) where
 
 import qualified Data.ByteString as B
