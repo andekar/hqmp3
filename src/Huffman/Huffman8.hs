@@ -26,6 +26,11 @@ type STHuff s  = STArray s Word8 (Word8,Word8)
 type HuffTree  = Huff.HuffTree Word8
 
 -- One would want to be able to use only the array
+-- | The mkTree creates a Huffmantree out of a bytestring
+-- the algorithm used for this is documented at
+-- http://en.wikipedia.org/wiki/Huffman_encoding O(n log n) in algorithmic
+-- performance. Note that this might not be the case in haskell depending on
+-- structure used...
 mkTree :: B.ByteString -> HuffTree
 mkTree b = runST $ do
     -- Analyze
@@ -59,9 +64,9 @@ tree2arr t = runSTArray (do
         walkTree t1 arr (i * 2) (d + 1)     -- Left branch
         walkTree t2 arr (i * 2 + 1) (d + 1) -- Right branch
 
--- | Wrapper for encode'
--- the second in the tuple describes the number of "padding" bits
-encode :: HuffArray -> B.ByteString -> (B.ByteString,Word8)
+-- Wrapper for encode'
+-- | The second in the tuple describes the number of "padding" bits
+encode :: HuffArray -> B.ByteString -> (B.ByteString, Word8)
 encode arr bs = (B.init bs', B.last bs')
   where
     bs' = B.pack $ encode' bs arr 0 8 0

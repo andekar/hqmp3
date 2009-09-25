@@ -16,13 +16,16 @@ import Control.Monad.ST
 import Data.Bits
 
 -- Can probably be speeded up (TODO)
+-- | Analyze will create a list of Word8 tupled with the number of occurrences
+-- in the given ByteString
 analyze :: B.ByteString -> [(Word8,Int)]
 analyze b = M.toList $ B.foldr f M.empty b
   where
     f :: Word8 -> M.Map Word8 Int -> M.Map Word8 Int
     f w m = M.insertWith (+) w 1 m
 
-data Eq a => HuffTree a = 
+-- | The Huffmantree is an usual tree in haskell
+data Eq a => HuffTree a =
       Leaf !a 
     | Node !(HuffTree a) !(HuffTree a)
   deriving (Show, Read)
@@ -47,7 +50,7 @@ createTree p = do
     merge :: Eq a => (Int, HuffTree a) -> (Int, HuffTree a) -> (Int, HuffTree a)
     merge (i, x1) (i', x2) = (i + i', Node x1 x2)
 
--- Decodes a list of Words, using a Huffman tree
+-- | Decodes a list of Words, using a Huffman tree
 -- 
 -- xs is the list of words
 -- t is the huffman tree
