@@ -1,3 +1,6 @@
+-- Copyright (c) Tobias Olausson 2009
+-- Copyright (c) Anders Karlsson 2009
+
 {-# LANGUAGE BangPatterns #-}
 {-# OPTIONS -Wall #-}
 

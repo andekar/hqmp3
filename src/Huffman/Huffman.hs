@@ -1,3 +1,6 @@
+-- Copyright (c) Tobias Olausson 2009
+-- Copyright (c) Anders Karlsson 2009
+
 {-# LANGUAGE BangPatterns #-}
 {-# OPTIONS -Wall #-}
 
@@ -39,14 +42,15 @@ create xs = runST $ do
 createTree :: Eq a => PriorityQueue (ST s) (Int, HuffTree a)
               -> (ST s (HuffTree a))
 createTree p = do
-    (Just x1) <- dequeue p
-    x         <- dequeue p
+    (Just x1) <- dequeue p -- The queue will allways have at least 1 element 
+    x         <- dequeue p -- or we are in big troubles elsewhere!!!
     case x of
-        Nothing -> return $ snd x1
-        Just x2 -> do
+        Nothing -> return $ snd x1 -- If the list only contains one element
+        Just x2 -> do              -- we are finished and can return.
             enqueue p $ merge x1 x2
             createTree p
   where
+    -- merge simply concats 2 subtrees
     merge :: Eq a => (Int, HuffTree a) -> (Int, HuffTree a) -> (Int, HuffTree a)
     merge (i, x1) (i', x2) = (i + i', Node x1 x2)
 
