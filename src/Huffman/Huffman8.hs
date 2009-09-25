@@ -1,11 +1,9 @@
 {-# LANGUAGE BangPatterns #-}
 {-# OPTIONS -Wall #-}
 
-module Main (decoder
-            , encoder
-            , encode
-            , mkTree
-            , tree2arr) where
+module Huffman8 ( encode
+                , mkTree
+                , tree2arr) where
 
 --
 -- This implementation of Huffman codes is designed to be very specific
@@ -18,48 +16,16 @@ import Data.Array.Unboxed
 import Data.Array.ST
 import Control.Monad.ST (ST, runST)
 import Control.Monad (forM_)
-import qualified Data.ByteString as B
 import Data.Bits
 import qualified Huffman as Huff
+import qualified Data.ByteString as B
 import Data.List
 import System.Environment
 import Data.PriorityQueue
 
-
 type HuffArray = Array Word8 (Word8,Word8)
 type STHuff s  = STArray s Word8 (Word8,Word8)
 type HuffTree  = Huff.HuffTree Word8
-
--- Simple main function
-main :: IO ()
-main = do
-    args <- getArgs
-    case args of
-        [m,f] -> case m of
-            "encode" -> encoder f
-            "decode" -> decoder f
-            _        -> print "valid actions are \"encode\" and \"decode\""
-        [_] -> print "you need to supply a file"
-        []  -> print "you need to supply action and file"
-        _   -> print "usage: program <action> <file>"
-
-decoder :: FilePath -> IO ()
-decoder file = do
-    treeFile <- readFile $ file++".tree"
-    let !tree = read treeFile :: HuffTree
-    enc <- B.readFile file
-    let res = Huff.decode (B.unpack enc) tree tree 7 0
-    res `seq` return ()
-
-encoder :: FilePath -> IO ()
-encoder file = do
-    f <- B.readFile file
-    f `seq` print "Read file"
-    let tree = mkTree f -- (analyze f >>= createArr)
-        arr  = tree2arr tree
-        (res, _)  = encode arr f
-    B.writeFile (file ++ ".huff") res
-    writeFile (file ++ ".huff.tree") (show tree)
 
 -- One would want to be able to use only the array
 mkTree :: B.ByteString -> HuffTree
@@ -81,7 +47,7 @@ mkTree b = runST $ do
     Huff.createTree q
 
 -- | This function takes a Huffman tree (that is the tree that contains the
--- compressed representations), and creates a kind of HashMap by using
+-- compressed representations), and creates a kind of HashMap by
 -- the fact that Word8s are never larger than 255, and never smaller than 0
 tree2arr :: HuffTree -> HuffArray
 tree2arr t = runSTArray (do
