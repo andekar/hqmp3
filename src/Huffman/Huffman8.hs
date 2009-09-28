@@ -50,7 +50,7 @@ mkTree b = runST $ do
     (l,h) <- getBounds arr
     forM_ [l..h] $ \e -> do
         !i <- readArray arr e
-        if e /= 0 then enqueue q (i, Huff.Leaf e)
+        if i /= 0 then enqueue q (i, Huff.Leaf e)
                   else return ()
     Huff.createTree q
 
