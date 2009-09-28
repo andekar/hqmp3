@@ -22,6 +22,7 @@ import Control.Monad (forM_)
 import Data.Bits
 import qualified Huffman as Huff
 import qualified Data.ByteString as B
+import qualified Data.ByteString.Char8 as Bc
 import Data.PriorityQueue
 
 type HuffArray = Array Word8 (Word8,Word8)
@@ -34,6 +35,7 @@ type HuffTree  = Huff.HuffTree Word8
 -- http://en.wikipedia.org/wiki/Huffman_encoding O(n log n) in algorithmic
 -- performance. Note that this might not be the case in haskell depending on
 -- structure used...
+-- this function has some kind of an error inside!!!
 mkTree :: B.ByteString -> HuffTree
 mkTree b = runST $ do
     -- Analyze
@@ -48,7 +50,7 @@ mkTree b = runST $ do
     (l,h) <- getBounds arr
     forM_ [l..h] $ \e -> do
         !i <- readArray arr e
-        if e /= 0 then enqueue q (i,Huff.Leaf e)
+        if e /= 0 then enqueue q (i, Huff.Leaf e)
                   else return ()
     Huff.createTree q
 
@@ -92,3 +94,25 @@ encode' bs arr i j acc
          | otherwise = let f = c `shiftR` (b - j)
                            r = c `shiftL` (8 - (b - j))
                        in  (acc .|. f) : encode' bs arr (i + 1) (8 - (b - j)) r
+
+-- | The function to print a Hufftree into a list of the contents
+printTree :: HuffTree -> B.ByteString
+printTree t = case t of
+    (Huff.Node t1 t2) ->
+        B.append (B.append lParen (printTree t1))
+        (printTree t2)
+    (Huff.Leaf v) -> B.pack [v]
+    where
+        lParen :: B.ByteString
+        lParen = Bc.pack "("
+
+-- | The function to read a hufftree
+readTree :: B.ByteString -> HuffTree
+readTree = snd . readTree' 0
+    where readTree' ::  Int -> B.ByteString -> (Int, HuffTree)
+          readTree' pos str = case (head $ B.unpack $ B.take pos str) of
+              0x28 -> 
+                     let (pos', t1) = readTree' (pos' + 1) str
+                         (pos'', t2) = readTree' pos' str
+                     in (pos'', Huff.Node t1 t2)
+              r      -> (pos + 1, Huff.Leaf r)
