@@ -6,7 +6,9 @@
 
 module Huffman8 ( encode
                 , mkTree
-                , tree2arr) where
+                , tree2arr
+                , writeTree
+                , readTree ) where
 
 --
 -- This implementation of Huffman codes is designed to be very specific
@@ -96,11 +98,11 @@ encode' bs arr i j acc
                        in  (acc .|. f) : encode' bs arr (i + 1) (8 - (b - j)) r
 
 -- | The function to print a Hufftree into a list of the contents
-printTree :: HuffTree -> B.ByteString
-printTree t = case t of
+writeTree :: HuffTree -> B.ByteString
+writeTree t = case t of
     (Huff.Node t1 t2) ->
-        B.append (B.append lParen (printTree t1))
-        (printTree t2)
+        B.append (B.append lParen (writeTree t1))
+        (writeTree t2)
     (Huff.Leaf v) -> B.pack [v]
     where
         lParen :: B.ByteString
@@ -110,9 +112,10 @@ printTree t = case t of
 readTree :: B.ByteString -> HuffTree
 readTree = snd . readTree' 0
     where readTree' ::  Int -> B.ByteString -> (Int, HuffTree)
-          readTree' pos str = case (head $ B.unpack $ B.take pos str) of
-              0x28 -> 
-                     let (pos', t1) = readTree' (pos' + 1) str
-                         (pos'', t2) = readTree' pos' str
-                     in (pos'', Huff.Node t1 t2)
-              r      -> (pos + 1, Huff.Leaf r)
+          readTree' pos str
+              | ch == 0x28
+              = let (pos', t1)  = readTree' (pos + 1) str
+                    (pos'', t2) = readTree' (pos' + 1) str
+                in  (pos'', Huff.Node t1 t2)
+              |otherwise = (pos, Huff.Leaf ch)
+              where ch = B.index str pos
