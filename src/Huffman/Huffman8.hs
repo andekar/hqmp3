@@ -113,7 +113,7 @@ readTree :: B.ByteString -> HuffTree
 readTree = snd . readTree' 0
     where readTree' ::  Int -> B.ByteString -> (Int, HuffTree)
           readTree' pos str
-              | ch == 0x28
+              | ch == 0x28 -- A '(' represents a beginning node
               = let (pos', t1)  = readTree' (pos + 1) str
                     (pos'', t2) = readTree' (pos' + 1) str
                 in  (pos'', Huff.Node t1 t2)
