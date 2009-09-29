@@ -93,12 +93,14 @@ mains = do content <- L.readFile "song.mp3"
            return ()
 
 -- | Get ID3v1
-getId3v1 :: Get ( B.ByteString
-                , B.ByteString
-                , B.ByteString
-                , B.ByteString
-                , B.ByteString
-                , B.ByteString )
+-- this will currently fail if a ID3v1.1 is used, the id3v1.1 has removed
+-- 2bytes at each of the 30bytes fields to save space
+getId3v1 :: Get (Maybe ( B.ByteString
+                       , B.ByteString
+                       , B.ByteString
+                       , B.ByteString
+                       , B.ByteString
+                       , B.ByteString ))
 getId3v1 = do rem     <- remaining
               skip (fromIntegral rem - 128)
               tag     <- getBytes 3
@@ -107,7 +109,13 @@ getId3v1 = do rem     <- remaining
               album   <- getBytes 30
               year    <- getBytes 3
               comment <- getBytes 30
-              return (f tag, f title, f artist, f album, f year, f comment)
+              -- Check if last 2 bytes describe the track number
+              genre   <- getBytes 1
+              if tag == B.pack "TAG" then
+                  return $ Just ( f tag, f title
+                                , f artist, f album
+                                , f year, f comment)
+                  else return Nothing
     where f = Bc.filter (flip notElem [ 0x00 -- \NUL
                                       ])
           track bs = do --let bs' = Bc.unpack (drop 28 bs)
@@ -121,15 +129,15 @@ getId3v1 = do rem     <- remaining
 -- first we peek at 3 bytes to check that it indeed is a Id3v2_* tag at the
 -- beginning of the stream we are given. This function is lazy and might need
 -- to be changes into a strict if we have speed issues
-skipId3 :: Get (Maybe B.ByteString)
+skipId3 :: Get ()
 skipId3 = do maybeTag <- lookAhead checkTag
              case maybeTag of
                  Just x ->  do skip 6 -- skip TAG, version and flags
                                size <- getBytes 4
                                let size' = byteSize size
                                skip size'
-                               return $ Just size
-                 Nothing -> return Nothing
+                               return ()
+                 Nothing -> return ()
 
     where checkTag = do tag <- getBytes 3
                         case tag == B.pack "TAG" of
