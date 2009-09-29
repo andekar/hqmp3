@@ -1,11 +1,13 @@
-module Decoder where
+module Decoder () where
 
 -- in case this is too slow we might change to strict
 import Data.Binary.Get 
 import Data.Bits
 import Data.Word
+import Data.Maybe
 import qualified Data.ByteString.Lazy as B
 import ID3
+import Debug.Trace
 
 data MP3Mode = Stereo | JointStereo | DualChannel | Mono deriving Show
 data MP3Header = MP3Header {
@@ -24,7 +26,8 @@ test file = do
 -- Finds a header in an mp3 file.
 findHeader :: Get (Maybe MP3Header)
 findHeader = do
-    skipId3
+    empt <- remaining
+    trace (show empt) skipId3
     h <- getWord16be
     case h .|. 1 of
         0xFFFB -> do
@@ -38,8 +41,22 @@ findHeader = do
                     JointStereo -> getModeExt byte4
                     _           -> (False,False)
             -- TODO fromJust
-            return Just $ MP3Header brate freq padd mode mext
-        _      -> Nothing
+                length = frameLength $ MP3Header (fromJust brate) (fromJust freq) padd mode mext
+            trace (show length) $ skip (length - 4) -- we already consumed 4
+                                                    -- bit header....
+            trace "looping" findHeader
+--             return $ trace (show length) $Just $ MP3Header (fromJust brate) (fromJust freq) padd mode mext
+        _      -> return Nothing
+
+-- A way to calculate the length of the following frame.
+frameLength :: MP3Header -> Int
+frameLength head = (144 * 1000 * br) `div` sr + pd
+    where sr = frequency head
+          br = bitRate head
+          pd = if padding head then 1 else 0
+
+getSideInfo :: Get ()
+getSideInfo = undefined
 
 -- This function is so much fun!
 getBitRate :: Word8 -> Maybe Int
@@ -62,7 +79,7 @@ getBitRate w = case w `shiftR` 4 of
 
 -- Bit shifting is the most fun I've ever done!
 getFreq :: Word8 -> Maybe Int
-getFreq w = case w .&. 0x0C `shiftR` 2 of
+getFreq w = case (w .&. 0x0C) `shiftR` 2 of
     0x00 -> Just 44100
     0x01 -> Just 48000
     0x02 -> Just 32000
