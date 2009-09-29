@@ -1,6 +1,6 @@
 {-# OPTIONS -w #-}
 -- Comments in this file is partly taken from http://www.id3.org/id3v2.3.0
-module Codecs.Mp3.ID3 ( -- functions
+module ID3 ( -- functions
              skipId3
            , getId3v1
            , getId3v2_2
@@ -9,6 +9,7 @@ module Codecs.Mp3.ID3 ( -- functions
            , Version(..)
            , Frame (..)) where
 
+import Debug.Trace
 
 import qualified Data.ByteString as Bc
 import qualified Data.ByteString.Char8 as B
@@ -135,12 +136,11 @@ skipId3 = do maybeTag <- lookAhead checkTag
                  Just x ->  do skip 6 -- skip TAG, version and flags
                                size <- getBytes 4
                                let size' = byteSize size
-                               skip size'
-                               return ()
+                               skipId3 -- as long as we find consecutive id3s
                  Nothing -> return ()
 
     where checkTag = do tag <- getBytes 3
-                        case tag == B.pack "TAG" of
+                        case tag == B.pack "ID3" of
                             True  -> return $ Just tag
                             False -> return Nothing
           byteSize = fromIntegral . getSize . (map fromIntegral) . Bc.unpack
