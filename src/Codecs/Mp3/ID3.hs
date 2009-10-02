@@ -17,7 +17,11 @@ import qualified Data.ByteString.Lazy as L
 import Data.Word
 import Data.Bits
 import Data.Maybe
-import Data.Binary
+
+-- TODO make this module run with Strict.Get
+-- For that to work, getBytes :: Int -> Get ByteString needs to be implemented
+
+--import Data.Binary.Strict.Get
 import Data.Binary.Get
 
 -- | A list of not supported frames
@@ -161,8 +165,7 @@ getId3v2_2 = do tags <- getBytes 3
                         return $ Just $ runGet id3Frames body
           byteSize = fromIntegral . getSize . (map fromIntegral) . Bc.unpack
 
--- | Collect ID3 frames
-id3Frames :: Get [Frame]
+-- | Collect ID3 fGetid3Frames :: Get [Frame]
 id3Frames
     = do empty <- isEmpty
          if empty then do
