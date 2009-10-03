@@ -10,18 +10,19 @@ module ID3 ( -- functions
            , Frame (..)) where
 
 import Debug.Trace
+import Control.Monad
 
 import qualified Data.ByteString as Bc
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy as L
 import Data.Word
+import Data.Char
 import Data.Bits
 import Data.Maybe
 
--- TODO make this module run with Strict.Get
--- For that to work, getBytes :: Int -> Get ByteString needs to be implemented
+-- TODO make this module run with (only) Strict.Get
 
---import Data.Binary.Strict.Get
+import qualified Data.Binary.Strict.BitGet as G
 import Data.Binary.Get
 
 -- | A list of not supported frames
@@ -134,20 +135,21 @@ getId3v1 = do rem     <- remaining
 -- first we peek at 3 bytes to check that it indeed is a Id3v2_* tag at the
 -- beginning of the stream we are given. This function is lazy and might need
 -- to be changes into a strict if we have speed issues
-skipId3 :: Get ()
-skipId3 = do maybeTag <- lookAhead checkTag
+skipId3 :: G.BitGet ()
+skipId3 = do maybeTag <- G.lookAhead checkTag
              case maybeTag of
-                 Just x ->  do skip 6 -- skip TAG, version and flags
-                               size <- getBytes 4
+                 Just x ->  do G.skip (6*8) -- skip TAG, version and flags
+                               size <- replicateM 4 G.getWord8
                                let size' = byteSize size
+                               G.skip (size' * 8)
                                skipId3 -- as long as we find consecutive id3s
                  Nothing -> return ()
 
-    where checkTag = do tag <- getBytes 3
-                        case tag == B.pack "ID3" of
+    where checkTag = do tag <- replicateM 3 G.getWord8
+                        case tag == map (fromIntegral . ord) "ID3" of
                             True  -> return $ Just tag
                             False -> return Nothing
-          byteSize = fromIntegral . getSize . (map fromIntegral) . Bc.unpack
+          byteSize = fromIntegral . getSize . (map fromIntegral)
 
 -- | Will if possible extract frames from an mp3 file that is given as a 
 -- ByteString as input.

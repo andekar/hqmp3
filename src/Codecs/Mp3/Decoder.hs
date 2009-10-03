@@ -73,7 +73,7 @@ test file = do
 -- Finds a header in an mp3 file.
 readFrameInfo :: BitGet (Maybe MP3Header)
 readFrameInfo = do
---    skipId3 -- is this the right place to do this? NO!
+    skipId3 -- is this the right place to do this? YES?!
     h <- getAsWord16 16
     case h .|. 1 of
         0xFFFB -> do
@@ -91,8 +91,8 @@ readFrameInfo = do
                     sinfo <- readSideInfo mode
                     let size = (144 * 1000 * b) `div` f + (b2i padd)
                     return $ Just $ MP3Header b f padd mode mext size sinfo
-                _   -> return Nothing
-        _   -> return Nothing
+                _   -> trace "bitrate wrong" return Nothing
+        _   -> trace "bad sync" return Nothing
   where
     b2i :: Bool -> Int
     b2i b = if b then 1 else 0
@@ -107,24 +107,24 @@ frameLength head = (144 * 1000 * br) `div` sr + pd
 -- Almost exactly follows the ISO standard
 readSideInfo :: MP3Mode -> BitGet SideInfo
 readSideInfo mode = do
-    dataptr  <- getAsWord16 9
+    dataptr  <- getInt 9
     skipPrivate
     scaleFactors <- getScaleFactors
     granuleL     <- getGranule
     granuleR     <- getGranule
-    return undefined
+    return $ SideInfo dataptr scaleFactors (granuleL, granuleR)
   where
     skipPrivate = case mode of
         Mono -> skip 5
         _    -> skip 3
     getScaleFactors = case mode of
         Mono -> do
-            bits <- replicateM 4 (getAsWord8 1)
-            return (map toBool bits, [])
+            bits <- replicateM 4 getBit
+            return (bits, []) 
         _    -> do
-            bitsL <- replicateM 4 (getAsWord8 1)
-            bitsR <- replicateM 4 (getAsWord8 1)
-            return (map toBool bitsL, map toBool bitsR)
+            bitsL <- replicateM 4 getBit
+            bitsR <- replicateM 4 getBit
+            return (bitsL, bitsR)
     getGranule = case mode of
         Mono -> getGranule' >>= \g -> return [g]
         _    -> do
@@ -133,23 +133,43 @@ readSideInfo mode = do
             return [l,r]
       where
         getGranule' = do
-            scaleBits        <- getAsWord16 12 >>= return . fromIntegral
-            bigValues        <- getAsWord16 9  >>= return . fromIntegral
-            globalGain       <- getWord8       >>= return . fromIntegral
-            scaleFacCompress <- getAsWord8 4   >>= return . fromIntegral
-            windowSwitching  <- getAsWord8 1 >>= return . toBool
+            scaleBits        <- getInt 12 
+            bigValues        <- getInt 9
+            globalGain       <- getInt 8
+            scaleFacCompress <- getInt 4
+            windowSwitching  <- getBit
             ifWindow <- if windowSwitching then getWinTrue else getWinFalse
-            preFlag       <- getAsWord8 1 >>= return . toBool
-            scaleFacScale <- getAsWord8 1 >>= return . toBool
-            count1TableSelect <- getAsWord8 1 >>= return . toBool 
+            preFlag       <- getBit
+            scaleFacScale <- getBit
+            count1TableSelect <- getBit
             return $ Granule scaleBits bigValues globalGain scaleFacCompress 
                              windowSwitching ifWindow preFlag scaleFacScale
                              count1TableSelect
-        getWinTrue  = undefined
-        getWinFalse = undefined
-    toBool :: Word8 -> Bool
-    toBool = toEnum . fromIntegral
+        getWinTrue  = do
+            blockType     <- getInt 2
+            mixedBlock    <- getBit
+            tableSelect1  <- getInt 5
+            tableSelect2  <- getInt 3
+            subBlockGain1 <- getInt 3
+            subBlockGain2 <- getInt 3
+            subBlockGain3 <- getInt 3
+            return $ WT $ WinTrue blockType mixedBlock tableSelect1 tableSelect2
+                                  subBlockGain1 subBlockGain2 subBlockGain3
+        getWinFalse = do
+            tableSelect1 <- getInt 5
+            tableSelect2 <- getInt 5
+            tableSelect3 <- getInt 5
+            region0Count <- getInt 4
+            region1Count <- getInt 3
+            return $ WF $ WinFalse tableSelect1 tableSelect2 tableSelect3
+                                   region0Count region1Count
 
+getInt :: Int -> BitGet Int
+getInt i
+    | i <= 8    = getAsWord8 i  >>= return . fromIntegral
+    | i <= 16   = getAsWord16 i >>= return . fromIntegral
+    | i <= 32   = getAsWord32 i >>= return . fromIntegral
+    | otherwise = error "64 bits does not fit into an Int"
 
 -- This function is so much fun!
 getBitRate :: Word8 -> Maybe Int
