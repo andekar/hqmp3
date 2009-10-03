@@ -74,25 +74,35 @@ test file = do
 readFrameInfo :: BitGet (Maybe MP3Header)
 readFrameInfo = do
     skipId3 -- is this the right place to do this? YES?!
-    h <- getAsWord16 16
-    case h .|. 1 of
-        0xFFFB -> do
+    h <- getAsWord16 15
+    case h `shiftL` 1 of
+        0xFFFA -> do
+            prot  <- getBit >>= return . not
             brate <- getAsWord8 4 >>= return . getBitRate
             freq  <- getAsWord8 2 >>= return . getFreq
-            padd  <- getAsWord8 1 >>= return . toEnum . fromIntegral
+            padd  <- getBit
             skip 1 -- private bit
             mode  <- getAsWord8 2 >>= return . getMode
             mext  <- getAsWord8 2 >>= \b -> case mode of
                 JointStereo -> return $ getModeExt b
                 _           -> return $ (False,False)
-            
-            case (brate,freq) of
+            skip 4 -- copyright, original & emphasis
+            if prot then skip 16 else return ()
+            case (brate, freq) of
                 (Just b, Just f) -> do
+                    left <- remaining
                     sinfo <- readSideInfo mode
                     let size = (144 * 1000 * b) `div` f + (b2i padd)
-                    return $ Just $ MP3Header b f padd mode mext size sinfo
+                        f' = if prot then 2 else 0
+                        ff = case mode of
+                                 Mono -> 17
+                                 _    -> 32
+                    left' <- remaining
+--                     trace (show $ MP3Header b f padd mode mext size sinfo)
+                    skip ((size - (ff + 4 + f')) * 8)
+                    readFrameInfo
                 _   -> trace "bitrate wrong" return Nothing
-        _   -> trace "bad sync" return Nothing
+        _   -> trace ("bad sync " ++ show (h `shiftL` 1)) return Nothing
   where
     b2i :: Bool -> Int
     b2i b = if b then 1 else 0
@@ -149,7 +159,7 @@ readSideInfo mode = do
             blockType     <- getInt 2
             mixedBlock    <- getBit
             tableSelect1  <- getInt 5
-            tableSelect2  <- getInt 3
+            tableSelect2  <- getInt 5
             subBlockGain1 <- getInt 3
             subBlockGain2 <- getInt 3
             subBlockGain3 <- getInt 3
