@@ -65,11 +65,8 @@ data WinFalse = WinFalse {
   , region1Count    :: Int      -- 3 bits
 } deriving Show
 
-test :: FilePath -> IO ()
-test file = do
-    f <- B.readFile file
-    print $ runBitGet f readFrameInfo
-    
+data MP3Data = MP3Data
+
 -- Finds a header in an mp3 file.
 readFrameInfo :: BitGet (Maybe MP3Header)
 readFrameInfo = do
@@ -98,8 +95,9 @@ readFrameInfo = do
                                  Mono -> 17
                                  _    -> 32
                     left' <- remaining
---                     trace (show $ MP3Header b f padd mode mext size sinfo)
-                    skip ((size - (ff + 4 + f')) * 8)
+                    skip ((size - (ff + 4 + f')) * 8) -- delete when we read
+                    -- Here we should read all frame data, starting at
+                    -- index pointed out by main_data_pointer, TODO
                     readFrameInfo
                 _   -> trace "bitrate wrong" return Nothing
         _   -> trace ("bad sync " ++ show (h `shiftL` 1)) return Nothing
@@ -107,12 +105,25 @@ readFrameInfo = do
     b2i :: Bool -> Int
     b2i b = if b then 1 else 0
 
--- A way to calculate the length of the following frame.
-frameLength :: MP3Header -> Int
-frameLength head = (144 * 1000 * br) `div` sr + pd
-    where sr = frequency head
-          br = bitRate head
-          pd = if padding head then 1 else 0
+-- Does NOT read the "d1" part of a "mixed frame"
+getNextHeader :: MP3Header -> BitGet (Maybe MP3Header)
+getNextHeader h = lookAhead $ do
+    let s = size h
+    skip s
+    readFrameInfo
+
+-- Reads the portion of data that is before its header, if any
+readD1 :: Int -> BitGet B.ByteString
+readD1 0 = return $ B.empty
+readD1 x = getLeftByteString (x*8)
+
+-- Reads the main_data()
+-- The Int tells us how much to read
+readMainData :: MP3Header -> B.ByteString -> Int -> BitGet MP3Data
+readMainData header d1 end = do
+    d2 <- getLeftByteString (end*8)
+    let d = B.append d1 d2
+    return undefined
 
 -- Almost exactly follows the ISO standard
 readSideInfo :: MP3Mode -> BitGet SideInfo
