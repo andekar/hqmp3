@@ -21,7 +21,7 @@
 #include "MachDeps.h"
 #endif
 
-module Data.Binary.Get (
+module Data.Binary.BitGet (
 
     -- * The Get type
       Get
