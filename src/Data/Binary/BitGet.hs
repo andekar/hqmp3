@@ -24,9 +24,9 @@
 module Data.Binary.BitGet (
 
     -- * The Get type
-      Get
-    , runGet
-    , runGetState
+      BitGet
+    , runBitGet
+    , runBitGetState
 
     -- * Parsing
     , skip
@@ -103,45 +103,46 @@ import GHC.Int
 data S = S {-# UNPACK #-} !B.ByteString  -- current chunk
            L.ByteString                  -- the rest of the input
            {-# UNPACK #-} !Int64         -- bytes read
+           {-# UNPACK #-} !Int           -- bits read
 
 -- | The Get monad is just a State monad carrying around the input ByteString
 -- We treat it as a strict state monad. 
-newtype Get a = Get { unGet :: S -> (# a, S #) }
+newtype BitGet a = BitGet { unGet :: S -> (# a, S #) }
 
-instance Functor Get where
-    fmap f m = Get (\s -> case unGet m s of
+instance Functor BitGet where
+    fmap f m = BitGet (\s -> case unGet m s of
                              (# a, s' #) -> (# f a, s' #))
     {-# INLINE fmap #-}
 
 #ifdef APPLICATIVE_IN_BASE
-instance Applicative Get where
+instance Applicative BitGet where
     pure  = return
     (<*>) = ap
 #endif
 
 -- Definition directly from Control.Monad.State.Strict
-instance Monad Get where
-    return a  = Get $ \s -> (# a, s #)
+instance Monad BitGet where
+    return a  = BitGet $ \s -> (# a, s #)
     {-# INLINE return #-}
 
-    m >>= k   = Get $ \s -> case unGet m s of
+    m >>= k   = BitGet $ \s -> case unGet m s of
                              (# a, s' #) -> unGet (k a) s'
     {-# INLINE (>>=) #-}
 
     fail      = failDesc
 
-instance MonadFix Get where
-    mfix f = Get $ \s -> let (a,s') = case unGet (f a) s of
+instance MonadFix BitGet where
+    mfix f = BitGet $ \s -> let (a,s') = case unGet (f a) s of
                                               (# a', s'' #) -> (a',s'')
                         in (# a,s' #)
 
 ------------------------------------------------------------------------
 
-get :: Get S
-get   = Get $ \s -> (# s, s #)
+get :: BitGet S
+get   = BitGet $ \s -> (# s, s #)
 
-put :: S -> Get ()
-put s = Get $ \_ -> (# (), s #)
+put :: S -> BitGet ()
+put s = BitGet $ \_ -> (# (), s #)
 
 ------------------------------------------------------------------------
 --
@@ -151,7 +152,7 @@ put s = Get $ \_ -> (# (), s #)
 --
 
 initState :: L.ByteString -> S
-initState xs = mkState xs 0
+initState xs = mkState xs 0 0
 {- INLINE initState -}
 
 {-
@@ -162,7 +163,7 @@ initState (B.LPS xs) =
 -}
 
 #ifndef BYTESTRING_IN_BASE
-mkState :: L.ByteString -> Int64 -> S
+mkState :: L.ByteString -> Int64 -> Int -> S
 mkState l = case l of
     L.Empty      -> S B.empty L.empty
     L.Chunk x xs -> S x xs
@@ -176,42 +177,43 @@ mkState (B.LPS xs) =
         (x:xs') -> S x (B.LPS xs')
 #endif
 
--- | Run the Get monad applies a 'get'-based parser on the input ByteString
-runGet :: Get a -> L.ByteString -> a
-runGet m str = case unGet m (initState str) of (# a, _ #) -> a
+-- | Run the BitGet monad applies a 'get'-based parser on the input ByteString
+runBitGet :: BitGet a -> L.ByteString -> a
+runBitGet m str = case unGet m (initState str) of (# a, _ #) -> a
 
--- | Run the Get monad applies a 'get'-based parser on the input
+-- | Run the BitGet monad applies a 'get'-based parser on the input
 -- ByteString. Additional to the result of get it returns the number of
 -- consumed bytes and the rest of the input.
-runGetState :: Get a -> L.ByteString -> Int64 -> (a, L.ByteString, Int64)
-runGetState m str off =
-    case unGet m (mkState str off) of
-      (# a, ~(S s ss newOff) #) -> (a, s `join` ss, newOff)
+runBitGetState :: BitGet a -> L.ByteString -> 
+                  Int64 -> Int -> (a, L.ByteString, Int64, Int)
+runBitGetState m str off off' =
+    case unGet m (mkState str off off') of
+      (# a, ~(S s ss newOff newOff') #) -> (a, s `join` ss, newOff, newOff')
 
 ------------------------------------------------------------------------
 
-failDesc :: String -> Get a
+failDesc :: String -> BitGet a
 failDesc err = do
-    S _ _ bytes <- get
-    Get (error (err ++ ". Failed reading at byte position " ++ show bytes))
+    S _ _ bytes _ <- get
+    BitGet (error (err ++ ". Failed reading at byte position " ++ show bytes))
 
 -- | Skip ahead @n@ bytes. Fails if fewer than @n@ bytes are available.
-skip :: Int -> Get ()
+skip :: Int -> BitGet ()
 skip n = readN (fromIntegral n) (const ())
 
 -- | Skip ahead @n@ bytes. No error if there isn't enough bytes.
-uncheckedSkip :: Int64 -> Get ()
-uncheckedSkip n = do
-    S s ss bytes <- get
+uncheckedSkip :: Int64 -> Int -> BitGet ()
+uncheckedSkip n n' = do
+    S s ss bytes bits <- get
     if fromIntegral (B.length s) >= n
-      then put (S (B.drop (fromIntegral n) s) ss (bytes + n))
+      then put (S (B.drop (fromIntegral n) s) ss (bytes + n) (bits + n'))
       else do
         let rest = L.drop (n - fromIntegral (B.length s)) ss
-        put $! mkState rest (bytes + n)
+        put $! mkState rest (bytes + n) (bits + n')
 
 -- | Run @ga@, but return without consuming its input.
 -- Fails if @ga@ fails.
-lookAhead :: Get a -> Get a
+lookAhead :: BitGet a -> BitGet a
 lookAhead ga = do
     s <- get
     a <- ga
@@ -220,7 +222,7 @@ lookAhead ga = do
 
 -- | Like 'lookAhead', but consume the input if @gma@ returns 'Just _'.
 -- Fails if @gma@ fails.
-lookAheadM :: Get (Maybe a) -> Get (Maybe a)
+lookAheadM :: BitGet (Maybe a) -> BitGet (Maybe a)
 lookAheadM gma = do
     s <- get
     ma <- gma
@@ -230,7 +232,7 @@ lookAheadM gma = do
 
 -- | Like 'lookAhead', but consume the input if @gea@ returns 'Right _'.
 -- Fails if @gea@ fails.
-lookAheadE :: Get (Either a b) -> Get (Either a b)
+lookAheadE :: BitGet (Either a b) -> BitGet (Either a b)
 lookAheadE gea = do
     s <- get
     ea <- gea
@@ -239,10 +241,10 @@ lookAheadE gea = do
         _      -> return ()
     return ea
 
--- | Get the next up to @n@ bytes as a lazy ByteString, without consuming them. 
-uncheckedLookAhead :: Int64 -> Get L.ByteString
+-- | BitGet the next up to @n@ bytes as a lazy ByteString, without consuming them. 
+uncheckedLookAhead :: Int64 -> BitGet L.ByteString
 uncheckedLookAhead n = do
-    S s ss _ <- get
+    S s ss _ _ <- get
     if n <= fromIntegral (B.length s)
         then return (L.fromChunks [B.take (fromIntegral n) s])
         else return $ L.take n (s `join` ss)
@@ -250,25 +252,25 @@ uncheckedLookAhead n = do
 ------------------------------------------------------------------------
 -- Utility
 
--- | Get the total number of bytes read to this point.
-bytesRead :: Get Int64
+-- | BitGet the total number of bytes read to this point.
+bytesRead :: BitGet Int64
 bytesRead = do
-    S _ _ b <- get
+    S _ _ b _ <- get
     return b
 
--- | Get the number of remaining unparsed bytes.
+-- | BitGet the number of remaining unparsed bytes.
 -- Useful for checking whether all input has been consumed.
 -- Note that this forces the rest of the input.
-remaining :: Get Int64
+remaining :: BitGet Int64
 remaining = do
-    S s ss _ <- get
+    S s ss _ _ <- get
     return (fromIntegral (B.length s) + L.length ss)
 
 -- | Test whether all input has been consumed,
 -- i.e. there are no remaining unparsed bytes.
-isEmpty :: Get Bool
+isEmpty :: BitGet Bool
 isEmpty = do
-    S s ss _ <- get
+    S s ss _ _ <- get
     return (B.null s && L.null ss)
 
 ------------------------------------------------------------------------
@@ -276,58 +278,58 @@ isEmpty = do
 
 -- | An efficient 'get' method for strict ByteStrings. Fails if fewer
 -- than @n@ bytes are left in the input.
-getByteString :: Int -> Get B.ByteString
+getByteString :: Int -> BitGet B.ByteString
 getByteString n = readN n id
 {-# INLINE getByteString #-}
 
 -- | An efficient 'get' method for lazy ByteStrings. Does not fail if fewer than
 -- @n@ bytes are left in the input.
-getLazyByteString :: Int64 -> Get L.ByteString
+getLazyByteString :: Int64 -> BitGet L.ByteString
 getLazyByteString n = do
-    S s ss bytes <- get
+    S s ss bytes bits <- get
     let big = s `join` ss
     case splitAtST n big of
-      (consume, rest) -> do put $ mkState rest (bytes + n)
+      (consume, rest) -> do put $ mkState rest (bytes + n) bits
                             return consume
 {-# INLINE getLazyByteString #-}
 
--- | Get a lazy ByteString that is terminated with a NUL byte. Fails
+-- | BitGet a lazy ByteString that is terminated with a NUL byte. Fails
 -- if it reaches the end of input without hitting a NUL.
-getLazyByteStringNul :: Get L.ByteString
+getLazyByteStringNul :: BitGet L.ByteString
 getLazyByteStringNul = do
-    S s ss bytes <- get
+    S s ss bytes bits <- get
     let big = s `join` ss
         (consume, t) = L.break (== 0) big
         (h, rest) = L.splitAt 1 t
     if L.null h
       then fail "too few bytes"
       else do
-        put $ mkState rest (bytes + L.length consume + 1)
+        put $ mkState rest (bytes + L.length consume + 1) bits
         return consume
 {-# INLINE getLazyByteStringNul #-}
 
--- | Get the remaining bytes as a lazy ByteString
-getRemainingLazyByteString :: Get L.ByteString
+-- | BitGet the remaining bytes as a lazy ByteString
+getRemainingLazyByteString :: BitGet L.ByteString
 getRemainingLazyByteString = do
-    S s ss _ <- get
+    S s ss _ _ <- get
     return (s `join` ss)
 
 ------------------------------------------------------------------------
 -- Helpers
 
 -- | Pull @n@ bytes from the input, as a strict ByteString.
-getBytes :: Int -> Get B.ByteString
+getBytes :: Int -> BitGet B.ByteString
 getBytes n = do
-    S s ss bytes <- get
+    S s ss bytes bits <- get
     if n <= B.length s
         then do let (consume,rest) = B.splitAt n s
-                put $! S rest ss (bytes + fromIntegral n)
+                put $! S rest ss (bytes + fromIntegral n) bits -- maybe not tru
                 return $! consume
         else
               case L.splitAt (fromIntegral n) (s `join` ss) of
                 (consuming, rest) ->
                     do let now = B.concat . L.toChunks $ consuming
-                       put $! mkState rest (bytes + fromIntegral n)
+                       put $! mkState rest (bytes + fromIntegral n) bits -- Oo
                        -- forces the next chunk before this one is returned
                        if (B.length now < n)
                          then
@@ -402,7 +404,7 @@ splitAtST i (B.LPS ps)  = runST (
 -- Pull n bytes from the input, and apply a parser to those bytes,
 -- yielding a value. If less than @n@ bytes are available, fail with an
 -- error. This wraps @getBytes@.
-readN :: Int -> (B.ByteString -> a) -> Get a
+readN :: Int -> (B.ByteString -> a) -> BitGet a
 readN n f = fmap f $ getBytes n
 {- INLINE readN -}
 -- ^ important
@@ -414,7 +416,7 @@ readN n f = fmap f $ getBytes n
 -- underlying lazy byteString. So many indirections from the raw parser
 -- state that my head hurts...
 
-getPtr :: Storable a => Int -> Get a
+getPtr :: Storable a => Int -> BitGet a
 getPtr n = do
     (fp,o,_) <- readN n B.toForeignPtr
     return . B.inlinePerformIO $ withForeignPtr fp $ \p -> peek (castPtr $ p `plusPtr` o)
@@ -423,12 +425,12 @@ getPtr n = do
 ------------------------------------------------------------------------
 
 -- | Read a Word8 from the monad state
-getWord8 :: Get Word8
+getWord8 :: BitGet Word8
 getWord8 = getPtr (sizeOf (undefined :: Word8))
 {- INLINE getWord8 -}
 
 -- | Read a Word16 in big endian format
-getWord16be :: Get Word16
+getWord16be :: BitGet Word16
 getWord16be = do
     s <- readN 2 id
     return $! (fromIntegral (s `B.index` 0) `shiftl_w16` 8) .|.
@@ -436,7 +438,7 @@ getWord16be = do
 {- INLINE getWord16be -}
 
 -- | Read a Word16 in little endian format
-getWord16le :: Get Word16
+getWord16le :: BitGet Word16
 getWord16le = do
     s <- readN 2 id
     return $! (fromIntegral (s `B.index` 1) `shiftl_w16` 8) .|.
@@ -444,7 +446,7 @@ getWord16le = do
 {- INLINE getWord16le -}
 
 -- | Read a Word32 in big endian format
-getWord32be :: Get Word32
+getWord32be :: BitGet Word32
 getWord32be = do
     s <- readN 4 id
     return $! (fromIntegral (s `B.index` 0) `shiftl_w32` 24) .|.
@@ -454,7 +456,7 @@ getWord32be = do
 {- INLINE getWord32be -}
 
 -- | Read a Word32 in little endian format
-getWord32le :: Get Word32
+getWord32le :: BitGet Word32
 getWord32le = do
     s <- readN 4 id
     return $! (fromIntegral (s `B.index` 3) `shiftl_w32` 24) .|.
@@ -464,7 +466,7 @@ getWord32le = do
 {- INLINE getWord32le -}
 
 -- | Read a Word64 in big endian format
-getWord64be :: Get Word64
+getWord64be :: BitGet Word64
 getWord64be = do
     s <- readN 8 id
     return $! (fromIntegral (s `B.index` 0) `shiftl_w64` 56) .|.
@@ -478,7 +480,7 @@ getWord64be = do
 {- INLINE getWord64be -}
 
 -- | Read a Word64 in little endian format
-getWord64le :: Get Word64
+getWord64le :: BitGet Word64
 getWord64le = do
     s <- readN 8 id
     return $! (fromIntegral (s `B.index` 7) `shiftl_w64` 56) .|.
@@ -497,22 +499,22 @@ getWord64le = do
 -- | /O(1)./ Read a single native machine word. The word is read in
 -- host order, host endian form, for the machine you're on. On a 64 bit
 -- machine the Word is an 8 byte value, on a 32 bit machine, 4 bytes.
-getWordhost :: Get Word
+getWordhost :: BitGet Word
 getWordhost = getPtr (sizeOf (undefined :: Word))
 {- INLINE getWordhost -}
 
 -- | /O(1)./ Read a 2 byte Word16 in native host order and host endianness.
-getWord16host :: Get Word16
+getWord16host :: BitGet Word16
 getWord16host = getPtr (sizeOf (undefined :: Word16))
 {- INLINE getWord16host -}
 
 -- | /O(1)./ Read a Word32 in native host order and host endianness.
-getWord32host :: Get Word32
+getWord32host :: BitGet Word32
 getWord32host = getPtr  (sizeOf (undefined :: Word32))
 {- INLINE getWord32host -}
 
 -- | /O(1)./ Read a Word64 in native host order and host endianess.
-getWord64host   :: Get Word64
+getWord64host   :: BitGet Word64
 getWord64host = getPtr  (sizeOf (undefined :: Word64))
 {- INLINE getWord64host -}
 
