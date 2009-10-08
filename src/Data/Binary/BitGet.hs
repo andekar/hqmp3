@@ -113,3 +113,25 @@ join sb lb
     | S.null sb = lb
     | otherwise = L.Chunk sb lb
 
+
+-- | Fetch some number of bits from the input and return them as a ByteString
+--   after applying the given function
+readN :: Direction -> Int -> (B.ByteString -> a) -> BitGet a
+readN d n f = do
+  S bytes _ _ boff <- get
+  let bitsRemaining = B.length bytes * 8 - boffInt
+      boffInt = fromIntegral boff
+      (shiftFunction, truncateFunction) =
+        case d of
+             BLeft -> (leftShift, leftTruncateBits)
+             BRight -> (\off -> rightShift $ (((8 - (n `mod` 8)) `mod` 8) - off) `mod` 8,
+                        rightTruncateBits)
+  if bitsRemaining < n
+     then fail "Too few bits remain"
+     else do let bytesRequired = ((n - 1 + boffInt) `div` 8) + 1 -- (n `div` 8) + (if boffInt + (n `mod` 8) > 0 then 1 else 0)
+                 boff' = (boffInt + n) `mod` 8
+             let (r, rest) = if boff' == 0
+                                then B.splitAt bytesRequired bytes
+                                else splitAtWithDupByte bytesRequired bytes
+             put $ S rest $ fromIntegral boff'
+             return $ f $ truncateFunction n $ shiftFunction boffInt r

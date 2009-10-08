@@ -63,7 +63,7 @@ leftTruncateBits n = B.take ((n + 7) `div` 8) . snd . B.mapAccumL f n where
 -- | Truncate a ByteString to a given number of bits (counting from the right)
 --   by masking out extra bits in the first byte
 rightTruncateBits :: Int -> B.ByteString -> B.ByteString
-rightTruncateBits n bs = B.drop (B.length bs - ((n + 7) `div` 8)) $ snd $ B.mapAccumR f n bs where
+rightTruncateBits n bs = B.drop (B.length bs - ((fromIntegral n + 7) `div` 8)) $ snd $ B.mapAccumR f n bs where
   f bits w | bits >= 8 = (bits - 8, w)
            | bits == 0 = (0, 0)
            | otherwise = (0, w .&. bottomNBits bits)
