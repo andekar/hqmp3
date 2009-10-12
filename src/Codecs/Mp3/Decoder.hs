@@ -242,6 +242,7 @@ getMode w = case w of
     0x01 -> JointStereo
     0x02 -> DualChannel
     0x03 -> Mono
+    _ -> error "This should not happen!!! (getMode)"
 
 getModeExt :: Word8 -> (Bool,Bool)
 getModeExt w = case w of
@@ -249,3 +250,4 @@ getModeExt w = case w of
     0x01 -> (False,True)
     0x02 -> (True,False)
     0x03 -> (True,True)
+    _ -> error "This should not happen!!! (getModeExt)"

@@ -74,8 +74,8 @@ readN i f = do
         let sb' = S.take 1 sb
         put $ S sb lb (i+j)
         return $ f $ leftShift j $ rightTruncateBits (8-(i+j)) sb' 
-        else if i == (8-j) then do
-            let (sb',sb'') = S.splitAt 1 sb
+        else if i == (8 - j) then do
+            let (sb', sb'') = S.splitAt 1 sb
             case S.null sb'' of
                 False -> put $ S sb'' lb 0
                 True  -> case lb of
@@ -83,7 +83,7 @@ readN i f = do
                     (L.Chunk sb''' lb') -> put $ S sb''' lb' 0
             return $ f $ leftShift j sb'
             else do
-                let i'  = i+j
+                let i'  = i + j
                     j'  = i' `mod` 8
                     t   = if j' == 0 then 0 else 1
                     i'' = i' `div` 8 + t
@@ -91,7 +91,8 @@ readN i f = do
                     True -> do
                         let sb'  = S.take i'' sb
                             sb'' = S.drop (i'' - t) sb
-                        return (f sb')
+                        put $ S sb'' lb j'
+                        return $ f sb'
                         -- seriously, this looks like crap...what was kolmodin
                         -- thinking? splitAt? S.concat? L.toChunks? swamp...c?
                     False -> case L.splitAt (fromIntegral i'') (sb `join` lb) of
@@ -116,22 +117,22 @@ join sb lb
 
 -- | Fetch some number of bits from the input and return them as a ByteString
 --   after applying the given function
-readN :: Direction -> Int -> (B.ByteString -> a) -> BitGet a
-readN d n f = do
-  S bytes _ _ boff <- get
-  let bitsRemaining = B.length bytes * 8 - boffInt
-      boffInt = fromIntegral boff
-      (shiftFunction, truncateFunction) =
-        case d of
-             BLeft -> (leftShift, leftTruncateBits)
-             BRight -> (\off -> rightShift $ (((8 - (n `mod` 8)) `mod` 8) - off) `mod` 8,
-                        rightTruncateBits)
-  if bitsRemaining < n
-     then fail "Too few bits remain"
-     else do let bytesRequired = ((n - 1 + boffInt) `div` 8) + 1 -- (n `div` 8) + (if boffInt + (n `mod` 8) > 0 then 1 else 0)
-                 boff' = (boffInt + n) `mod` 8
-             let (r, rest) = if boff' == 0
-                                then B.splitAt bytesRequired bytes
-                                else splitAtWithDupByte bytesRequired bytes
-             put $ S rest $ fromIntegral boff'
-             return $ f $ truncateFunction n $ shiftFunction boffInt r
+-- readN :: Direction -> Int -> (B.ByteString -> a) -> BitGet a
+-- readN d n f = do
+--   S bytes _ _ boff <- get
+--   let bitsRemaining = B.length bytes * 8 - boffInt
+--       boffInt = fromIntegral boff
+--       (shiftFunction, truncateFunction) =
+--         case d of
+--              BLeft -> (leftShift, leftTruncateBits)
+--              BRight -> (\off -> rightShift $ (((8 - (n `mod` 8)) `mod` 8) - off) `mod` 8,
+--                         rightTruncateBits)
+--   if bitsRemaining < n
+--      then fail "Too few bits remain"
+--      else do let bytesRequired = ((n - 1 + boffInt) `div` 8) + 1 -- (n `div` 8) + (if boffInt + (n `mod` 8) > 0 then 1 else 0)
+--                  boff' = (boffInt + n) `mod` 8
+--              let (r, rest) = if boff' == 0
+--                                 then B.splitAt bytesRequired bytes
+--                                 else splitAtWithDupByte bytesRequired bytes
+--              put $ S rest $ fromIntegral boff'
+--              return $ f $ truncateFunction n $ shiftFunction boffInt r
