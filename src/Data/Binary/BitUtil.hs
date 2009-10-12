@@ -8,7 +8,7 @@ module BitUtil
   ) where
 
 import Data.Word (Word8)
-import qualified Data.ByteString.Lazy as B
+import qualified Data.ByteString as B
 import Data.Bits (shiftL, shiftR, (.|.), (.&.))
 
 import GHC.Int
@@ -55,7 +55,7 @@ rightShift n = snd . B.mapAccumL f 0 where
 -- | Truncate a ByteString to a given number of bits (counting from the left)
 --   by masking out extra bits in the last byte
 leftTruncateBits :: Int -> B.ByteString -> B.ByteString
-leftTruncateBits n = (B.take . fromIntegral) ((n + 7) `div` 8) . snd . B.mapAccumL f n where
+leftTruncateBits n = B.take ((n + 7) `div` 8) . snd . B.mapAccumL f n where
   f bits w | bits >= 8 = (bits - 8, w)
            | bits == 0 = (0, 0)
            | otherwise = (0, w .&. topNBits bits)

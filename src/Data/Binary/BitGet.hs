@@ -3,7 +3,9 @@ module BitGet where
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Lazy.Internal as L
 import qualified Data.ByteString as S
+import BitUtil
 import Data.Word
+import Data.Bits
 
 data S = S   S.ByteString -- The first strict part of the bytestring
              L.ByteString -- The rest of the byteString
@@ -12,9 +14,13 @@ data S = S   S.ByteString -- The first strict part of the bytestring
 newtype BitGet a = BitGet { unGet :: S -> (a,S) }
 
 -- Runner!
-runBitGet :: BitGet a -> S -> a
-runBitGet g s = case unGet g s of
+runBitGet :: BitGet a -> L.ByteString -> a
+runBitGet g bs = case unGet g (S sb lb 0) of
     (a,_) -> a
+  where
+    (sb,lb) = case bs of
+        L.Empty           -> (S.empty, L.empty)
+        (L.Chunk sb' lb') -> (sb',lb')
 
 -- TODO make the type of BitGet an either, and implement fail
 instance Monad BitGet where
@@ -38,11 +44,19 @@ put s = BitGet $ \_ -> ((),s)
 skip :: Int -> BitGet ()
 skip i = readN i (const ())
 
+getBit :: BitGet Bool
+getBit = getAsWord8 1 >>= return . flip testBit 0
+
 getAsWord8 :: Int -> BitGet Word8
-getAsWord8 i = readN i S.head
+getAsWord8 = flip readN S.head
 
 getAsWord16 :: Int -> BitGet Word16
-getAsWord16 i = undefined
+getAsWord16 i
+    | i <= 8    = getAsWord8 i >>= return . fromIntegral
+    | otherwise = readN i f
+  where 
+    f :: S.ByteString -> Word16
+    f bs = ((fromIntegral $ S.head bs) `shiftL` 8) .|. (fromIntegral $ S.index bs 1)
 
 lookAhead :: BitGet a -> BitGet a
 lookAhead bg = do
@@ -59,7 +73,7 @@ readN i f = do
     if i < (8-j) then do
         let sb' = S.take 1 sb
         put $ S sb lb (i+j)
-        return (f sb') 
+        return $ f $ leftShift j $ rightTruncateBits (8-(i+j)) sb' 
         else if i == (8-j) then do
             let (sb',sb'') = S.splitAt 1 sb
             case S.null sb'' of
@@ -67,7 +81,7 @@ readN i f = do
                 True  -> case lb of
                     L.Empty             -> put $ S sb'' lb 0
                     (L.Chunk sb''' lb') -> put $ S sb''' lb' 0
-            return (f sb')
+            return $ f $ leftShift j sb'
             else do
                 let i'  = i+j
                     j'  = i' `mod` 8
@@ -86,7 +100,7 @@ readN i f = do
                         put $ mkState (now,rest) j'
                         if (S.length now < i'') 
                             then fail "Hej"
-                            else return (f now)
+                            else return $ f $ leftShift j $ rightTruncateBits (8-j') now
   where
     mkState :: (S.ByteString, L.ByteString) -> Int -> S
     mkState (_,(L.Chunk sb lb)) 0 = S sb lb 0

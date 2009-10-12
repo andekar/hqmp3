@@ -3,14 +3,17 @@
 module Decoder () where
 
 -- import Data.Binary.Get 
-import Data.Binary.Strict.BitGet
+import BitGet
+-- import Data.Binary.Strict.BitGet
 import Data.Bits
 import Data.Word
 import Data.Maybe
-import qualified Data.ByteString as B
+import qualified Data.ByteString.Lazy as B
 import ID3
 import Debug.Trace
 import Control.Monad
+
+import Data.Array.Unboxed
 
 data MP3Mode = Stereo | JointStereo | DualChannel | Mono deriving (Show,Eq)
 data MP3Header = MP3Header {
@@ -39,7 +42,7 @@ data Granule = Granule {
     scaleBits         :: Int        -- 12 bits
   , bigValues         :: Int        -- 9 bits
   , globalGain        :: Int        -- 8 bits
-  , scaleFacCompress  :: Int        -- 4 bits
+  , scaleFacCompress  :: Int        -- 4 bits scaleLength?
   , windowSwitching   :: Bool       -- 1 bit
   , ifWindow          :: Window
   , preFlag           :: Bool       -- 1 bit
@@ -67,6 +70,19 @@ data WinFalse = WinFalse {
 
 data MP3Data = MP3Data
 
+-- Array to find out how much data we're supposed to read from
+-- scalefac_l. Idea stolen from Björn Edström
+tableScaleLength :: Array Int (Int,Int)
+tableScaleLength = listArray (0,15)
+        [(0,0), (0,1), (0,2), (0,3), (3,0), (1,1), (1,2), (1,3),
+         (2,1), (2,2), (2,3), (3,1) ,(3,2), (3,3), (4,2), (4,3)] 
+
+test :: FilePath -> IO ()
+test f = do
+    file <- B.readFile f
+    print $ runBitGet readFrameInfo file
+    
+
 -- Finds a header in an mp3 file.
 readFrameInfo :: BitGet (Maybe MP3Header)
 readFrameInfo = do
@@ -87,18 +103,17 @@ readFrameInfo = do
             if prot then skip 16 else return ()
             case (brate, freq) of
                 (Just b, Just f) -> do
-                    left <- remaining
                     sinfo <- readSideInfo mode
                     let size = (144 * 1000 * b) `div` f + (b2i padd)
                         f' = if prot then 2 else 0
                         ff = case mode of
                                  Mono -> 17
                                  _    -> 32
-                    left' <- remaining
+                    -- left <- remaining
                     skip ((size - (ff + 4 + f')) * 8) -- delete when we read
                     -- Here we should read all frame data, starting at
                     -- index pointed out by main_data_pointer, TODO
-                    readFrameInfo
+                    trace ("read frame!") readFrameInfo
                 _   -> trace "bitrate wrong" return Nothing
         _   -> trace ("bad sync " ++ show (h `shiftL` 1)) return Nothing
   where
@@ -109,9 +124,10 @@ readFrameInfo = do
 getNextHeader :: MP3Header -> BitGet (Maybe MP3Header)
 getNextHeader h = lookAhead $ do
     let s = size h
-    skip s
+    skip $ s*8
     readFrameInfo
 
+{-
 -- Reads the portion of data that is before its header, if any
 readD1 :: Int -> BitGet B.ByteString
 readD1 0 = return $ B.empty
@@ -124,6 +140,7 @@ readMainData header d1 end = do
     d2 <- getLeftByteString (end*8)
     let d = B.append d1 d2
     return undefined
+-}
 
 -- Almost exactly follows the ISO standard
 readSideInfo :: MP3Mode -> BitGet SideInfo
@@ -189,7 +206,7 @@ getInt :: Int -> BitGet Int
 getInt i
     | i <= 8    = getAsWord8 i  >>= return . fromIntegral
     | i <= 16   = getAsWord16 i >>= return . fromIntegral
-    | i <= 32   = getAsWord32 i >>= return . fromIntegral
+--    | i <= 32   = getAsWord32 i >>= return . fromIntegral
     | otherwise = error "64 bits does not fit into an Int"
 
 -- This function is so much fun!
