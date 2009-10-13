@@ -6,6 +6,7 @@ import qualified Data.ByteString as S
 import BitUtil
 import Data.Word
 import Data.Bits
+import Debug.Trace
 
 data S = S   S.ByteString -- The first strict part of the bytestring
              L.ByteString -- The rest of the byteString
@@ -70,10 +71,11 @@ lookAhead bg = do
 readN :: Int -> (S.ByteString -> a) -> BitGet a
 readN i f = do
     (S sb lb j) <- get
-    if i < (8-j) then do
-        let sb' = S.take 1 sb
-        put $ S sb lb (i+j)
-        return $ f $ leftShift j $ rightTruncateBits (8-(i+j)) sb' 
+    if i < (8-j) then do -- we must check if it is empty!!
+        let sb'  = S.take 1 sb
+            sb'' = rightTruncateBits i (rightShift (8 - i) sb')
+        put $ S sb lb (i + j)
+        return $ f sb''
         else if i == (8 - j) then do
             let (sb', sb'') = S.splitAt 1 sb
             case S.null sb'' of
@@ -81,7 +83,7 @@ readN i f = do
                 True  -> case lb of
                     L.Empty             -> put $ S sb'' lb 0
                     (L.Chunk sb''' lb') -> put $ S sb''' lb' 0
-            return $ f $ leftShift j sb'
+            return $ f $ rightTruncateBits i sb'
             else do
                 let i'  = i + j
                     j'  = i' `mod` 8
@@ -89,19 +91,20 @@ readN i f = do
                     i'' = i' `div` 8 + t
                 case S.length sb > i'' of
                     True -> do
-                        let sb'  = S.take i'' sb
-                            sb'' = S.drop (i'' - t) sb
-                        put $ S sb'' lb j'
-                        return $ f sb'
-                        -- seriously, this looks like crap...what was kolmodin
-                        -- thinking? splitAt? S.concat? L.toChunks? swamp...c?
+                       let sb'  = S.take i'' sb
+                           sb'' = S.drop (i'' - t) sb
+                       put $ S sb'' lb j' -- this is quite like magic!!
+                       return $ f $ rightTruncateBits i (rightShift (8-j') sb')
+                       -- seriously, this looks like crap...what was kolmodin
+                       -- thinking? splitAt? S.concat? L.toChunks? swamp...c?
                     False -> case L.splitAt (fromIntegral i'') (sb `join` lb) of
+                        -- this case is not yet fixed!!!do it!
                         (consuming, rest) -> do 
                         let now = S.concat . L.toChunks $ consuming
                         put $ mkState (now,rest) j'
                         if (S.length now < i'') 
-                            then fail "Hej"
-                            else return $ f $ leftShift j $ rightTruncateBits (8-j') now
+                          then fail "Hej"
+                          else return $ f $ leftShift j $ rightTruncateBits (8-j') now
   where
     mkState :: (S.ByteString, L.ByteString) -> Int -> S
     mkState (_,(L.Chunk sb lb)) 0 = S sb lb 0

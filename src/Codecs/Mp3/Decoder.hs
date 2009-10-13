@@ -81,7 +81,15 @@ test :: FilePath -> IO ()
 test f = do
     file <- B.readFile f
     print $ runBitGet readFrameInfo file
-    
+
+-- test for the BitGet
+test' = do
+    let bs = B.pack [0xFD::Word8,0xFF::Word8,0x00::Word8]
+    print $ runBitGet readStuff bs
+        where readStuff = do res  <- getAsWord8 5
+                             res' <- getAsWord8 8
+                             res'' <- getAsWord8 3
+                             return ((res,res', res''))-- && res' == 0x5)
 
 -- Finds a header in an mp3 file.
 readFrameInfo :: BitGet (Maybe MP3Header)
