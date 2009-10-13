@@ -98,15 +98,12 @@ readN i f = do
                        -- seriously, this looks like crap...what was kolmodin
                        -- thinking? splitAt? S.concat? L.toChunks? swamp...c?
                     False -> case L.splitAt (fromIntegral i'') (sb `join` lb) of
-                        -- this case is not yet fixed!!!do it!
-                        -- this is where the error is located...
-                        -- not sure there is actually an error
                         (consuming, rest) -> do
                         let now = S.concat . L.toChunks $ consuming
                         put $ mkState (now,rest) j'
                         if (S.length now < i'')
                           then fail "Hej"
-                          else trace "whaaa" $ readN i f
+                          else return $ f $ rightTruncateBits i (rightShift (8-j') now)
   where
     mkState :: (S.ByteString, L.ByteString) -> Int -> S
     mkState (_,(L.Chunk sb lb)) 0 = S sb lb 0
