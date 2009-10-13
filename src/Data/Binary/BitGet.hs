@@ -73,7 +73,7 @@ readN i f = do
     (S sb lb j) <- get
     if i < (8-j) then do -- we must check if it is empty!!
         let sb'  = S.take 1 sb
-            sb'' = rightTruncateBits i (rightShift (8 - i) sb')
+            sb'' = rightTruncateBits i (rightShift (8 - (i + j)) sb')
         put $ S sb lb (i + j)
         return $ f sb''
         else if i == (8 - j) then do
@@ -81,7 +81,7 @@ readN i f = do
             case S.null sb'' of
                 False -> put $ S sb'' lb 0
                 True  -> case lb of
-                    L.Empty             -> put $ S sb'' lb 0
+                    L.Empty             -> put $ S sb''  lb 0
                     (L.Chunk sb''' lb') -> put $ S sb''' lb' 0
             return $ f $ rightTruncateBits i sb'
             else do
@@ -99,12 +99,14 @@ readN i f = do
                        -- thinking? splitAt? S.concat? L.toChunks? swamp...c?
                     False -> case L.splitAt (fromIntegral i'') (sb `join` lb) of
                         -- this case is not yet fixed!!!do it!
-                        (consuming, rest) -> do 
+                        -- this is where the error is located...
+                        -- not sure there is actually an error
+                        (consuming, rest) -> do
                         let now = S.concat . L.toChunks $ consuming
                         put $ mkState (now,rest) j'
-                        if (S.length now < i'') 
+                        if (S.length now < i'')
                           then fail "Hej"
-                          else return $ f $ leftShift j $ rightTruncateBits (8-j') now
+                          else trace "whaaa" $ readN i f
   where
     mkState :: (S.ByteString, L.ByteString) -> Int -> S
     mkState (_,(L.Chunk sb lb)) 0 = S sb lb 0
