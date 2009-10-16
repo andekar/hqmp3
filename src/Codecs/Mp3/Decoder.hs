@@ -1,6 +1,6 @@
 {-# OPTIONS -w #-}
 
-module Decoder () where
+module Main () where
 
 -- import Data.Binary.Get 
 import BitGet
@@ -77,19 +77,23 @@ tableScaleLength = listArray (0,15)
         [(0,0), (0,1), (0,2), (0,3), (3,0), (1,1), (1,2), (1,3),
          (2,1), (2,2), (2,3), (3,1) ,(3,2), (3,3), (4,2), (4,3)] 
 
+main = test "/home/tobsi/machinae_supremacy-cryosleep.mp3"
+
 test :: FilePath -> IO ()
 test f = do
     file <- B.readFile f
-    print $ runBitGet readFrameInfo file
-
--- test for the BitGet
-test' = do
-    let bs = B.pack [0xFD::Word8,0xFF::Word8,0x00::Word8]
-    print $ runBitGet readStuff bs
-        where readStuff = do res  <- getAsWord8 5
-                             res' <- getAsWord8 8
-                             res'' <- getAsWord8 3
-                             return ((res,res', res''))-- && res' == 0x5)
+    case runBitGet readMp3 file of
+        Left s   -> print "file was erroneous"
+        Right hs -> print "successfully parsed mp3 file"
+  where 
+    readMp3 :: BitGet [MP3Header]
+    readMp3 = do
+        frame <- readFrameInfo
+        case frame of
+            Nothing -> return []
+            Just fr -> do
+                frames <- readMp3
+                return $ fr : frames
 
 -- Finds a header in an mp3 file.
 readFrameInfo :: BitGet (Maybe MP3Header)
@@ -98,32 +102,31 @@ readFrameInfo = do
     h <- getAsWord16 15
     case h `shiftL` 1 of
         0xFFFA -> do
-            prot  <- getBit >>= return . not
-            brate <- getAsWord8 4 >>= return . getBitRate
-            freq  <- getAsWord8 2 >>= return . getFreq
-            padd  <- getBit
+            prot   <- getBit >>= return . not
+            brate' <- getAsWord8 4 
+            freq'  <- getAsWord8 2 
+            padd   <- getBit
             skip 1 -- private bit
-            mode  <- getAsWord8 2 >>= return . getMode
-            mext  <- getAsWord8 2 >>= \b -> case mode of
-                JointStereo -> return $ getModeExt b
-                _           -> return $ (False,False)
-            skip 4 -- copyright, original & emphasis
-            if prot then skip 16 else return ()
-            case (brate, freq) of
-                (Just b, Just f) -> do
+            mode'  <- getAsWord8 2 
+            mext'  <- getAsWord8 2 
+            case getHeaderInfo (brate',freq',mode',mext') of
+                Nothing -> return Nothing
+                Just (brate,freq,mode,mext) -> do
+                    skip 4 -- copyright, original & emphasis
+                    if prot then skip 16 else return ()
                     sinfo <- readSideInfo mode
-                    let size = (144 * 1000 * b) `div` f + (b2i padd)
+                    let size = (144 * 1000 * brate) `div` freq + (b2i padd)
                         f' = if prot then 2 else 0
                         ff = case mode of
                                  Mono -> 17
                                  _    -> 32
-                    -- left <- remaining
                     skip ((size - (ff + 4 + f')) * 8) -- delete when we read
                     -- Here we should read all frame data, starting at
                     -- index pointed out by main_data_pointer, TODO
-                    trace ("read frame!") readFrameInfo
-                _   -> trace "bitrate wrong" return Nothing
-        _   -> trace ("bad sync " ++ show (h `shiftL` 1)) return Nothing
+                    -- trace ("read frame: "++ show size) readFrameInfo
+                    return $ Just $ MP3Header brate freq padd mode mext size sinfo
+                _ -> return Nothing
+        _ -> return Nothing
   where
     b2i :: Bool -> Int
     b2i b = if b then 1 else 0
@@ -134,21 +137,6 @@ getNextHeader h = lookAhead $ do
     let s = size h
     skip $ s*8
     readFrameInfo
-
-{-
--- Reads the portion of data that is before its header, if any
-readD1 :: Int -> BitGet B.ByteString
-readD1 0 = return $ B.empty
-readD1 x = getLeftByteString (x*8)
-
--- Reads the main_data()
--- The Int tells us how much to read
-readMainData :: MP3Header -> B.ByteString -> Int -> BitGet MP3Data
-readMainData header d1 end = do
-    d2 <- getLeftByteString (end*8)
-    let d = B.append d1 d2
-    return undefined
--}
 
 -- Almost exactly follows the ISO standard
 readSideInfo :: MP3Mode -> BitGet SideInfo
@@ -217,6 +205,17 @@ getInt i
 --    | i <= 32   = getAsWord32 i >>= return . fromIntegral
     | otherwise = error "64 bits does not fit into an Int"
 
+getHeaderInfo :: (Word8,Word8,Word8,Word8) -> Maybe (Int,Int,MP3Mode,(Bool,Bool))
+getHeaderInfo (br,fr,md,mx) = do
+    brate <- getBitRate br
+    freq  <- getFreq fr
+    mode  <- getMode md
+    case mode of
+        JointStereo -> do
+            mext  <- getModeExt mx
+            return (brate,freq,mode,mext)
+        _ -> return (brate,freq,mode,(False,False))
+
 -- This function is so much fun!
 getBitRate :: Word8 -> Maybe Int
 getBitRate w = case w of
@@ -244,18 +243,18 @@ getFreq w = case w of
     0x02 -> Just 32000
     _    -> Nothing
 
-getMode :: Word8 -> MP3Mode
+getMode :: Word8 -> Maybe MP3Mode
 getMode w = case w of
-    0x00 -> Stereo
-    0x01 -> JointStereo
-    0x02 -> DualChannel
-    0x03 -> Mono
-    _ -> error "This should not happen!!! (getMode)"
+    0x00 -> Just Stereo
+    0x01 -> Just JointStereo
+    0x02 -> Just DualChannel
+    0x03 -> Just Mono
+    _ -> Nothing
 
-getModeExt :: Word8 -> (Bool,Bool)
+getModeExt :: Word8 -> Maybe (Bool,Bool)
 getModeExt w = case w of
-    0x00 -> (False,False)
-    0x01 -> (False,True)
-    0x02 -> (True,False)
-    0x03 -> (True,True)
-    _ -> error "This should not happen!!! (getModeExt)"
+    0x00 -> Just (False,False)
+    0x01 -> Just (False,True)
+    0x02 -> Just (True,False)
+    0x03 -> Just (True,True)
+    _    -> Nothing
