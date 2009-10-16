@@ -10,12 +10,12 @@ import Debug.Trace
 
 data S = S   S.ByteString -- The first strict part of the bytestring
              L.ByteString -- The rest of the byteString
-             Int        -- The bit we're standing at
+             Int          -- The bit we're standing at
 
-newtype BitGet a = BitGet { unGet :: S -> (a,S) }
+newtype BitGet a = BitGet { unGet :: S -> (Either String a,S) }
 
 -- Runner!
-runBitGet :: BitGet a -> L.ByteString -> a
+runBitGet :: BitGet a -> L.ByteString -> Either String a
 runBitGet g bs = case unGet g (S sb lb 0) of
     (a,_) -> a
   where
@@ -25,22 +25,24 @@ runBitGet g bs = case unGet g (S sb lb 0) of
 
 -- TODO make the type of BitGet an either, and implement fail
 instance Monad BitGet where
-    return a = BitGet (\s -> (a,s))
+    return a = BitGet (\s -> (Right a,s))
     bg >>= f = BitGet $ \s -> case unGet bg s of
-        (a,s') -> unGet (f a) s'
-    fail s = undefined
+        (Right a,s')  -> unGet (f a) s'
+        (Left str,s') -> (Left str,s')
+    fail str = BitGet (\s -> (Left str,s))
 
 instance Functor BitGet where
     f `fmap` bg = BitGet $ \s -> case unGet bg s of
-        (a,s') -> (f a, s')
+        (Right a,s')  -> (Right (f a), s')
+        (Left err,s') -> (Left err, s')
 
 -- Get the state
 get :: BitGet S
-get = BitGet $ \s -> (s,s)
+get = BitGet $ \s -> (Right s,s)
 
 -- Toss the old state
 put :: S -> BitGet ()
-put s = BitGet $ \_ -> ((),s)
+put s = BitGet $ \_ -> (Right (),s)
 
 skip :: Int -> BitGet ()
 skip i = readN i (const ())
@@ -71,7 +73,8 @@ lookAhead bg = do
 readN :: Int -> (S.ByteString -> a) -> BitGet a
 readN i f = do
     (S sb lb j) <- get
-    if i < (8-j) then do -- we must check if it is empty!!
+    let s = S.null sb
+    if i < (8-j) && not s then do -- we must check if it is empty!!
         let sb'  = S.take 1 sb
             sb'' = rightTruncateBits i (rightShift (8 - (i + j)) sb')
         put $ S sb lb (i + j)
@@ -102,7 +105,7 @@ readN i f = do
                         let now = S.concat . L.toChunks $ consuming
                         put $ mkState (now,rest) j'
                         if (S.length now < i'')
-                          then fail "Hej"
+                          then fail "Too few bits remain"
                           else return $ f $ rightTruncateBits i (rightShift (8-j') now)
   where
     mkState :: (S.ByteString, L.ByteString) -> Int -> S
@@ -115,26 +118,3 @@ join :: S.ByteString -> L.ByteString -> L.ByteString
 join sb lb
     | S.null sb = lb
     | otherwise = L.Chunk sb lb
-
-
--- | Fetch some number of bits from the input and return them as a ByteString
---   after applying the given function
--- readN :: Direction -> Int -> (B.ByteString -> a) -> BitGet a
--- readN d n f = do
---   S bytes _ _ boff <- get
---   let bitsRemaining = B.length bytes * 8 - boffInt
---       boffInt = fromIntegral boff
---       (shiftFunction, truncateFunction) =
---         case d of
---              BLeft -> (leftShift, leftTruncateBits)
---              BRight -> (\off -> rightShift $ (((8 - (n `mod` 8)) `mod` 8) - off) `mod` 8,
---                         rightTruncateBits)
---   if bitsRemaining < n
---      then fail "Too few bits remain"
---      else do let bytesRequired = ((n - 1 + boffInt) `div` 8) + 1 -- (n `div` 8) + (if boffInt + (n `mod` 8) > 0 then 1 else 0)
---                  boff' = (boffInt + n) `mod` 8
---              let (r, rest) = if boff' == 0
---                                 then B.splitAt bytesRequired bytes
---                                 else splitAtWithDupByte bytesRequired bytes
---              put $ S rest $ fromIntegral boff'
---              return $ f $ truncateFunction n $ shiftFunction boffInt r
