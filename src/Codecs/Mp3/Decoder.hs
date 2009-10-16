@@ -8,7 +8,7 @@ import BitGet
 import Data.Bits
 import Data.Word
 import Data.Maybe
-import qualified Data.ByteString.Lazy as B
+import qualified Data.ByteString.Lazy as L
 import ID3
 import Debug.Trace
 import Control.Monad
@@ -68,7 +68,7 @@ data WinFalse = WinFalse {
   , region1Count    :: Int      -- 3 bits
 } deriving Show
 
-data MP3Data = MP3Data
+data AudioData = AudioData
 
 -- Array to find out how much data we're supposed to read from
 -- scalefac_l. Idea stolen from Björn Edström
@@ -81,10 +81,10 @@ main = test "/home/tobsi/machinae_supremacy-cryosleep.mp3"
 
 test :: FilePath -> IO ()
 test f = do
-    file <- B.readFile f
+    file <- L.readFile f
     case runBitGet readMp3 file of
-        Left s   -> print "file was erroneous"
-        Right hs -> print "successfully parsed mp3 file"
+        ~(ss,_)   -> mapM_ print ss
+--         Right hs -> print "successfully parsed mp3 file"
   where 
     readMp3 :: BitGet [MP3Header]
     readMp3 = do
@@ -111,7 +111,7 @@ readFrameInfo = do
             mext'  <- getAsWord8 2 
             case getHeaderInfo (brate',freq',mode',mext') of
                 Nothing -> return Nothing
-                Just (brate,freq,mode,mext) -> do
+                Just ~(brate,freq,mode,mext) -> do
                     skip 4 -- copyright, original & emphasis
                     if prot then skip 16 else return ()
                     sinfo <- readSideInfo mode
@@ -187,8 +187,9 @@ readSideInfo mode = do
             subBlockGain1 <- getInt 3
             subBlockGain2 <- getInt 3
             subBlockGain3 <- getInt 3
-            return $ WT $ WinTrue blockType mixedBlock tableSelect1 tableSelect2
-                                  subBlockGain1 subBlockGain2 subBlockGain3
+            return $ WT $ WinTrue blockType mixedBlock tableSelect1
+                                  tableSelect2 subBlockGain1 subBlockGain2
+                                  subBlockGain3
         getWinFalse = do
             tableSelect1 <- getInt 5
             tableSelect2 <- getInt 5
@@ -198,6 +199,18 @@ readSideInfo mode = do
             return $ WF $ WinFalse tableSelect1 tableSelect2 tableSelect3
                                    region0Count region1Count
 
+decodeMainData :: [(MP3Header, L.ByteString)] -> [AudioData]
+decodeMainData = undefined
+
+getMainData :: MP3Header -> BitGet (Maybe AudioData)
+getMainData (MP3Header bitRate frequency padding mode mext size
+            (SideInfo dataPointer scaleFactor@(b1,b2) granules@(g1,g2))) =
+                undefined
+    where mainData'  = undefined -- replicateM mode' mainData''
+          mainData'' = undefined
+          mode' | mode == Mono = 1
+                | otherwise = 2
+
 getInt :: Int -> BitGet Int
 getInt i
     | i <= 8    = getAsWord8 i  >>= return . fromIntegral
@@ -205,7 +218,8 @@ getInt i
 --    | i <= 32   = getAsWord32 i >>= return . fromIntegral
     | otherwise = error "64 bits does not fit into an Int"
 
-getHeaderInfo :: (Word8,Word8,Word8,Word8) -> Maybe (Int,Int,MP3Mode,(Bool,Bool))
+getHeaderInfo :: (Word8,Word8,Word8,Word8) ->
+                 Maybe (Int,Int,MP3Mode,(Bool,Bool))
 getHeaderInfo (br,fr,md,mx) = do
     brate <- getBitRate br
     freq  <- getFreq fr

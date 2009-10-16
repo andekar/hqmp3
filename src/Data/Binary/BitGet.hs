@@ -12,37 +12,36 @@ data S = S   S.ByteString -- The first strict part of the bytestring
              L.ByteString -- The rest of the byteString
              Int          -- The bit we're standing at
 
-newtype BitGet a = BitGet { unGet :: S -> (Either String a,S) }
+newtype BitGet a = BitGet { unGet :: S -> ((a, Bool), S) }
 
 -- Runner!
-runBitGet :: BitGet a -> L.ByteString -> Either String a
+runBitGet :: BitGet a -> L.ByteString -> (a, Bool)
 runBitGet g bs = case unGet g (S sb lb 0) of
-    (a,_) -> a
+    ((a,b),_) -> (a,b)
   where
-    (sb,lb) = case bs of
+    ~(sb,lb) = case bs of
         L.Empty           -> (S.empty, L.empty)
         (L.Chunk sb' lb') -> (sb',lb')
 
 -- TODO make the type of BitGet an either, and implement fail
 instance Monad BitGet where
-    return a = BitGet (\s -> (Right a,s))
+    return a = BitGet (\s -> ((a, True), s))
     bg >>= f = BitGet $ \s -> case unGet bg s of
-        (Right a,s')  -> unGet (f a) s'
-        (Left str,s') -> (Left str,s')
-    fail str = BitGet (\s -> (Left str,s))
+        ~(~(a, b), s')  -> case unGet (f a) s' of
+            ~(~(a', b'), s'') -> ((a', b && b'), s'')
+    fail a = BitGet (\s -> ((error a, False), s))
 
 instance Functor BitGet where
     f `fmap` bg = BitGet $ \s -> case unGet bg s of
-        (Right a,s')  -> (Right (f a), s')
-        (Left err,s') -> (Left err, s')
+        ~(~(a,b), s')  -> (((f a), b), s')
 
 -- Get the state
 get :: BitGet S
-get = BitGet $ \s -> (Right s,s)
+get = BitGet $ \s -> ((s, True), s)
 
 -- Toss the old state
 put :: S -> BitGet ()
-put s = BitGet $ \_ -> (Right (),s)
+put s = BitGet $ \_ -> (((), True), s)
 
 skip :: Int -> BitGet ()
 skip i = readN i (const ())
