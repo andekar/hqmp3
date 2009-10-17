@@ -16,14 +16,16 @@ import Control.Monad
 import Data.Array.Unboxed
 
 data MP3Mode = Stereo | JointStereo | DualChannel | Mono deriving (Show,Eq)
-data MP3Header = MP3Header {
-    bitRate   :: Int
-  , frequency :: Int
-  , padding   :: Bool
-  , mode      :: MP3Mode
-  , mext      :: (Bool,Bool) -- used only with jointstereo
-  , size      :: Int
-  , sideInfo  :: SideInfo
+data MP3Header
+    = MP3Header { bitRate   :: Int
+                , frequency :: Int
+                , padding   :: Bool
+                , mode      :: MP3Mode
+                , mext      :: (Bool,Bool) -- used only with jointstereo
+                , fsize     :: Int -- frame  size
+                , hsize     :: Int -- header size
+                , sideInfo  :: SideInfo
+                , mp3Data   :: L.ByteString
 } deriving Show
 
 -- Derived from page 17 in ISO-11172-3
@@ -87,22 +89,43 @@ main = test "/home/tobsi/machinae_supremacy-cryosleep.mp3"
 test :: FilePath -> IO ()
 test f = do
     file <- L.readFile f
-    case runBitGet readMp3 file of
+    case runBitGet first file of
         ss -> mapM_ print ss
   where 
-    readMp3 :: BitGet [MP3Header]
-    readMp3 = do
-        frame <- readFrameInfo
+    readMp3 :: MP3Header -> BitGet [MP3Header]
+    readMp3 h1 = do
+        frame <- readFrameInfo h1
         case frame of
-            Nothing -> return []
-            Just fr -> do
-                frames <- readMp3
-                return $ fr : frames
+            Left _ -> return []
+            Right (f1,f2) -> do
+                frames <- readMp3 f2
+                return $ f1 : frames
+    first = do
+        skipId3
+        (Just h1) <- lookAhead readHeader
+        readMp3 h1
+    rr = undefined
+
+type MP3Data = (MP3Header, MP3Header)
+
+readFrameInfo :: MP3Header -> BitGet (Either (Maybe MP3Data, Bool) MP3Data)
+readFrameInfo h1@(MP3Header _ _ _ _ _ fsize hsize sin _) = do
+    skipId3
+    let pointer = dataPointer sin
+    lhs <- getLazyByteString pointer
+--     skip pointer -- get bytes later
+    (Just h2) <- lookAhead $ skip fsize >> readHeader
+    let pointer' = (dataPointer . sideInfo) h2
+        reads = fsize - pointer' -- the size of data to read!!! YEAH!
+    -- later we want to parse here
+    rhs <- getLazyByteString reads
+--     skip reads -- will be better later with getBytes!
+    -- note that we have no error checks yet!!
+    return $ Right ((h1{mp3Data = L.append lhs rhs}), h2)
 
 -- Finds a header in an mp3 file.
-readFrameInfo :: BitGet (Maybe MP3Header)
-readFrameInfo = do
-    skipId3 -- is this the right place to do this? YES?!
+readHeader :: BitGet (Maybe MP3Header)
+readHeader = do
     h <- getAsWord16 15
     case h `shiftL` 1 of
         0xFFFA -> do
@@ -119,28 +142,21 @@ readFrameInfo = do
                     skip 4 -- copyright, original & emphasis
                     if prot then skip 16 else return ()
                     sinfo <- readSideInfo mode
-                    let size = (144 * 1000 * brate) `div` freq + (b2i padd)
+                    let size = ((144 * 1000 * brate) `div` freq +
+                                (b2i padd)) * 8
                         f' = if prot then 2 else 0
                         ff = case mode of
                                  Mono -> 17
                                  _    -> 32
-                    skip ((size - (ff + 4 + f')) * 8) -- delete when we read
-                    -- Here we should read all frame data, starting at
-                    -- index pointed out by main_data_pointer, TODO
-                    -- trace ("read frame: "++ show size) readFrameInfo
-                    return $ Just $ MP3Header brate freq padd mode mext size sinfo
+                        hsize = (f' + ff + 4) * 8
+--                         skipp =  ((size - (ff + 4 + f')) * 8)
+                    return $ Just (MP3Header brate freq padd mode
+                                   mext size hsize sinfo undefined)
                 _ -> return Nothing
         _ -> return Nothing
   where
     b2i :: Bool -> Int
     b2i b = if b then 1 else 0
-
--- Does NOT read the "d1" part of a "mixed frame"
-getNextHeader :: MP3Header -> BitGet (Maybe MP3Header)
-getNextHeader h = lookAhead $ do
-    let s = size h
-    skip $ s * 8
-    readFrameInfo
 
 -- Almost exactly follows the ISO standard
 readSideInfo :: MP3Mode -> BitGet SideInfo
@@ -208,7 +224,7 @@ decodeMainData :: [(MP3Header, L.ByteString)] -> [AudioData]
 decodeMainData = undefined
 
 getMainData :: MP3Header -> BitGet (Maybe AudioData)
-getMainData (MP3Header bitRate frequency padding mode mext size r)
+getMainData (MP3Header bitRate frequency padding mode mext fsize hsize r _)
 --             (SideInfo dataPointer scaleFactor@(b1,b2) granules@(g1,g2))) =
                 =undefined
     where mainData'  = replicateM mode' mainData''

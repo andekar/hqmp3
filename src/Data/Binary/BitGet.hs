@@ -75,6 +75,11 @@ getSafeAsWord16 i
     f bs = ((fromIntegral $ S.head bs) `shiftL` 8)
        .|.  (fromIntegral $ S.index bs 1)
 
+-- not yet safe!!
+getLazyByteString :: Int -> BitGet L.ByteString
+getLazyByteString i = do (r,j) <-safeReadN i id
+                         return $ L.Chunk r L.Empty
+
 lookAhead :: BitGet a -> BitGet a
 lookAhead bg = do
     s <- get 
