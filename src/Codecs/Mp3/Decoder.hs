@@ -28,14 +28,19 @@ data MP3Header = MP3Header {
 
 -- Derived from page 17 in ISO-11172-3
 -- The side info is totalling 17 or 32 bits, mono and stereo, respectively
-data SideInfo = SideInfo {
-    dataPointer     :: Int                      -- 9   bits
---, private_bits    :: Int                      -- 3/5 bits
-    -- 4 per channel, [] = no such channel
-  , scaleFactor     :: ([Bool],[Bool])          -- 4 bits / channel
-    -- two per channel, [] = no such channel
-  , granules        :: ([Granule],[Granule])    -- 2 per channel
-} deriving Show
+data SideInfo = SideInfo { dataPointer     :: Int -- 9   bits
+                         , chanInfo :: ChanInfo
+                         } deriving Show
+
+data ChanInfo 
+    = Single { scales :: [Bool]
+             , gran1   :: Granule
+             , gran2   :: Granule }
+    | Dual   { scales' :: [Bool]
+             , gran1'  :: Granule
+             , gran2'  :: Granule
+             , gran3'  :: Granule
+             , gran4'  :: Granule } deriving Show
 
 -- Granule is computed for each specific channel
 data Granule = Granule {
@@ -83,8 +88,7 @@ test :: FilePath -> IO ()
 test f = do
     file <- L.readFile f
     case runBitGet readMp3 file of
-        ~(ss,_)   -> mapM_ print ss
---         Right hs -> print "successfully parsed mp3 file"
+        ss -> mapM_ print ss
   where 
     readMp3 :: BitGet [MP3Header]
     readMp3 = do
@@ -103,12 +107,12 @@ readFrameInfo = do
     case h `shiftL` 1 of
         0xFFFA -> do
             prot   <- getBit >>= return . not
-            brate' <- getAsWord8 4 
-            freq'  <- getAsWord8 2 
+            brate' <- getAsWord8 4
+            freq'  <- getAsWord8 2
             padd   <- getBit
             skip 1 -- private bit
-            mode'  <- getAsWord8 2 
-            mext'  <- getAsWord8 2 
+            mode'  <- getAsWord8 2
+            mext'  <- getAsWord8 2
             case getHeaderInfo (brate',freq',mode',mext') of
                 Nothing -> return Nothing
                 Just ~(brate,freq,mode,mext) -> do
@@ -135,7 +139,7 @@ readFrameInfo = do
 getNextHeader :: MP3Header -> BitGet (Maybe MP3Header)
 getNextHeader h = lookAhead $ do
     let s = size h
-    skip $ s*8
+    skip $ s * 8
     readFrameInfo
 
 -- Almost exactly follows the ISO standard
@@ -144,9 +148,16 @@ readSideInfo mode = do
     dataptr  <- getInt 9
     skipPrivate
     scaleFactors <- getScaleFactors
-    granuleL     <- getGranule
-    granuleR     <- getGranule
-    return $ SideInfo dataptr scaleFactors (granuleL, granuleR)
+    chanInfo <- case mode of
+        Mono -> do g1 <- getGranule
+                   g2 <-getGranule
+                   return (Single scaleFactors g1 g2)
+        Stereo -> do g1 <- getGranule
+                     g2 <- getGranule
+                     g3 <- getGranule
+                     g4 <- getGranule
+                     return (Dual scaleFactors g1 g2 g3 g4)
+    return $ SideInfo dataptr chanInfo
   where
     skipPrivate = case mode of
         Mono -> skip 5
@@ -154,20 +165,13 @@ readSideInfo mode = do
     getScaleFactors = case mode of
         Mono -> do
             bits <- replicateM 4 getBit
-            return (bits, []) 
+            return $ bits
         _    -> do
             bitsL <- replicateM 4 getBit
             bitsR <- replicateM 4 getBit
-            return (bitsL, bitsR)
-    getGranule = case mode of
-        Mono -> getGranule' >>= \g -> return [g]
-        _    -> do
-            l <- getGranule'
-            r <- getGranule'
-            return [l,r]
-      where
-        getGranule' = do
-            scaleBits        <- getInt 12 
+            return $ (bitsL ++ bitsR)
+    getGranule = do
+            scaleBits        <- getInt 12
             bigValues        <- getInt 9
             globalGain       <- getInt 8
             scaleFacCompress <- getInt 4
@@ -176,9 +180,10 @@ readSideInfo mode = do
             preFlag       <- getBit
             scaleFacScale <- getBit
             count1TableSelect <- getBit
-            return $ Granule scaleBits bigValues globalGain scaleFacCompress 
+            return $ Granule scaleBits bigValues globalGain scaleFacCompress
                              windowSwitching ifWindow preFlag scaleFacScale
                              count1TableSelect
+                where
         getWinTrue  = do
             blockType     <- getInt 2
             mixedBlock    <- getBit
@@ -203,13 +208,18 @@ decodeMainData :: [(MP3Header, L.ByteString)] -> [AudioData]
 decodeMainData = undefined
 
 getMainData :: MP3Header -> BitGet (Maybe AudioData)
-getMainData (MP3Header bitRate frequency padding mode mext size
-            (SideInfo dataPointer scaleFactor@(b1,b2) granules@(g1,g2))) =
-                undefined
-    where mainData'  = undefined -- replicateM mode' mainData''
-          mainData'' = undefined
+getMainData (MP3Header bitRate frequency padding mode mext size r)
+--             (SideInfo dataPointer scaleFactor@(b1,b2) granules@(g1,g2))) =
+                =undefined
+    where mainData'  = replicateM mode' mainData''
+          mainData'' :: BitGet AudioData
+          mainData'' | True = undefined
           mode' | mode == Mono = 1
                 | otherwise = 2
+
+-- forGranule r = case r of
+--     ([],[])     -> undefined
+--     ((x:xs:[]),ys) | windowSwitching x == True -> 
 
 getInt :: Int -> BitGet Int
 getInt i
