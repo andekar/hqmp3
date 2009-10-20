@@ -30,15 +30,13 @@ data MP3Header
 
 -- Derived from page 17 in ISO-11172-3
 -- The side info is totalling 17 or 32 bits, mono and stereo, respectively
-data SideInfo = SideInfo { dataPointer     :: Int -- 9   bits
-                         , chanInfo :: ChanInfo
-                         } deriving Show
-
-data ChanInfo 
-    = Single { scales :: [Bool]
+data SideInfo
+    = Single { dataPointer :: Int -- 9 bits
+             , scales  :: [Bool]
              , gran1   :: Granule
              , gran2   :: Granule }
-    | Dual   { scales' :: [Bool]
+    | Dual   { dataPointer :: Int -- 9 bits
+             , scales' :: [Bool]
              , gran1'  :: Granule
              , gran2'  :: Granule
              , gran3'  :: Granule
@@ -108,7 +106,7 @@ test f = do
 
 type MP3Data = (MP3Header, MP3Header)
 
-readFrameInfo :: MP3Header -> BitGet (Either (Maybe MP3Data, Bool) MP3Data)
+readFrameInfo :: MP3Header -> BitGet (Either (Maybe MP3Header, Bool) MP3Data)
 readFrameInfo h1@(MP3Header _ _ _ _ _ fsize hsize sin _) = do
     skipId3
     let pointer = dataPointer sin
@@ -119,6 +117,7 @@ readFrameInfo h1@(MP3Header _ _ _ _ _ fsize hsize sin _) = do
         reads = fsize - pointer' -- the size of data to read!!! YEAH!
     -- later we want to parse here
     rhs <- getLazyByteString reads
+--     skip reads -- will be better later with getBytes!
     -- note that we have no error checks yet!!
     return $ Right ((h1{mp3Data = L.append lhs rhs}), h2)
 
@@ -166,13 +165,13 @@ readSideInfo mode = do
     chanInfo <- case mode of
         Mono -> do g1 <- getGranule
                    g2 <-getGranule
-                   return (Single scaleFactors g1 g2)
+                   return (Single dataptr scaleFactors g1 g2)
         Stereo -> do g1 <- getGranule
                      g2 <- getGranule
                      g3 <- getGranule
                      g4 <- getGranule
-                     return (Dual scaleFactors g1 g2 g3 g4)
-    return $ SideInfo dataptr chanInfo
+                     return (Dual dataptr scaleFactors g1 g2 g3 g4)
+    return chanInfo
   where
     skipPrivate = case mode of
         Mono -> skip 5
@@ -223,18 +222,63 @@ decodeMainData :: [(MP3Header, L.ByteString)] -> [AudioData]
 decodeMainData = undefined
 
 getMainData :: MP3Header -> BitGet (Maybe AudioData)
-getMainData (MP3Header bitRate frequency padding mode mext fsize hsize r _)
---             (SideInfo dataPointer scaleFactor@(b1,b2) granules@(g1,g2))) =
-                =undefined
-    where mainData'  = replicateM mode' mainData''
+getMainData (MP3Header bitRate frequency padding mode mext fsize hsize
+             sideInfo r) = undefined
+    where mainData'  = replicateM (2 * mode') mainData''
           mainData'' :: BitGet AudioData
           mainData'' | True = undefined
           mode' | mode == Mono = 1
                 | otherwise = 2
-
--- forGranule r = case r of
---     ([],[])     -> undefined
---     ((x:xs:[]),ys) | windowSwitching x == True -> 
+          -- will return a list of long scalefactors
+          -- a list of lists of short scalefactors
+          -- an int describing how much we read, this might not be needed
+          pScaleFactors :: Int -> Bool -> Int -> Int -> [Bool] -> Int -> [Word8] ->
+                    BitGet ([Word8], [[Word8]], Int) 
+          pScaleFactors blockType mixedBlockFlag slen1 slen2
+                 (scfsi0:scfsi1:scfsi2:scfsi3:[]) gr prev
+                  -- as defined in page 18 of the mp3 iso standard
+              | blockType == 2 && mixedBlockFlag = do
+                  -- slen1: 0 to 7 (long window scalefactor band)
+                  scalefacL0 <- replicateM 8 $ getAsWord8 slen1
+                  -- slen1: bands 3 to 5 (short window scalefactor band)
+                  scaleFacS0 <- replicateM 3 $ replicateM 3 $ getAsWord8 slen1
+                  -- slen2: bands 6 to 11
+                  scaleFacS1 <- replicateM 6 $ replicateM 3 $ getAsWord8 slen2
+                  let length = 17 * slen1 + 18 * slen2
+                  -- here we must insert 3 lists of all zeroes since the
+                  -- slen1 starts at band 3
+                      sr = replicate 3 $ replicate 3 0
+                  return (scalefacL0, sr ++ scaleFacS0 ++ scaleFacS1, length)
+              | blockType == 2 = do
+                  -- slen1: 0 to 5
+                  scaleFacS0 <- replicateM 6 $ replicateM 3 $ getAsWord8 slen1
+                  -- slen2: 6 to 11
+                  scaleFacS1 <- replicateM 6 $ replicateM 3 $ getAsWord8 slen2
+                  let length = 18 * slen1 + 18 * slen2
+                  return ([], scaleFacS0 ++ scaleFacS1, length)
+              | otherwise = do
+                  -- slen1: 0 to 10
+                  s0 <- if c scfsi0 gr then
+                            replicateM 6 $ getAsWord8 slen1
+                            else return $ take 6 prev
+                  s1 <- if c scfsi1 gr then
+                            replicateM 5 $ getAsWord8 slen1
+                            else return $ take 5 $ drop 6 prev
+                  -- slen2: 11 to 20
+                  s2 <- if c scfsi2 gr then
+                            replicateM 5 $ getAsWord8 slen2
+                            else return $ take 6 $ drop 11 prev
+                  s3 <- if c scfsi3 gr then
+                            replicateM 5 $ getAsWord8 slen2
+                            else return $ take 6 $ drop 16 prev
+                  let length = 6 * (if c scfsi0 gr then slen1 else 0) +
+                               5 * (if c scfsi1 gr then slen1 else 0) +
+                               5 * (if c scfsi2 gr then slen1 else 0) +
+                               5 * (if c scfsi3 gr then slen1 else 0)
+                      -- here we might need a paddig 0 after s3
+                      -- (if we want a list of 22 elements)
+                  return (s0 ++ s1 ++ s2 ++ s3, [], length)
+                      where c sc gr = not sc || gr == 0
 
 getInt :: Int -> BitGet Int
 getInt i
