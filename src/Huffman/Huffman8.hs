@@ -8,7 +8,8 @@ module Huffman8 ( encode
                 , mkTree
                 , tree2arr
                 , writeTree
-                , readTree ) where
+                , readTree
+                , test ) where
 
 --
 -- This implementation of Huffman codes is designed to be very specific
@@ -25,11 +26,21 @@ import Data.Bits
 import qualified Huffman as Huff
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as Bc
+import qualified Data.ByteString.Lazy as L
 import Data.PriorityQueue
+
+import BitGet
 
 type HuffArray = Array Word8 (Word8,Word8)
 type STHuff s  = STArray s Word8 (Word8,Word8)
 type HuffTree  = Huff.HuffTree Word8
+
+test :: B.ByteString -> [Word8]
+test bs = runBitGet (Huff.decode tree return (fromIntegral pad)) (L.fromChunks [enc])
+   where tree      = mkTree bs
+         arr       = tree2arr tree
+         (enc,pad) = encode arr bs
+
 
 -- One would want to be able to use only the array
 -- | The mkTree creates a Huffmantree out of a bytestring

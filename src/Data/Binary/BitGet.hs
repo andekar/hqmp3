@@ -49,6 +49,21 @@ skip = flip unsafeReadN (const ())
 safeSkip :: Int -> BitGet Int
 safeSkip = liftM snd . flip safeReadN id
 
+atLeast :: Int -> BitGet Bool
+atLeast i = do
+    (S sb lb j) <- get
+    let fs = (8-j) + 8 * S.length sb
+    if (fs >= i)
+        then return True
+        else return $ checkSize (i - fs) lb
+  where
+    checkSize :: Int -> L.ByteString -> Bool
+    checkSize 0 _       = True
+    checkSize _ L.Empty = False
+    checkSize i (L.Chunk s l)
+        | S.length s >= i = True
+        | otherwise       = checkSize (i - S.length s) l
+
 getBit :: BitGet Bool
 getBit = getAsWord8 1 >>= return . flip testBit 0
 
@@ -131,61 +146,57 @@ safeReadN i f = do
                           else let ll = rightTruncateBits i (rightShift (8-j')
                                                              now)
                                in return (f ll, i)
-  where
-    mkState :: (S.ByteString, L.ByteString) -> Int -> S
-    mkState (_,(L.Chunk sb lb)) 0 = S sb lb 0
-    mkState (_,L.Empty) 0         = S S.empty L.Empty 0
-    mkState (sb,lb) j             = S sb' lb j
-        where sb' = S.drop (S.length sb - 1) sb
-
-join :: S.ByteString -> L.ByteString -> L.ByteString
-join sb lb
-    | S.null sb = lb
-    | otherwise = L.Chunk sb lb
 
 unsafeReadN :: Int -> (S.ByteString -> a) -> BitGet a
 unsafeReadN i f = do
     (S sb lb j) <- get
     let s = S.null sb
-    if i < (8-j) && not s then do -- we must check if it is empty!!
-        let sb'  = S.take 1 sb
-            sb'' = rightTruncateBits i (rightShift (8 - (i + j)) sb')
-        put $ S sb lb (i + j)
-        return $ f sb''
-        else if i == (8 - j) then do
+        g | i < (8-j) && not s = do
+            let sb'  = S.take 1 sb
+                sb'' = rightTruncateBits i (rightShift (8 - (i + j)) sb')
+            put $ S sb lb (i + j)
+            return $ f sb''
+        
+          | i == (8 - j) = do
             let (sb', sb'') = S.splitAt 1 sb
             case S.null sb'' of
                 False -> put $ S sb'' lb 0
                 True  -> case lb of
                     L.Empty             -> put $ S sb''  lb 0
                     (L.Chunk sb''' lb') -> put $ S sb''' lb' 0
-            return $ f $ rightTruncateBits i sb'
-            else do
-                let i'  = i + j
-                    j'  = i' `mod` 8
-                    t   = if j' == 0 then 0 else 1
-                    i'' = i' `div` 8 + t
-                case S.length sb > i'' of
-                    True -> do
-                       let sb'  = S.take i'' sb
-                           sb'' = S.drop (i'' - t) sb
-                           ll   = rightTruncateBits i (rightShift (8-j') sb')
-                       put $ S sb'' lb j' -- this is quite like magic!!
-                       return $ f ll
-                       -- seriously, this looks like crap...what was kolmodin
-                       -- thinking? splitAt? S.concat? L.toChunks? swamp...c?
-                    False -> case L.splitAt (fromIntegral i'') (sb `join` lb) of
-                        (consuming, rest) -> do
-                        let now = S.concat . L.toChunks $ consuming
-                        put $ mkState (now,rest) j'
-                        if (S.length now < i'')
-                          then error "FAIL you should know better, use the readNSafe instead"
-                          else let ll = rightTruncateBits i (rightShift (8-j')
-                                                             now)
-                               in return $ f ll
-  where
-    mkState :: (S.ByteString, L.ByteString) -> Int -> S
-    mkState (_,(L.Chunk sb lb)) 0 = S sb lb 0
-    mkState (_,L.Empty) 0         = S S.empty L.Empty 0
-    mkState (sb,lb) j             = S sb' lb j
-        where sb' = S.drop (S.length sb - 1) sb
+            return $ f (rightTruncateBits i sb')
+          | otherwise = do
+            let i'  = i + j
+                j'  = i' `mod` 8
+                t   = if j' == 0 then 0 else 1
+                i'' = i' `div` 8 + t
+            case S.length sb > i'' of
+                True -> do
+                   let sb'  = S.take i'' sb
+                       sb'' = S.drop (i'' - t) sb
+                       ll   = rightTruncateBits i (rightShift (8-j') sb')
+                   put $ S sb'' lb j' -- this is quite like magic!!
+                   return $ f ll
+                   -- seriously, this looks like crap...what was kolmodin
+                   -- thinking? splitAt? S.concat? L.toChunks? swamp...c?
+                False -> case L.splitAt (fromIntegral i'') (sb `join` lb) of
+                    (consuming, rest) -> do
+                    let now = S.concat . L.toChunks $ consuming
+                    put $ mkState (now,rest) j'
+                    if (S.length now < i'')
+                      then error "You should know better, use the safeReadN instead"
+                      else let ll = rightTruncateBits i (rightShift (8-j')
+                                                         now)
+                           in return $ f ll
+    g
+
+mkState :: (S.ByteString, L.ByteString) -> Int -> S
+mkState (_,(L.Chunk sb lb)) 0 = S sb lb 0
+mkState (_,L.Empty) 0         = S S.empty L.Empty 0
+mkState (sb,lb) j             = S sb' lb j
+    where sb' = S.drop (S.length sb - 1) sb
+
+join :: S.ByteString -> L.ByteString -> L.ByteString
+join sb lb
+    | S.null sb = lb
+    | otherwise = L.Chunk sb lb

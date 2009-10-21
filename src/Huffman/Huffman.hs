@@ -8,7 +8,8 @@ module Huffman ( analyze
                , HuffTree (..)
                , create
                , createTree
-               , decode ) where
+               , decode
+               , decodeOld ) where
 
 import qualified Data.ByteString as B
 import qualified Data.Map as M
@@ -17,6 +18,7 @@ import Data.PriorityQueue
 import Control.Monad
 import Control.Monad.ST
 import Data.Bits
+import BitGet
 
 -- Can probably be speeded up (TODO)
 -- | Analyze will create a list of Word8 tupled with the number of occurrences
@@ -63,10 +65,11 @@ createTree p = do
 -- j is how many padding bits this stream has
 --
 -- Please do not change this code, checks are not checked
+
 type Quad a = (a,[Word8],Int,Int)
 
-decode :: Eq a => [Word8] -> HuffTree a -> (Quad a -> Quad a) -> [a]
-decode bs ts f' = decode' bs ts ts 7 0 f'
+decodeOld :: Eq a => [Word8] -> HuffTree a -> (Quad a -> Quad a) -> [a]
+decodeOld bs ts f' = decode' bs ts ts 7 0 f'
   where 
     decode' :: Eq a => [Word8] -> HuffTree a -> HuffTree a 
                     -> Int -> Int -> (Quad a -> Quad a) -> [a]
@@ -83,3 +86,18 @@ decode bs ts f' = decode' bs ts ts 7 0 f'
     
     tree :: Bits b => b -> Int -> HuffTree a -> HuffTree a -> HuffTree a
     tree bits num t1 t2 = if testBit bits num then t2 else t1
+
+decode :: Eq a => HuffTree a -> (a -> BitGet a) -> Int -> BitGet [a]
+decode t f p = decode' t
+  where
+    decode' (Leaf v) = do
+        vs   <- decode' t
+        fres <- f v
+        return $ fres : vs
+    decode' (Node left right) = do
+        r <- atLeast (p-1)
+        if r then return [] 
+             else do
+                b <- getBit
+                if b then decode' right
+                     else decode' left
