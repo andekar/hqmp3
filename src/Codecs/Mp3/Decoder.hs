@@ -110,7 +110,7 @@ readFrameInfo :: MP3Header -> BitGet (Either (Maybe MP3Header, Bool) MP3Data)
 readFrameInfo h1@(MP3Header _ _ _ _ _ fsize hsize sin _) = do
     skipId3
     let pointer = dataPointer sin
-    lhs <- getLazyByteString point
+    lhs <- getLazyByteString pointer
     -- Need to check the Maybe here
     (Just h2) <- lookAhead $ skip fsize >> readHeader
     let pointer' = (dataPointer . sideInfo) h2
