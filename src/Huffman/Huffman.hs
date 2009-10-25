@@ -87,16 +87,15 @@ decodeOld bs ts f' = decode' bs ts ts 7 0 f'
     tree :: Bits b => b -> Int -> HuffTree a -> HuffTree a -> HuffTree a
     tree bits num t1 t2 = if testBit bits num then t2 else t1
 
-decode :: Eq a => HuffTree a -> (a -> BitGet a) -> Int -> BitGet [a]
+decode :: Eq a => HuffTree a -> (a -> BitGet a) -> Int -> BitGet (Maybe a)
 decode t f p = decode' t
   where
     decode' (Leaf v) = do
-        vs   <- decode' t
         fres <- f v
-        return $ fres : vs
+        return $ Just fres
     decode' (Node left right) = do
-        r <- atLeast (p-1)
-        if r then return [] 
+        r <- atLeast (p - 1)
+        if not r then return Nothing
              else do
                 b <- getBit
                 if b then decode' right

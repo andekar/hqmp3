@@ -4,11 +4,13 @@ module Main () where
 
 -- import Data.Binary.Get 
 import BitGet
+import qualified Huffman as Huff
 -- import Data.Binary.Strict.BitGet
 import Data.Bits
 import Data.Word
 import Data.Maybe
 import qualified Data.ByteString.Lazy as L
+import qualified Data.ByteString as S
 import ID3
 import Debug.Trace
 import Control.Monad
@@ -49,28 +51,28 @@ data Granule = Granule {
   , globalGain        :: Int        -- 8 bits
   , scaleFacCompress  :: Int        -- 4 bits scaleLength?
   , windowSwitching   :: Bool       -- 1 bit
-  , ifWindow          :: Window
-  , preFlag           :: Bool       -- 1 bit
-  , scaleFacScale     :: Bool       -- 1 bit
-  , count1TableSelect :: Bool       -- 1 bit
-} deriving Show
-
-data Window  = WT WinTrue | WF WinFalse deriving Show
-data WinTrue = WinTrue {
-    blockType       :: Int      -- 2 bits
+    -- windowzzz
+  , blockType       :: Int      -- 2 bits
   , mixedBlock      :: Bool     -- 1 bit
   , tableSelect_1   :: Int      -- 5 bits
   , tableSelect_2   :: Int      -- 5 bits
+
+    -- window == 0
+  , tableSelect_3   :: Int
+
+    -- window == 1
   , subBlockGain1   :: Int      -- 3 bits
   , subBlockGain2   :: Int      -- 3 bits
   , subBlockGain3   :: Int      -- 3 bits
-} deriving Show
-data WinFalse = WinFalse {
-    tableSelect1    :: Int      -- 5 bits
-  , tableSelect2    :: Int      -- 5 bits
-  , tableSelect3    :: Int      -- 5 bits
-  , region0Count    :: Int      -- 4 bits
-  , region1Count    :: Int      -- 3 bits
+
+  , preFlag           :: Bool       -- 1 bit
+  , scaleFacScale     :: Bool       -- 1 bit
+  , count1TableSelect :: Bool       -- 1 bit
+
+  -- calculated from precious values
+  , region0Start     :: Int
+  , region1Start     :: Int
+  , region2Start     :: Int
 } deriving Show
 
 data AudioData = AudioData
@@ -106,20 +108,40 @@ test f = do
 
 type MP3Data = (MP3Header, MP3Header)
 
+data DChannel
+    = DMono [Int] [Int] [Int] -- one list of scalefactor data and 2 granules
+    | DStereo [Int] [Int] [Int] [Int] [Int] -- four granules...
+
+decodeGranules :: MP3Header -> DChannel
+decodeGranules = undefined
+
 readFrameInfo :: MP3Header -> BitGet (Either (Maybe MP3Header, Bool) MP3Data)
 readFrameInfo h1@(MP3Header _ _ _ _ _ fsize hsize sin _) = do
     skipId3
     let pointer = dataPointer sin
     lhs <- getLazyByteString pointer
     -- Need to check the Maybe here
-    (Just h2) <- lookAhead $ skip fsize >> readHeader
-    let pointer' = (dataPointer . sideInfo) h2
-        reads = fsize - pointer' -- the size of data to read!!! YEAH!
-    -- later we want to parse here
-    rhs <- getLazyByteString reads
---     skip reads -- will be better later with getBytes!
-    -- note that we have no error checks yet!!
-    return $ Right ((h1{mp3Data = L.append lhs rhs}), h2)
+    (s, maybeH2) <- lookAhead $ do 
+        s <- safeSkip fsize
+        if s == fsize then do
+            hh <- readHeader
+            return (s, hh) else return (s, Nothing)
+    case maybeH2 of
+        Just h2 ->  do
+            let pointer' = (dataPointer . sideInfo) h2
+                reads = fsize - pointer'
+            -- later we want to parse here
+            rhs <- getLazyByteString reads
+            --     skip reads
+            -- note that we have no error checks yet!!
+            return $ Right ((h1{mp3Data = L.append lhs rhs}), h2)
+        Nothing -> if s == fsize then do
+                     return (Left (Nothing, False))
+                     else do 
+                         rhs <- getLazyByteString s
+                         -- decode
+                         return $ Left ((Just h1{mp3Data = L.append lhs rhs}
+                                        , False))
 
 -- Finds a header in an mp3 file.
 readHeader :: BitGet (Maybe MP3Header)
@@ -190,33 +212,41 @@ readSideInfo mode = do
             globalGain       <- getInt 8
             scaleFacCompress <- getInt 4
             windowSwitching  <- getBit
-            ifWindow <- if windowSwitching then getWinTrue else getWinFalse
+
+            blockType  <- getInt $ if windowSwitching then 2 else 0
+            mixedBlock <- if windowSwitching then getBit else return False
+            tableSelect1  <- getInt 5
+            tableSelect2  <- getInt 5
+            tableSelect3  <- if windowSwitching then return 0 else getInt 5
+            subBlockGain1 <- if windowSwitching then getInt 3 else return 0
+            subBlockGain2 <- if windowSwitching then getInt 3 else return 0
+            subBlockGain3 <- if windowSwitching then getInt 3 else return 0
+            region0Count  <- if windowSwitching then 
+                                return (reg0 mixedBlock blockType)
+                                else getInt 4
+            region1Count  <- if windowSwitching then return reg1 else getInt 3
+            --
+            let reg0 = if not windowSwitching && blockType == 2 then
+                            36 else region0Count + 1
+                reg1 = if not windowSwitching && blockType == 2 then
+                            576 else region0Count + 1 + region1Count + 1
+                reg2 = if blockType == 2 then
+                            0 else undefined
+--             ifWindow <- if windowSwitching then getWinTrue else getWinFalse
             preFlag       <- getBit
             scaleFacScale <- getBit
             count1TableSelect <- getBit
             return $ Granule scaleBits bigValues globalGain scaleFacCompress
-                             windowSwitching ifWindow preFlag scaleFacScale
-                             count1TableSelect
+                             windowSwitching blockType mixedBlock tableSelect1
+                             tableSelect2 tableSelect3 subBlockGain1
+                             subBlockGain2 subBlockGain3
+                             preFlag scaleFacScale
+                             count1TableSelect reg0 reg1 reg2
                 where
-        getWinTrue  = do
-            blockType     <- getInt 2
-            mixedBlock    <- getBit
-            tableSelect1  <- getInt 5
-            tableSelect2  <- getInt 5
-            subBlockGain1 <- getInt 3
-            subBlockGain2 <- getInt 3
-            subBlockGain3 <- getInt 3
-            return $ WT $ WinTrue blockType mixedBlock tableSelect1
-                                  tableSelect2 subBlockGain1 subBlockGain2
-                                  subBlockGain3
-        getWinFalse = do
-            tableSelect1 <- getInt 5
-            tableSelect2 <- getInt 5
-            tableSelect3 <- getInt 5
-            region0Count <- getInt 4
-            region1Count <- getInt 3
-            return $ WF $ WinFalse tableSelect1 tableSelect2 tableSelect3
-                                   region0Count region1Count
+        reg0 False bType | bType == 2 = 8
+                         | otherwise = 7
+        reg0 _ _ = 7
+        reg1 = 36
 
 decodeMainData :: [(MP3Header, L.ByteString)] -> [AudioData]
 decodeMainData = undefined
@@ -279,6 +309,43 @@ getMainData (MP3Header bitRate frequency padding mode mext fsize hsize
                       -- (if we want a list of 22 elements)
                   return (s0 ++ s1 ++ s2 ++ s3, [], length)
                       where c sc gr = not sc || gr == 0
+
+type HuffTree = (Huff.HuffTree (Int, Int), Int)
+
+huffDecode :: (Int, Int, Int) -> (HuffTree, HuffTree, HuffTree)
+              -> Int -> BitGet [(Int, Int)]
+huffDecode (r0, r1, r2) (t0, t1, t2) count1 = do
+    r0res <- replicateM r0 $ huffDecodeXY t0
+    r1res <- replicateM r1 $ huffDecodeXY t1
+    r2res <- replicateM r2 $ huffDecodeXY t2
+    return undefined
+
+huffDecodeXY :: HuffTree -> BitGet (Int,Int)
+huffDecodeXY (huff, linbits) = do
+    Just (x,y) <- Huff.decode huff return 0
+    x' <-linsign x linbits
+    y' <-linsign y linbits
+    return (x',y')
+  where linsign :: Int -> Int -> BitGet Int
+        linsign c l 
+            | abs c == 15 && l > 0 = do
+                res <- getInt l >>= \r -> return (r+15)
+                sign <-getBit
+                if sign then return (negate res)
+                        else return res
+            | c /= 0 = getBit >>= \s -> if s then return (negate c) else return c
+            | otherwise = return c
+
+huffDecodeVWXY :: Huff.HuffTree (Int,Int,Int,Int) -> BitGet (Int,Int,Int,Int)
+huffDecodeVWXY huff = do
+    Just (v,w,x,y) <- Huff.decode huff return 0
+    v' <- setSign v
+    w' <- setSign w
+    x' <- setSign x
+    y' <- setSign y
+    return (v',w',x',y')
+  where setSign 0 = return 0
+        setSign c = getBit >>= \s -> if s then return (negate c) else return c
 
 getInt :: Int -> BitGet Int
 getInt i
