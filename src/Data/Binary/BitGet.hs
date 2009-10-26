@@ -18,7 +18,10 @@ newtype BitGet a = BitGet { unGet :: S -> (a, S) }
 
 -- Runner!
 runBitGet :: BitGet a -> L.ByteString -> a
-runBitGet g bs = case unGet g (S sb lb 0) of
+runBitGet = runBitGetAt 0
+
+runBitGetAt :: Int -> BitGet a -> L.ByteString -> a
+runBitGetAt pos g bs = case unGet g (S sb lb pos) of
     (a,_) -> a
   where
     ~(sb,lb) = case bs of
@@ -94,6 +97,12 @@ getSafeAsWord16 i
 getLazyByteString :: Int -> BitGet L.ByteString
 getLazyByteString i = do (r,j) <-safeReadN i id
                          return $ L.Chunk r L.Empty
+
+-- returns the remaining bytestring
+-- it also includes which bit we are currently on
+getRemainingLazy :: BitGet (L.ByteString, Int)
+getRemainingLazy = do (S sb lb i) <- get
+                      return (L.Chunk sb lb, i)
 
 lookAhead :: BitGet a -> BitGet a
 lookAhead bg = do
