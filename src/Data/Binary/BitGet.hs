@@ -1,7 +1,7 @@
 module BitGet where
 
 import qualified Data.ByteString.Lazy as L
-import qualified Data.ByteString.Lazy.Internal as L
+import qualified Data.ByteString.Lazy.Internal as LI
 import qualified Data.ByteString as S
 import BitUtil
 import Data.Word
@@ -25,8 +25,8 @@ runBitGetAt pos g bs = case unGet g (S sb lb pos) of
     (a,_) -> a
   where
     ~(sb,lb) = case bs of
-        L.Empty           -> (S.empty, L.empty)
-        (L.Chunk sb' lb') -> (sb',lb')
+        LI.Empty           -> (S.empty, L.empty)
+        (LI.Chunk sb' lb') -> (sb',lb')
 
 -- TODO make the type of BitGet an either, and implement fail
 instance Monad BitGet where
@@ -62,8 +62,8 @@ atLeast i = do
   where
     checkSize :: Int -> L.ByteString -> Bool
     checkSize 0 _       = True
-    checkSize _ L.Empty = False
-    checkSize i (L.Chunk s l)
+    checkSize _ LI.Empty = False
+    checkSize i (LI.Chunk s l)
         | S.length s >= i = True
         | otherwise       = checkSize (i - S.length s) l
 
@@ -96,13 +96,13 @@ getSafeAsWord16 i
 -- not yet safe!!
 getLazyByteString :: Int -> BitGet L.ByteString
 getLazyByteString i = do (r,j) <-safeReadN i id
-                         return $ L.Chunk r L.Empty
+                         return $ LI.Chunk r LI.Empty
 
 -- returns the remaining bytestring
 -- it also includes which bit we are currently on
 getRemainingLazy :: BitGet (L.ByteString, Int)
 getRemainingLazy = do (S sb lb i) <- get
-                      return (L.Chunk sb lb, i)
+                      return (LI.Chunk sb lb, i)
 
 lookAhead :: BitGet a -> BitGet a
 lookAhead bg = do
@@ -127,8 +127,8 @@ safeReadN i f = do
             case S.null sb'' of
                 False -> put $ S sb'' lb 0
                 True  -> case lb of
-                    L.Empty             -> put $ S sb''  lb 0
-                    (L.Chunk sb''' lb') -> put $ S sb''' lb' 0
+                    LI.Empty             -> put $ S sb''  lb 0
+                    (LI.Chunk sb''' lb') -> put $ S sb''' lb' 0
             return (f $ rightTruncateBits i sb', i)
             else do
                 let i'  = i + j
@@ -171,8 +171,8 @@ unsafeReadN i f = do
             case S.null sb'' of
                 False -> put $ S sb'' lb 0
                 True  -> case lb of
-                    L.Empty             -> put $ S sb''  lb 0
-                    (L.Chunk sb''' lb') -> put $ S sb''' lb' 0
+                    LI.Empty             -> put $ S sb''  lb 0
+                    (LI.Chunk sb''' lb') -> put $ S sb''' lb' 0
             return $ f (rightTruncateBits i sb')
           | otherwise = do
             let i'  = i + j
@@ -200,12 +200,19 @@ unsafeReadN i f = do
     g
 
 mkState :: (S.ByteString, L.ByteString) -> Int -> S
-mkState (_,(L.Chunk sb lb)) 0 = S sb lb 0
-mkState (_,L.Empty) 0         = S S.empty L.Empty 0
+mkState (_,(LI.Chunk sb lb)) 0 = S sb lb 0
+mkState (_,LI.Empty) 0         = S S.empty LI.Empty 0
 mkState (sb,lb) j             = S sb' lb j
     where sb' = S.drop (S.length sb - 1) sb
 
 join :: S.ByteString -> L.ByteString -> L.ByteString
 join sb lb
     | S.null sb = lb
-    | otherwise = L.Chunk sb lb
+    | otherwise = LI.Chunk sb lb
+
+getInt :: Int -> BitGet Int
+getInt i
+    | i <= 8    = getAsWord8 i  >>= return . fromIntegral
+    | i <= 16   = getAsWord16 i >>= return . fromIntegral
+--    | i <= 32   = getAsWord32 i >>= return . fromIntegral
+    | otherwise = error "64 bits does not fit into an Int"
