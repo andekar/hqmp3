@@ -39,7 +39,7 @@ readHeader = do
     h <- getAsWord16 15
     case h `shiftL` 1 of
         0xFFFA -> do
-            prot   <- getBit >>= return . not
+            prot   <- liftM not getBit
             brate' <- getAsWord8 4
             freq'  <- getAsWord8 2
             padd   <- getBit
@@ -50,10 +50,10 @@ readHeader = do
                 Nothing -> return Nothing
                 Just ~(brate,freq,mode,mext) -> do
                     skip 4 -- copyright, original & emphasis
-                    if prot then skip 16 else return ()
+                    when prot $ skip 16
                     sinfo <- readSideInfo mode
                     let size = ((144 * 1000 * brate) `div` freq +
-                                (b2i padd)) * 8
+                                b2i padd) * 8
                         f' = if prot then 2 else 0
                         ff = case mode of
                                  Mono -> 17
@@ -84,8 +84,7 @@ readFrameInfo h1@(MP3Header _ _ _ _ _ fsize hsize sin _) = do
                 reads = fsize - pointer'
             rhs <- getLazyByteString reads
             return $ Right ((h1{mp3Data = L.append lhs rhs}), h2)
-        Nothing -> if s == fsize then do
-                     return (Left (Nothing, False))
+        Nothing -> if s == fsize then return $ Left (Nothing, False)
                      else do 
                          rhs <- getLazyByteString s
                          return $ Left ((Just h1{mp3Data = L.append lhs rhs}
@@ -112,13 +111,11 @@ readSideInfo mode = do
         Mono -> skip 5
         _    -> skip 3
     getScaleFactors = case mode of
-        Mono -> do
-            bits <- replicateM 4 getBit
-            return $ bits
+        Mono -> replicateM 4 getBit
         _    -> do
             bitsL <- replicateM 4 getBit
             bitsR <- replicateM 4 getBit
-            return $ (bitsL ++ bitsR)
+            return (bitsL ++ bitsR)
     getGranule = do
             scaleBits        <- getInt 12
             bigValues        <- getInt 9

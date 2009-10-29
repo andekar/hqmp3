@@ -112,7 +112,7 @@ decodeGranule prev scfsi (Granule scaleBits bigValues globalGain
                       -- here we might need a paddig 0 after s3
                       -- (if we want a list of 22 elements)
                   return $ Scales (s0 ++ s1 ++ s2 ++ s3) [] length
-                      where c sc = not sc && (not $ null prev)
+                      where c sc = not sc && not (null prev)
 
 type HuffTree = (Huff.HuffTree (Int, Int), Int)
 

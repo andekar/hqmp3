@@ -49,7 +49,7 @@ get = BitGet $ \s -> (s, s)
 
 -- Toss the old state
 put :: S -> BitGet ()
-put s = BitGet $ \_ -> ((), s)
+put s = BitGet $ const ((), s)
 
 skip :: Int -> BitGet ()
 skip = flip unsafeReadN (const ())
@@ -61,7 +61,7 @@ atLeast :: Int -> BitGet Bool
 atLeast i = do
     (S sb lb j) <- get
     let fs = (8-j) + 8 * S.length sb
-    if (fs >= i)
+    if fs >= i
         then return True
         else return $ checkSize (i - fs) lb
   where
@@ -73,7 +73,7 @@ atLeast i = do
         | otherwise       = checkSize (i - S.length s) l
 
 getBit :: BitGet Bool
-getBit = getAsWord8 1 >>= return . flip testBit 0
+getBit = liftM (flip testBit 0) $ getAsWord8 1
 
 getAsWord8 :: Int -> BitGet Word8
 getAsWord8 = flip unsafeReadN S.head
@@ -83,20 +83,20 @@ getSafeAsWord8 = flip safeReadN S.head
 
 getAsWord16 :: Int -> BitGet Word16
 getAsWord16 i
-    | i <= 8    = getAsWord8 i >>= return . fromIntegral
+    | i <= 8    = liftM fromIntegral $ getAsWord8 i
     | otherwise = unsafeReadN i f
   where 
     f :: S.ByteString -> Word16
-    f bs = ((fromIntegral $ S.head bs) `shiftL` 8) .|. (fromIntegral $ S.index bs 1)
+    f bs = (fromIntegral (S.head bs) `shiftL` 8) .|. fromIntegral (S.index bs 1)
 
 getSafeAsWord16 :: Int -> BitGet (Word16, Int)
 getSafeAsWord16 i
-    | i <= 8    = getSafeAsWord8 i >>= return . first fromIntegral
+    | i <= 8    = liftM (first fromIntegral) $ getSafeAsWord8 i
     | otherwise = safeReadN i f
   where 
     f :: S.ByteString -> Word16
-    f bs = ((fromIntegral $ S.head bs) `shiftL` 8)
-       .|.  (fromIntegral $ S.index bs 1)
+    f bs = (fromIntegral (S.head bs) `shiftL` 8)
+       .|. fromIntegral (S.index bs 1)
 
 -- not yet safe!!
 getLazyByteString :: Int -> BitGet L.ByteString
@@ -153,7 +153,7 @@ safeReadN i f = do
                         (consuming, rest) -> do
                         let now = S.concat . L.toChunks $ consuming
                         put $ mkState (now,rest) j'
-                        if (S.length now < i'')
+                        if S.length now < i''
                           then let ll = (S.length now * 8) - j
                                    now' = rightTruncateBits j now
                                in return (f now', ll)
@@ -197,7 +197,7 @@ unsafeReadN i f = do
                     (consuming, rest) -> do
                     let now = S.concat . L.toChunks $ consuming
                     put $ mkState (now,rest) j'
-                    if (S.length now < i'')
+                    if S.length now < i''
                       then error "You should know better, use the safeReadN instead"
                       else let ll = rightTruncateBits i (rightShift (8-j')
                                                          now)
@@ -217,7 +217,7 @@ join sb lb
 
 getInt :: Int -> BitGet Int
 getInt i
-    | i <= 8    = getAsWord8 i  >>= return . fromIntegral
-    | i <= 16   = getAsWord16 i >>= return . fromIntegral
+    | i <= 8    = liftM fromIntegral $ getAsWord8 i
+    | i <= 16   = liftM fromIntegral $ getAsWord16 i
 --    | i <= 32   = getAsWord32 i >>= return . fromIntegral
     | otherwise = error "64 bits does not fit into an Int"

@@ -1,7 +1,6 @@
 -- Copyright (c) Tobias Olausson 2009
 -- Copyright (c) Anders Karlsson 2009
 
-{-# LANGUAGE BangPatterns #-}
 {-# OPTIONS -Wall #-}
 
 module Huffman ( analyze
@@ -24,10 +23,10 @@ import BitGet
 -- | Analyze will create a list of Word8 tupled with the number of occurrences
 -- in the given ByteString
 analyze :: B.ByteString -> [(Word8,Int)]
-analyze b = M.toList $ B.foldr f M.empty b
+analyze = M.toList . B.foldr f M.empty
   where
     f :: Word8 -> M.Map Word8 Int -> M.Map Word8 Int
-    f w m = M.insertWith (+) w 1 m
+    f w = M.insertWith (+) w 1
 
 -- | The Huffmantree is an usual tree in haskell
 data Eq a => HuffTree a =
