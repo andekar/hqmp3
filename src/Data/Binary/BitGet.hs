@@ -38,6 +38,11 @@ instance Functor BitGet where
     f `fmap` bg = BitGet $ \s -> case unGet bg s of
         ~(a, s')  -> (f a, s')
 
+-- TODO
+-- instance Applicative BitGet where
+--     pure = ap
+--     v <*> v' = 
+
 -- Get the state
 get :: BitGet S
 get = BitGet $ \s -> (s, s)

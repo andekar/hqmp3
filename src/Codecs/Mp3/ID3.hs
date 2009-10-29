@@ -2,12 +2,12 @@
 -- Comments in this file is partly taken from http://www.id3.org/id3v2.3.0
 module ID3 ( -- functions
              skipId3
---            , getId3v1
---            , getId3v2_2
+           , getId3v1
+           , getId3v2_2
              -- constructors
---            , ID3(..)
---            , Version(..)
---            , Frame (..)
+           , ID3(..)
+           , Version(..)
+           , Frame (..)
            ) where
 
 import Debug.Trace
@@ -93,41 +93,41 @@ frameToData :: [Frame] -> [ID3]
 frameToData = map (read . show)
 
 -- | Simple test function
--- mains :: IO ()
--- mains = do content <- L.readFile "song.mp3"
---            content' <- B.readFile "song.mp3"
---            let (Just r) = runGet getId3v2_2 content
---            print r
---            return ()
+mains :: IO ()
+mains = do content <- L.readFile "song.mp3"
+           content' <- B.readFile "song.mp3"
+           let (Just r) = runGet getId3v2_2 content
+           print r
+           return ()
 
 -- | Get ID3v1
 -- this will currently fail if a ID3v1.1 is used, the id3v1.1 has removed
 -- 2bytes at each of the 30bytes fields to save space
--- getId3v1 :: Get (Maybe ( B.ByteString
---                        , B.ByteString
---                        , B.ByteString
---                        , B.ByteString
---                        , B.ByteString
---                        , B.ByteString ))
--- getId3v1 = do rem     <- remaining
---               skip (fromIntegral rem - 128)
---               tag     <- getBytes 3
---               title   <- getBytes 30
---               artist  <- getBytes 30
---               album   <- getBytes 30
---               year    <- getBytes 3
---               comment <- getBytes 30
---               -- Check if last 2 bytes describe the track number
---               genre   <- getBytes 1
---               if tag == B.pack "TAG" then
---                   return $ Just ( f tag, f title
---                                 , f artist, f album
---                                 , f year, f comment)
---                   else return Nothing
---     where f = Bc.filter (flip notElem [ 0x00 -- \NUL
---                                       ])
---           track bs = do --let bs' = Bc.unpack (drop 28 bs)
---                         return Nothing
+getId3v1 :: Get (Maybe ( B.ByteString
+                       , B.ByteString
+                       , B.ByteString
+                       , B.ByteString
+                       , B.ByteString
+                       , B.ByteString ))
+getId3v1 = do rem     <- remaining
+              skip (fromIntegral rem - 128)
+              tag     <- getBytes 3
+              title   <- getBytes 30
+              artist  <- getBytes 30
+              album   <- getBytes 30
+              year    <- getBytes 3
+              comment <- getBytes 30
+              -- Check if last 2 bytes describe the track number
+              genre   <- getBytes 1
+              if tag == B.pack "TAG" then
+                  return $ Just ( f tag, f title
+                                , f artist, f album
+                                , f year, f comment)
+                  else return Nothing
+    where f = Bc.filter (flip notElem [ 0x00 -- \NUL
+                                      ])
+          track bs = do --let bs' = Bc.unpack (drop 28 bs)
+                        return Nothing
 
 
 --                         case head bs' == 0x00 of
@@ -157,45 +157,45 @@ skipId3 = do maybeTag <- BG.lookAhead checkTag
 
 -- | Will if possible extract frames from an mp3 file that is given as a 
 -- ByteString as input.
--- getId3v2_2 :: Get (Maybe [Frame])
--- getId3v2_2 = do tags <- getBytes 3
---                 ver  <- getBytes 2
---                 if (tags == tag &&
---                     version' ver == Just ID3v2_2) then do
---                         calID3 (version' ver)
---                         else  return Nothing
---     where calID3 v = do flags <- getBytes 1
---                         size <- getBytes 4
---                         let sizes = byteSize size
---                         body <- getLazyByteString sizes
---                         return $ Just $ runGet id3Frames body
---           byteSize = fromIntegral . getSize . (map fromIntegral) . Bc.unpack
+getId3v2_2 :: Get (Maybe [Frame])
+getId3v2_2 = do tags <- getBytes 3
+                ver  <- getBytes 2
+                if (tags == tag &&
+                    version' ver == Just ID3v2_2) then do
+                        calID3 (version' ver)
+                        else  return Nothing
+    where calID3 v = do flags <- getBytes 1
+                        size <- getBytes 4
+                        let sizes = byteSize size
+                        body <- getLazyByteString sizes
+                        return $ Just $ runGet id3Frames body
+          byteSize = fromIntegral . getSize . (map fromIntegral) . Bc.unpack
 
 -- | Collect ID3 fGetid3Frames :: Get [Frame]
--- id3Frames
---     = do empty <- isEmpty
---          if empty then do
---              return []
---              else do
---                  id      <- getBytes 4
---                  size    <- getBytes 4
---                  flags   <- getBytes 2
---                  content <- getBytes $ s size
---                  rest    <- id3Frames
---                  if (notElem id unsup) then do
---                      return (Frame id (s size) flags (filtNull content) : rest)
---                      else do return rest
---     where s size = fromIntegral . calcVal . map fromIntegral $ Bc.unpack size
---           calcVal :: [Word32] -> Word32
---           calcVal (x0:x1:x2:x3:[]) = let x0' = shiftL x0 24
---                                          x1' = shiftL x1 16
---                                          x2' = shiftL x2 8
---                                      in x0' .|. x1' .|. x2' .|. x3
+id3Frames
+    = do empty <- isEmpty
+         if empty then do
+             return []
+             else do
+                 id      <- getBytes 4
+                 size    <- getBytes 4
+                 flags   <- getBytes 2
+                 content <- getBytes $ s size
+                 rest    <- id3Frames
+                 if (notElem id unsup) then do
+                     return (Frame id (s size) flags (filtNull content) : rest)
+                     else do return rest
+    where s size = fromIntegral . calcVal . map fromIntegral $ Bc.unpack size
+          calcVal :: [Word32] -> Word32
+          calcVal (x0:x1:x2:x3:[]) = let x0' = shiftL x0 24
+                                         x1' = shiftL x1 16
+                                         x2' = shiftL x2 8
+                                     in x0' .|. x1' .|. x2' .|. x3
 
 -- Filter all \NUL data
--- filtNull :: B.ByteString -> B.ByteString
--- filtNull r = Bc.filter (flip notElem [ 0x00 -- \NUL
---                                  ]) r
+filtNull :: B.ByteString -> B.ByteString
+filtNull r = Bc.filter (flip notElem [ 0x00 -- \NUL
+                                 ]) r
 
 -- | The first TAG indicating we have an id3 tag
 tag :: B.ByteString
