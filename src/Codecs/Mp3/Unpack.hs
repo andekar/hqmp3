@@ -2,10 +2,8 @@
 
 module Unpack (unpackMp3) where
 
--- import Data.Binary.Get 
 import BitGet
 import qualified Huffman as Huff
--- import Data.Binary.Strict.BitGet
 import Data.Bits
 import Data.Word
 import Data.Maybe
@@ -61,7 +59,6 @@ readHeader = do
                                  Mono -> 17
                                  _    -> 32
                         hsize = (f' + ff + 4) * 8
---                         skipp =  ((size - (ff + 4 + f')) * 8)
                     return $ Just (MP3Header brate freq padd mode
                                    mext size hsize sinfo undefined)
                 _ -> return Nothing
@@ -85,16 +82,12 @@ readFrameInfo h1@(MP3Header _ _ _ _ _ fsize hsize sin _) = do
         Just h2 ->  do
             let pointer' = (dataPointer . sideInfo) h2
                 reads = fsize - pointer'
-            -- later we want to parse here
             rhs <- getLazyByteString reads
-            --     skip reads
-            -- note that we have no error checks yet!!
             return $ Right ((h1{mp3Data = L.append lhs rhs}), h2)
         Nothing -> if s == fsize then do
                      return (Left (Nothing, False))
                      else do 
                          rhs <- getLazyByteString s
-                         -- decode
                          return $ Left ((Just h1{mp3Data = L.append lhs rhs}
                                         , False))
 
