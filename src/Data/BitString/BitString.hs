@@ -7,7 +7,7 @@ import qualified Data.ByteString as S
 import Data.Int
 import Data.Word
 import Data.Bits
-import Prelude hiding (drop, head, length, take, drop, splitAt, tail)
+import Prelude hiding (drop, head, length, take, drop, splitAt, tail, concat)
 import Control.Monad
 import Control.Arrow
 import qualified Test.QuickCheck as QC
@@ -55,6 +55,24 @@ prop_head bis = List.head (bisToList bis) ==  if (head bis) then 1 else 0
 prop_tail :: BitString -> Bool
 prop_tail bis = List.tail (bisToList bis) == bisToList (tail bis)
 
+prop_append :: BitString -> BitString -> Bool
+prop_append bis bis' = (f bis) ++ (f bis')
+                     == f (append bis bis')
+    where f = bisToList
+
+prop_concat :: [BitString] -> Bool
+prop_concat biss = List.concat (map f biss)
+                 == f (concat biss)
+    where f = bisToList
+
+prop_atLeast :: Int -> BitString -> Bool
+prop_atLeast i bis = ((List.length (f bis) * 8) >= i)
+                   == atLeast bis (fromIntegral i)
+    where f = bisToList
+
+prop_atLeastBS :: Int -> L.ByteString -> Bool
+prop_atLeastBS i bs = ((L.length bs * 8) >= (fromIntegral i))
+                    == atLeastBS bs (fromIntegral i)
 
 bisToList :: BitString -> [Int]
 bisToList Empty = []
@@ -129,10 +147,6 @@ splitAt i bs@(Chunk lb bitPos rest)
     rTrunc = 8 - fromIntegral ((i + j) `mod` 8)
     trunced fst' = rightShiftByteString (fromIntegral rTrunc) fst'
 
-test bs = head (convertWords bs) == head (take 1 (convertWords bs))
-
-test' = take 1 . convertWords
-
 -- Taken from the BitGet library, just altered for lazy bytestrings
 -- Not exported
 rightShiftByteString :: Int -> L.ByteString -> L.ByteString
@@ -175,6 +189,6 @@ atLeast (Chunk (LI.Chunk sb lb) i rest) j
 atLeastBS :: L.ByteString -> Int64 -> Bool
 atLeastBS LI.Empty 0 = True
 atLeastBS LI.Empty _ = False
-atLeastBS (LI.Chunk sb lb) i 
+atLeastBS (LI.Chunk sb lb) i
     | i <= fromIntegral (S.length sb * 8) = True
     | otherwise = atLeastBS lb (i - (fromIntegral $ S.length sb) * 8)
