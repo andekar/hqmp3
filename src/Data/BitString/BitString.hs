@@ -13,7 +13,9 @@ import Control.Arrow
 import qualified Test.QuickCheck as QC
 import qualified Data.List as List
 
-data BitString = Empty | Chunk L.ByteString Int BitString
+import Debug.Trace
+
+data BitString = Empty | Chunk L.ByteString Int64 BitString
     deriving Show
 
 -- oh lord...
@@ -33,21 +35,30 @@ instance QC.Arbitrary L.ByteString where
         list <- QC.vector 100
         return $ L.pack list
 
--- not working
+-- Don't ever try to do this. It may cause permanent brain damage...
+-- prop_take :: Int -> BitString -> Bool
+-- prop_take i bis = List.take (fromIntegral i') bList == bisToList (take i' bis)
+--     where bList = bisToList bis
+--           i' = abs (fromIntegral i)
+
 prop_take :: Int -> BitString -> Bool
-prop_take i bis = List.take i bList == bisToList (take (fromIntegral i) bis)
-    where bList = bisToList bis
+prop_take i bs = List.take i' bList == bisToList (take (fromIntegral i') bs)
+   where
+       bList = bisToList bs
+       i' = fromIntegral $ abs i
 
 -- not working
 prop_drop :: Int -> BitString -> Bool
-prop_drop i bis = List.drop i (bisToList bis)
-                == bisToList (drop (fromIntegral i) bis)
+prop_drop i bis = List.drop (fromIntegral i') (bisToList bis)
+                == bisToList (drop i' bis)
+    where i' = abs $ fromIntegral i
 
 -- not working
 prop_splitAt :: Int -> BitString -> Bool
-prop_splitAt i bis = List.splitAt i (bisToList bis)
+prop_splitAt i bis = List.splitAt (fromIntegral i') (bisToList bis)
                    == second bisToList (first bisToList 
-                                        (splitAt (fromIntegral i) bis))
+                                        (splitAt i' bis))
+    where i' = abs $ fromIntegral i
 
 prop_head :: BitString -> Bool
 prop_head bis = List.head (bisToList bis) ==  if (head bis) then 1 else 0
@@ -56,8 +67,8 @@ prop_tail :: BitString -> Bool
 prop_tail bis = List.tail (bisToList bis) == bisToList (tail bis)
 
 prop_append :: BitString -> BitString -> Bool
-prop_append bis bis' = (f bis) ++ (f bis')
-                     == f (append bis bis')
+prop_append bis bis' =  (f bis) ++ (f bis')
+                     ==  f (append bis bis')
     where f = bisToList
 
 prop_concat :: [BitString] -> Bool
@@ -66,7 +77,7 @@ prop_concat biss = List.concat (map f biss)
     where f = bisToList
 
 prop_atLeast :: Int -> BitString -> Bool
-prop_atLeast i bis = ((List.length (f bis) * 8) >= i)
+prop_atLeast i bis = ((List.length (f bis) * 8) >= (fromIntegral i))
                    == atLeast bis (fromIntegral i)
     where f = bisToList
 
@@ -77,7 +88,7 @@ prop_atLeastBS i bs = ((L.length bs * 8) >= (fromIntegral i))
 bisToList :: BitString -> [Int]
 bisToList Empty = []
 bisToList ls = (f $ head ls) : (bisToList $ tail ls)
-    where f True = 1
+    where f True  = 1
           f False = 0
 
 type Bit = Bool
@@ -89,10 +100,10 @@ convert :: L.ByteString -> BitString
 convert bs = Chunk bs 0 Empty
 
 convertWords :: [Word8] -> BitString
-convertWords ws = Chunk (L.pack ws) 0 Empty 
+convertWords ws = Chunk (L.pack ws) 0 Empty
 
 convertAt :: L.ByteString -> Int64 -> BitString
-convertAt bs i = Chunk (L.drop (i `div` 8) bs) (fromIntegral $ i `mod` 8) empty
+convertAt bs i = Chunk (L.drop (i `div` 8) bs) (i `mod` 8) empty
 
 readFile :: FilePath -> IO BitString
 readFile = liftM convert . L.readFile
@@ -109,7 +120,7 @@ index i bs = head $ drop i bs
 
 head :: BitString -> Bit
 head Empty = error "BitString.head: empty string"
-head (Chunk bs i _) = testBit (L.head bs) (8 - i)
+head (Chunk bs i _) = testBit (L.head bs) (fromIntegral $ 7-i)
 
 tail :: BitString -> BitString
 tail Empty = error "BitString.tail: empty string"
@@ -117,35 +128,41 @@ tail bs = drop 1 bs
 
 -- how does one know that he really got that number of bits?
 take :: Int64 -> BitString -> BitString
-take i j = fst $ splitAt i j
+take i bs = fst $ splitAt i bs
 
 drop :: Int64 -> BitString -> BitString
-drop i j = snd $ splitAt i j
+drop i bs = snd $ splitAt i bs
 
 null :: BitString -> Bool
 null Empty = True
 null _ = False
 
+bitstr = Chunk (L.pack [0xA5, 0xff, 0xff]) 0 Empty
+
 splitAt :: Int64 -> BitString -> (BitString, BitString)
 splitAt i Empty = (Empty,Empty)
-splitAt i bs@(Chunk lb bitPos rest)
-    | atLeastBS lb i'
-    = let fst'  = L.take ((i + j + 7) `div` 8) lb
-          snd'  = L.drop (i + j `div` 8) lb
-          sndch = if L.null snd' 
+splitAt 0 r = (Empty,r)
+splitAt i bs@(Chunk lb j rest)
+    | atLeastBS lb (j + i)
+    = let fst'  = L.take ((i + j + 7) `div` 8) lb 
+          snd'  = L.drop ((i + j) `div` 8) lb
+          sndch = if L.null snd'
                       then rest -- craazy stuff
-                      else Chunk snd' (fromIntegral $ 8 - rTrunc) rest
-          fst'' = if j' > 7 then L.tail $ trunced fst' else trunced fst'
-      in (Chunk fst'' (fromIntegral $ j' `mod` 8) Empty, sndch) 
+                      else Chunk snd' ((i+j) `mod` 8) rest
+          fst'' = if (j + rTrunc) >= 8 then L.tail $ trunced fst' 
+                                      else if ((j+rTrunc) `mod` 8) == 0 then fst'
+                                               else trunced fst'
+      in (Chunk fst'' ((8 - ((i + j) `mod` 8)) `mod` 8) Empty, sndch) 
+
+    -- These cases should work...
     | atLeast bs i' = let (f, s) = splitAt (i - (L.length lb - j)) rest
-                      in  (Chunk lb bitPos f, s)
+                      in  (Chunk lb j f, s)
     | otherwise = (bs, Empty)
   where
-    i'  = i - (8 - j)
-    j  = fromIntegral bitPos
-    j' = rTrunc + j
-    rTrunc = 8 - fromIntegral ((i + j) `mod` 8)
-    trunced fst' = rightShiftByteString (fromIntegral rTrunc) fst'
+    i'  = i - (8 - j) 
+    j' = 8 - (rTrunc + j)
+    rTrunc = (i + j) `mod` 8
+    trunced fst = rightShiftByteString (fromIntegral (8 - rTrunc)) fst
 
 -- Taken from the BitGet library, just altered for lazy bytestrings
 -- Not exported
@@ -169,7 +186,7 @@ rightShiftByteString n = snd . L.mapAccumL f 0
 
 length :: BitString -> Int64
 length Empty = 0
-length (Chunk bs i rest) = (L.length bs * 8 - (fromIntegral i)) + length rest
+length (Chunk bs i rest) = (fromIntegral (L.length bs * 8) - i) + length rest
 
 -- jeez...
 atLeast :: BitString -> Int64 -> Bool
@@ -182,7 +199,7 @@ atLeast (Chunk (LI.Chunk sb lb) i rest) j
     | otherwise = atLeast rest (j - sblen)
   where
     small, sblen :: Int64
-    small = fromIntegral $ 8 - i
+    small = 8 - i
     sblen = small + (fromIntegral $ S.length sb) * 8
 
 -- this function will under no circumstances be exported out of this module!!!
