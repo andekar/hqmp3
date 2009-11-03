@@ -10,6 +10,7 @@ import qualified Data.ByteString as S
 import ID3
 import Debug.Trace
 import Control.Monad
+import qualified BitString as BITS
 
 type MP3Data = (MP3Header, MP3Header)
 
@@ -23,7 +24,7 @@ data MP3Header
                 , fsize     :: Int -- frame  size
                 , hsize     :: Int -- header size
                 , sideInfo  :: SideInfo
-                , mp3Data   :: L.ByteString
+                , mp3Data   :: BITS.BitString
 } deriving Show
 
 -- Derived from page 17 in ISO-11172-3

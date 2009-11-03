@@ -1,9 +1,10 @@
 {-# OPTIONS -w #-}
 
-module Main (decodeFrame) where
+module Decoder (decodeFrame) where
 
 import BitGet
 import qualified Huffman as Huff
+import qualified BitString as BITS
 import Data.Bits
 import Data.Word
 import Data.Maybe
@@ -35,7 +36,7 @@ data DChannel
 -- Does decoding of granules given the main_data() chunk
 -- This function does huffman decoding, and extracts the 
 -- scale factor stuff as described in p.18 in ISO-11172-3
-decodeGranules :: SideInfo -> L.ByteString -> DChannel
+decodeGranules :: SideInfo -> BITS.BitString -> DChannel
 decodeGranules (Single _ scfsi gran1 gran2) bs =
     let (g1,scale1@(Scales p _ _),bs') = decodeGranule [] scfsi gran1 bs
         (g2,scale2,_)   = decodeGranule p scfsi gran2 bs'
@@ -48,8 +49,8 @@ decodeGranules (Dual _ scfsi gran1 gran2 gran3 gran4) bs =
     in DStereo (ChannelData g1 scale1) (ChannelData g2 scale2)
                (ChannelData g3 scale3) (ChannelData g4 scale4) 
 
-decodeGranule :: [Word8] -> [Bool] -> Granule -> L.ByteString
-                  -> ([(Int,Int)], Scales, L.ByteString)
+decodeGranule :: [Word8] -> [Bool] -> Granule -> BITS.BitString
+                  -> ([(Int,Int)], Scales, BITS.BitString)
 decodeGranule prev scfsi (Granule scaleBits bigValues globalGain
                           scaleFacCompress windowSwitching blockType
                           mixedBlockFlag tableSelect_1 tableSelect_2
@@ -58,7 +59,7 @@ decodeGranule prev scfsi (Granule scaleBits bigValues globalGain
                           region0start region1start region2start) dat
     = flip runBitGet dat $ do wedontcare <- pScaleFactors prev
                               huffData'  <- huffData
-                              (rest,_)   <- getRemainingLazy
+                              rest       <- getRemaining
                               return (huffData', wedontcare, rest)
     where
           huffData = huffDecode -- (region0start, region1start, region2start)
@@ -73,11 +74,13 @@ decodeGranule prev scfsi (Granule scaleBits bigValues globalGain
                   -- as defined in page 18 of the mp3 iso standard
               | blockType == 2 && mixedBlockFlag = do
                   -- slen1: 0 to 7 (long window scalefactor band)
-                  scalefacL0 <- replicateM 8 $ getAsWord8 slen1
+                  scalefacL0 <- replicateM 8 $ getAsWord8 (fromIntegral slen1)
                   -- slen1: bands 3 to 5 (short window scalefactor band)
-                  scaleFacS0 <- replicateM 3 $ replicateM 3 $ getAsWord8 slen1
+                  scaleFacS0 <- replicateM 3 $ replicateM 3 $ 
+                                               getAsWord8 (fromIntegral slen1)
                   -- slen2: bands 6 to 11
-                  scaleFacS1 <- replicateM 6 $ replicateM 3 $ getAsWord8 slen2
+                  scaleFacS1 <- replicateM 6 $ replicateM 3 $ 
+                                               getAsWord8 (fromIntegral slen2)
                   let length = 17 * slen1 + 18 * slen2
                   -- here we must insert 3 lists of all zeroes since the
                   -- slen1 starts at band 3
@@ -85,25 +88,27 @@ decodeGranule prev scfsi (Granule scaleBits bigValues globalGain
                   return $ Scales scalefacL0 (sr ++ scaleFacS0 ++ scaleFacS1) length
               | blockType == 2 = do
                   -- slen1: 0 to 5
-                  scaleFacS0 <- replicateM 6 $ replicateM 3 $ getAsWord8 slen1
+                  scaleFacS0 <- replicateM 6 $ replicateM 3 $ 
+                                               getAsWord8 (fromIntegral slen1)
                   -- slen2: 6 to 11
-                  scaleFacS1 <- replicateM 6 $ replicateM 3 $ getAsWord8 slen2
+                  scaleFacS1 <- replicateM 6 $ replicateM 3 $ 
+                                               getAsWord8 (fromIntegral slen2)
                   let length = 18 * slen1 + 18 * slen2
                   return $ Scales [] (scaleFacS0 ++ scaleFacS1) length
               | otherwise = do
                   -- slen1: 0 to 10
                   s0 <- if c scfsi0 then
-                            replicateM 6 $ getAsWord8 slen1
+                            replicateM 6 $ getAsWord8 (fromIntegral slen1)
                             else return $ take 6 prev
                   s1 <- if c scfsi1 then
-                            replicateM 5 $ getAsWord8 slen1
+                            replicateM 5 $ getAsWord8 $ fromIntegral slen1
                             else return $ take 5 $ drop 6 prev
                   -- slen2: 11 to 20
                   s2 <- if c scfsi2 then
-                            replicateM 5 $ getAsWord8 slen2
+                            replicateM 5 $ getAsWord8 $ fromIntegral slen2
                             else return $ take 6 $ drop 11 prev
                   s3 <- if c scfsi3 then
-                            replicateM 5 $ getAsWord8 slen2
+                            replicateM 5 $ getAsWord8 $ fromIntegral slen2
                             else return $ take 6 $ drop 16 prev
                   let length = 6 * (if c scfsi0 then slen1 else 0) +
                                5 * (if c scfsi1 then slen1 else 0) +
@@ -132,7 +137,7 @@ huffDecodeXY (huff, linbits) = do
   where linsign :: Int -> Int -> BitGet Int
         linsign c l 
             | abs c == 15 && l > 0 = do
-                res <- getInt l >>= \r -> return (r+15)
+                res <- getInt (fromIntegral l) >>= \r -> return (r+15)
                 sign <-getBit
                 if sign then return (negate res)
                         else return res

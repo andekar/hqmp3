@@ -13,9 +13,10 @@ import ID3
 import Debug.Trace
 import Control.Monad
 import MP3Types
+import qualified BitString as BITS
 
 unpackMp3 :: L.ByteString -> [MP3Header]
-unpackMp3 file = runBitGet first file
+unpackMp3 file = runBitGet first $ BITS.convert file
     where first = do
                skipId3
                init <- lookAhead readHeader
@@ -71,23 +72,23 @@ readFrameInfo :: MP3Header -> BitGet (Either (Maybe MP3Header, Bool) MP3Data)
 readFrameInfo h1@(MP3Header _ _ _ _ _ fsize hsize sin _) = do
     skipId3
     let pointer = dataPointer sin
-    lhs <- getLazyByteString pointer
+    lhs <- getBits $ fromIntegral pointer
     -- Need to check the Maybe here
     (s, maybeH2) <- lookAhead $ do
-        s <- safeSkip fsize
-        if s == fsize then do
+        skip $ fromIntegral fsize -- should be safeSkip when implemented!! to s
+        if fsize == fsize then do -- should be s
             hh <- readHeader
-            return (s, hh) else return (s, Nothing)
+            return (fsize, hh) else return (fsize, Nothing) -- should be s
     case maybeH2 of
         Just h2 ->  do
             let pointer' = (dataPointer . sideInfo) h2
                 reads = fsize - pointer'
-            rhs <- getLazyByteString reads
-            return $ Right ((h1{mp3Data = L.append lhs rhs}), h2)
+            rhs <- getBits $ fromIntegral reads
+            return $ Right ((h1{mp3Data = BITS.append lhs rhs}), h2)
         Nothing -> if s == fsize then return $ Left (Nothing, False)
                      else do 
-                         rhs <- getLazyByteString s
-                         return $ Left ((Just h1{mp3Data = L.append lhs rhs}
+                         rhs <- getBits $ fromIntegral s
+                         return $ Left ((Just h1{mp3Data = BITS.append lhs rhs}
                                         , False))
 
 -- Almost exactly follows the ISO standard

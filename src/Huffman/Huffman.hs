@@ -18,6 +18,7 @@ import Control.Monad
 import Control.Monad.ST
 import Data.Bits
 import BitGet
+import Data.Int
 
 -- Can probably be speeded up (TODO)
 -- | Analyze will create a list of Word8 tupled with the number of occurrences
@@ -86,7 +87,7 @@ decodeOld bs ts f' = decode' bs ts ts 7 0 f'
     tree :: Bits b => b -> Int -> HuffTree a -> HuffTree a -> HuffTree a
     tree bits num t1 t2 = if testBit bits num then t2 else t1
 
-decode :: Eq a => HuffTree a -> (a -> BitGet a) -> Int -> BitGet (Maybe a)
+decode :: Eq a => HuffTree a -> (a -> BitGet a) -> Int64 -> BitGet (Maybe a)
 decode t f p = decode' t
   where
     decode' (Leaf v) = do
