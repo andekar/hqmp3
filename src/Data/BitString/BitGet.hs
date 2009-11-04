@@ -53,13 +53,13 @@ getWord16 = do
 
 getAsWord8 :: Int64 -> BitGet Word8
 getAsWord8 i = do
-    r <- liftM (BS.takeAsWord8 i) get
+    r <- liftM (BS.takeAsWord8 (fromIntegral i)) get
     skip i
     return r
 
 getAsWord16 :: Int64 -> BitGet Word16
 getAsWord16 i = do
-    r <- liftM (BS.takeAsWord16 i) get
+    r <- liftM (BS.takeAsWord16 (fromIntegral i)) get
     skip i
     return r
 

@@ -17,14 +17,18 @@ import Data.Bits
 import Prelude hiding (drop, head, length, take, drop, splitAt, tail, concat)
 import Control.Monad (liftM)
 import qualified Data.List as List
+import Control.Arrow
 
 type Bit = Bool
 
+fi :: (Integral a, Num b) => a -> b
+fi = fromIntegral
+
 -- This looks very much like the internals of ByteString.Lazy, with the added
--- Int64 that keeps track of bits in the first byte.
+-- Word8s that keeps track of bits in the first byte and the last byte.
 -- *invariant* If the BitString is a Chunk, then the bytestring in it is never
 --  empty
-data BitString = Empty | Chunk L.ByteString Int64 BitString
+data BitString = Empty | Chunk L.ByteString !Word8 !Word8 BitString
     deriving Show
 
 -- Creates an empty BitString.
@@ -33,15 +37,15 @@ empty = Empty
 
 -- Converts a Lazy ByteString to a BitString.
 convert :: L.ByteString -> BitString
-convert bs = Chunk bs 0 Empty
+convert bs = Chunk bs 0 0 Empty
 
 -- Converts and specifies a starting index, which may be larger than 8.
-convertAt :: L.ByteString -> Int64 -> BitString
-convertAt bs i = Chunk (L.drop (i `div` 8) bs) (i `mod` 8) empty
+-- convertAt :: L.ByteString -> Int64 -> BitString
+-- convertAt bs i = Chunk (L.drop (i `div` 8) bs) (fi $ i `mod` 8) 0 empty
 
 -- Similar to pack in ByteString
 convertWords :: [Word8] -> BitString
-convertWords ws = Chunk (L.pack ws) 0 Empty
+convertWords ws = Chunk (L.pack ws) 0 0 Empty
 
 -- Lazily reads a file into a BitString
 readFile :: FilePath -> IO BitString
@@ -49,12 +53,13 @@ readFile = liftM convert . L.readFile
 
 -- Concat a list of BitStrings
 concat :: [BitString] -> BitString
-concat = List.foldl append empty
+concat [] = empty
+concat xs = List.foldl append empty xs
 
 -- Append a BitString onto another.
 append :: BitString -> BitString -> BitString
 append Empty ys = ys
-append (Chunk xs i rest) ys = Chunk xs i (append rest ys) 
+append (Chunk xs f b rest) ys = Chunk xs f b (append rest ys) 
 
 -- Indexing in a BitString gives a Bit
 index :: Int64 -> BitString -> Bit
@@ -63,7 +68,7 @@ index i bs = head $ drop i bs
 -- The first bit in the BitString
 head :: BitString -> Bit
 head Empty = error "BitString.head: empty string"
-head (Chunk bs i _) = testBit (L.head bs) (fromIntegral $ 7 - i)
+head c = testBit (takeAsWord8 1 c) 0
 
 -- All but the first bit in the BitString
 tail :: BitString -> BitString
@@ -75,40 +80,39 @@ take :: Int64 -> BitString -> BitString
 take i bs = fst $ splitAt i bs
 
 takeWord8 :: BitString -> Word8
-takeWord8 Empty = error "the universe might implode"
-takeWord8 bs = L.head lb
-    where (Chunk lb _ _) = take 8 bs
+takeWord8 = takeAsWord8 8
 
 takeWord16 :: BitString -> Word16
-takeWord16 Empty = error "oh no"
-takeWord16 bs = (shiftL 8 $ wl lb) .|. wr lb
-    where (Chunk lb _ _) = take 16 bs
-          wl lb = fromIntegral $ L.head lb
-          wr lb = fromIntegral $ L.head $ L.tail lb
+takeWord16 bs = (shiftL 8 $ fi l) .|. fi r
+    where (l, r) = takeWord8 *** takeWord8 $ splitAt 8 bs
 
-takeAsWord8 :: Int64 -> BitString -> Word8
+takeAsWord8 :: Int -> BitString -> Word8
 takeAsWord8 _ Empty = 0
-takeAsWord8 i bis = let (Chunk r _ _) = take i bis
-                    in fromIntegral $ L.head r
+takeAsWord8 i bis
+    | i > 8 = error "Too big to make any sense"
+    | i + fi f <= 8 = L.head $ rightShiftByteString (fi b) bs
+    | otherwise = L.head $ leftShiftByteString (i - fi f) bs
+    where (Chunk bs f b _, _) = splitAt (fi i) bis
 
-takeAsWord16 :: Int64 -> BitString -> Word16
-takeAsWord16 _ Empty = 0
-takeAsWord16 i bis = let (Chunk r _ _) = take i bis
-                     in f r
-    where f r = ((fromIntegral $ L.head r) `shiftL` 8) .|.
-                (fromIntegral $ L.head $ L.tail r)
+bss = Chunk (L.pack [0]) 0 0 (Chunk (L.pack [0x40]) 0 0 Empty)
+
+takeAsWord16 :: Int -> BitString -> Word16
+takeAsWord16 i bis
+    | i > 16 = error "way WAY too much to put in Word16!"
+    | i <= 8 = fromIntegral $ takeAsWord8 i bis
+    | otherwise = (fi l `shiftL` m) .|. fi r
+    where (l, r) = takeAsWord8 8 *** takeAsWord8 m $ splitAt 8 bis
+          m = i `mod` 8
 
 -- this will construct an rightshifted result!
+-- this might need shifting and stuff later!
 getInt :: Int64 -> BitString -> Int
 getInt _ Empty = 0
-getInt i bs    = let (Chunk r _ _) = take i bs
-                 in fromIntegral $ shiftBytes 0 $ map fromIntegral $ L.unpack r
+getInt i bs    = let (Chunk r _ _ _) = take i bs
+                 in fi $ shiftBytes 0 $ map fi $ L.unpack r
     where shiftBytes :: Word32 -> [Word8] -> Word32
           shiftBytes w []     = w
           shiftBytes w (x:xs) = flip shiftBytes xs $ (shiftL w 8) .|. fi x
-          fi :: Word8 -> Word32
-          fi = fromIntegral
-                     
 
 -- drop is implemented as snd . splitAt
 drop :: Int64 -> BitString -> BitString
@@ -124,46 +128,42 @@ null _ = False
 splitAt :: Int64 -> BitString -> (BitString, BitString)
 splitAt i Empty = (Empty, Empty)
 splitAt 0 r     = (Empty, r)
-splitAt i bs@(Chunk lb j rest)
-    | atLeastBS lb (j + i) =
+splitAt i bs@(Chunk lb f b rest)
+    | atLeastBS lb (fi f + i + fi b) =
         let fst'  = L.take fstLen lb
             snd'  = L.drop sndLen lb
-            sndch = if L.null snd'
+            sndch = if L.null snd' || ((not $ atLeastBS snd' 16) && (f' + b == 8))
                         then rest
-                        else Chunk snd' rTrunc rest
-            fst'' = if (j + rTrunc) >= 8
-                    then L.tail $ trunced fst'
-                    else if ((j+rTrunc) `mod` 8) == 0 then fst'
-                                                      else trunced fst'
-        in (Chunk fst'' ((8 - rTrunc) `mod` 8) Empty, sndch)
+                        else Chunk snd' f' b rest
+        in (Chunk fst' f ((8 - f') `mod` 8) Empty, sndch)
 
     -- These cases should work...NOT extensively tested though :(
-    | atLeast bs (i - (8-j)) =
-         let (f, s) = splitAt (i - (L.length lb - j)) rest
-         in  (Chunk lb j f, s)
+    | atLeast bs i =
+         let (left, s) = splitAt (i - ((L.length lb * 8) - (fi $ f + b))) rest
+         in  (Chunk lb f b left, s)
     | otherwise = (bs, Empty)
   where
-    fstLen          = (i + j + 7) `div` 8
-    (sndLen,rTrunc) = divMod (i + j) 8
-    trunced fst = rightShiftByteString (fromIntegral (8 - rTrunc)) fst
+    fstLen = (i + fi f + 7) `div` 8
+    sndLen = (i + fi f) `div` 8
+    f' = fi $ (fi f + i) `mod` 8
 
 -- Strictly checks the length of a BitString
 length :: BitString -> Int64
 length Empty = 0
-length (Chunk bs i rest)
-    = (fromIntegral (L.length bs * 8) - i) + length rest
+length (Chunk bs f b rest)
+    = (fromIntegral (L.length bs * 8) - fi f) + length rest
 
 -- Lazily checks if the BitString is at least j bits.
 atLeast :: BitString -> Int64 -> Bool
 atLeast Empty 0 = True
 atLeast Empty _ = False
-atLeast (Chunk (LI.Chunk sb lb) i rest) j
-    | j <= sblen = True
-    | atLeastBS lb (j - sblen) = True
-    | otherwise = atLeast rest (j - sblen)
+atLeast (Chunk (LI.Chunk sb lb) f b rest) i
+    | i <= sblen = True
+    | atLeastBS lb (i - sblen) = True
+    | otherwise = atLeast rest (i - sblen - L.length lb)
   where
-    sblen :: Int64
-    sblen = (8 - i) + (fromIntegral $ S.length sb) * 8
+--     sblen :: Int64
+    sblen = (fi $ S.length sb) * 8 - fi (f+b)
 
 -- Functions below are not exported, but only used internally
 

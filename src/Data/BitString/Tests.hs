@@ -15,7 +15,7 @@ instance QC.Arbitrary Word8 where
         return $ fromIntegral i
 
 instance QC.Arbitrary BitString where
-    arbitrary = liftM convertWords $ QC.vector 100 --This is quite slow
+    arbitrary = liftM (concat . List.replicate 5 . convertWords) $ QC.vector 100 --This is quite slow
 
 instance QC.Arbitrary L.ByteString where
     arbitrary = liftM L.pack $ QC.vector 100
@@ -28,7 +28,7 @@ prop_take i bs = List.take i' bList == bisToList (take (fromIntegral i') bs)
 
 prop_takeWord8 :: BitString -> Bool
 prop_takeWord8 bs = List.take 8 bList
-                  == bisToList (Chunk (L.pack [(takeWord8 bs)]) 0 Empty)
+                  == bisToList (Chunk (L.pack [(takeWord8 bs)]) 0 0 Empty)
     where bList = bisToList bs
 
 prop_drop :: Int -> BitString -> Bool
@@ -74,4 +74,3 @@ bisToList Empty = []
 bisToList ls = (f $ head ls) : (bisToList $ tail ls)
     where f True  = 1
           f False = 0
-

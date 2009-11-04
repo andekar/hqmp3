@@ -19,6 +19,5 @@ main = test "/home/tobsi/machinae_supremacy-cryosleep.mp3"
 test :: FilePath -> IO ()
 test f = do
     file <- L.readFile f
-    print $ L.head file
     let fs = unpackMp3 file
     mapM_ print fs
