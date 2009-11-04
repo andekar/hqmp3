@@ -93,7 +93,7 @@ takeAsWord8 i bis = let (Chunk r _ _) = take i bis
 
 takeAsWord16 :: Int64 -> BitString -> Word16
 takeAsWord16 _ Empty = 0
-taleAsWord16 i bis = let (Chunk r _ _) = take i bis
+takeAsWord16 i bis = let (Chunk r _ _) = take i bis
                      in f r
     where f r = ((fromIntegral $ L.head r) `shiftL` 8) .|.
                 (fromIntegral $ L.head $ L.tail r)
