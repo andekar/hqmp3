@@ -18,6 +18,7 @@ import Prelude hiding (drop, head, length, take, drop, splitAt, tail, concat)
 import Control.Monad (liftM)
 import qualified Data.List as List
 import Control.Arrow
+import Debug.Trace
 
 type Bit = Bool
 
@@ -109,8 +110,12 @@ takeAsWord16 i bis
 -- this might need shifting and stuff later!
 getInt :: Int64 -> BitString -> Int
 getInt _ Empty = 0
-getInt i bs    = let (Chunk r _ _ _) = take i bs
-                 in fi $ shiftBytes 0 $ map fi $ L.unpack r
+getInt 0 _     = 0
+getInt i bs    = let (Chunk r f b _) = take i bs
+                     r' = rightShiftByteString (fi f) $
+                          rightShiftByteString (fi b) $
+                          leftShiftByteString (fi f) r
+                 in fi $ shiftBytes 0 $ map fi $ L.unpack r'
     where shiftBytes :: Word32 -> [Word8] -> Word32
           shiftBytes w []     = w
           shiftBytes w (x:xs) = flip shiftBytes xs $ (shiftL w 8) .|. fi x

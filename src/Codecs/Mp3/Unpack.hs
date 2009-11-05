@@ -142,7 +142,7 @@ readSideInfo mode = do
                 reg1len = if not windowSwitching && blockType == 2 then
                             576 else region0Count + 1 + region1Count + 1
                 reg2len = if blockType == 2 then
-                            0 else undefined
+                            0 else 0 --undefined
 --             ifWindow <- if windowSwitching then getWinTrue else getWinFalse
             preFlag       <- getBit
             scaleFacScale <- getBit

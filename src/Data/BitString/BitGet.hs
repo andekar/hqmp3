@@ -81,3 +81,6 @@ getInt i = do
     s <- liftM (BS.getInt i) get
     skip i
     return s
+
+getLength :: BitGet Int64
+getLength = liftM BS.length get
