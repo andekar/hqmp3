@@ -90,9 +90,10 @@ takeAsWord8 :: Int -> BitString -> Word8
 takeAsWord8 _ Empty = 0
 takeAsWord8 i bis
     | i > 8 = error "Too big to make any sense"
-    | i + fi f <= 8 = L.head $ rightShiftByteString (fi b) bs
+    | i + fi f <= 8 = L.head $ rightShiftByteString (fi b + fi f) $ left bs f
     | otherwise = L.head $ leftShiftByteString (i - fi f) bs
     where (Chunk bs f b _, _) = splitAt (fi i) bis
+          left bs f = leftShiftByteString (fi f) bs
 
 bss = Chunk (L.pack [0]) 0 0 (Chunk (L.pack [0x40]) 0 0 Empty)
 
