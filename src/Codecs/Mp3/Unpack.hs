@@ -89,7 +89,7 @@ readHeader = do
                     _ -> (False,False)
             return (MP3Header brate freq padd mode
                     mext size hsize sinfo ())
-        _ -> fail "Bad sync!"
+        _ -> fail ""
   where
     b2i :: Bool -> Int
     b2i b = if b then 1 else 0
@@ -97,37 +97,28 @@ readHeader = do
 getBitRate :: MaybeT (BitGetT Identity) Int
 getBitRate = do 
     w <- lift $ getAsWord8 4
-    if w > 0x0E then fail "Bad bitrate index"
-                else return $ bArray ! w
+    if w == 0 && w == 15 then fail "Bad bitrate"
+                         else return $ barr ! w
   where
-    bArray = listArray (0,15) [32,40,48,56,64,80,96,112,128,160,192,224,256,320]
-    
+    barr = listArray (1,14) [32,40,48,56,64,80,96,112,128,160,192,224,256,320]
 
 -- Bit shifting is the most fun I've ever done!
 getFreq :: MaybeT (BitGetT Identity) Int
 getFreq = do
     w <- lift $ getAsWord8 2
-    if w > 0x02 then fail "Bad frequency index"
-                else return $ [44100,48000,32000] !! (fromIntegral w)
+    if w == 0x03 then fail "Bad frequency"
+                 else return $ [44100,48000,32000] !! (fromIntegral w)
 
 getMode :: MaybeT (BitGetT Identity) MP3Mode
 getMode = do
     w <- lift $ getAsWord8 2
-    if w > 0x03 
-        then fail "Bad mode index"
-        else return $ [Stereo, JointStereo, DualChannel] !! (fromIntegral w)
+    return $ [Stereo,JointStereo,DualChannel,Mono] !! (fromIntegral w)
 
 getModeExt :: MaybeT (BitGetT Identity) (Bool,Bool)
 getModeExt = do
     w <- lift $ getAsWord8 2
-    if w > 0x03 then fail "Bad mode extension"
-                else return $ modeExtList !! (fromIntegral w)
-  where
-    modeExtList = [(False,False),(False,True),(True,False),(True,True)]
-    
-
--- For future use in readFrameInfo type
-data FrameStatus = OK MP3Data | EOF MP3Header | Error MP3Header
+    return $ table !! (fromIntegral w)
+  where table = [(False,False),(False,True),(True,False),(True,True)]
 
 readFrameInfo :: EMP3Header -> BitGet (Either
                                          (Maybe MP3Header
