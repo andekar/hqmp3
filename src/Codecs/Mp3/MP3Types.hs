@@ -12,10 +12,11 @@ import Debug.Trace
 import Control.Monad
 import qualified BitString as BITS
 
-type MP3Data a = (MP3Header, EMP3Header a)
-type MP3Header = EMP3Header BITS.BitString
+type MP3Data = (MP3Header, EMP3Header)
+type MP3Header = CMP3Header BITS.BitString
+type EMP3Header = CMP3Header ()
 data MP3Mode = Stereo | JointStereo | DualChannel | Mono deriving (Show,Eq)
-data EMP3Header a
+data CMP3Header a
     = MP3Header { bitRate   :: Int
                 , frequency :: Int
                 , padding   :: Bool

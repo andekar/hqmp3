@@ -25,7 +25,7 @@ unpackMp3 file = runBitGet first $ BITS.convert file
                init <- lookAhead $ runMaybeT readHeader
                unpackFrames init
 
-unpackFrames :: (Maybe (EMP3Header ())) -> BitGet [MP3Header]
+unpackFrames :: Maybe EMP3Header -> BitGet [MP3Header]
 unpackFrames Nothing = undefined -- do
 --     r <- getAtLeast 33
 --     if r then findHeader >> readHeader >>= unpackFrames
@@ -61,7 +61,7 @@ syncWord = do
     return (0x7FFF == h)
 
 -- Finds a header in an mp3 file.
-readHeader :: MaybeT (BitGetT Identity) (EMP3Header ())
+readHeader :: MaybeT (BitGetT Identity) EMP3Header
 readHeader = do
     h <- lift $ getAsWord16 15
     case h `shiftL` 1 of
@@ -143,9 +143,9 @@ getModeExt = do
         0x03 ->  return (True,True)
         _ -> fail ""
 
-readFrameInfo :: EMP3Header () -> BitGet (Either
+readFrameInfo :: EMP3Header -> BitGet (Either
                                          (Maybe MP3Header
-                                         , Bool) (MP3Data ()))
+                                         , Bool) MP3Data)
 readFrameInfo h1@(MP3Header _ _ _ _ _ fsize hsize sin _) = do
     skipId3
     let pointer = dataPointer sin
