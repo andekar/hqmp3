@@ -7,8 +7,7 @@ module Huffman ( analyze
                , HuffTree (..)
                , create
                , createTree
-               , decode
-               , decodeOld ) where
+               , decode ) where
 
 import qualified Data.ByteString as B
 import qualified Data.Map as M
@@ -16,7 +15,6 @@ import Data.Word
 import Data.PriorityQueue
 import Control.Monad
 import Control.Monad.ST
-import Data.Bits
 import BitGet
 import Data.Int
 
@@ -65,27 +63,6 @@ createTree p = do
 -- j is how many padding bits this stream has
 --
 -- Please do not change this code, checks are not checked
-
-type Quad a = (a,[Word8],Int,Int)
-
-decodeOld :: Eq a => [Word8] -> HuffTree a -> (Quad a -> Quad a) -> [a]
-decodeOld bs ts f' = decode' bs ts ts 7 0 f'
-  where 
-    decode' :: Eq a => [Word8] -> HuffTree a -> HuffTree a 
-                    -> Int -> Int -> (Quad a -> Quad a) -> [a]
-    
-    decode' xs t (Leaf v) i j f = let (v',xs',i',j') = f (v,xs,i,j)
-                                  in v' : decode' xs' t t i' j' f
-    decode' [] _ _ i j _  = if i == j && j == 0 then [] else error "error"
-    decode' (x:[]) t (Node t1 t2) i j f
-        | i+1 == j = [] 
-        | otherwise = decode' [x] t (tree x i t1 t2) (i - 1) j f
-    decode' (x:xs) t (Node t1 t2) i j f
-        | i == 0 = decode' xs t (tree x i t1 t2) 7 j f
-        | otherwise = decode' (x:xs) t (tree x i t1 t2) (i - 1) j f
-    
-    tree :: Bits b => b -> Int -> HuffTree a -> HuffTree a -> HuffTree a
-    tree bits num t1 t2 = if testBit bits num then t2 else t1
 
 decode :: Eq a => HuffTree a -> (a -> BitGet a) -> Int64 -> BitGet (Maybe a)
 decode t f p = decode' t
