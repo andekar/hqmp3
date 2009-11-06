@@ -17,6 +17,7 @@ import Control.Monad.Trans
 import Control.Monad.Identity
 import MP3Types
 import qualified BitString as BITS
+import Data.Array
 
 unpackMp3 :: L.ByteString -> [MP3Header]
 unpackMp3 file = runBitGet first $ BITS.convert file
@@ -88,7 +89,7 @@ readHeader = do
                     _ -> (False,False)
             return (MP3Header brate freq padd mode
                     mext size hsize sinfo ())
-        _ -> fail ""
+        _ -> fail "Bad sync!"
   where
     b2i :: Bool -> Int
     b2i b = if b then 1 else 0
@@ -96,52 +97,37 @@ readHeader = do
 getBitRate :: MaybeT (BitGetT Identity) Int
 getBitRate = do 
     w <- lift $ getAsWord8 4
-    case w of
-        0x01 ->  return 32
-        0x02 ->  return 40
-        0x03 ->  return 48
-        0x04 ->  return 56
-        0x05 ->  return 64
-        0x06 ->  return 80
-        0x07 ->  return 96
-        0x08 ->  return 112
-        0x09 ->  return 128
-        0x0A ->  return 160
-        0x0B ->  return 192
-        0x0C ->  return 224
-        0x0D ->  return 256
-        0x0E ->  return 320
-        _ -> fail ""
+    if w > 0x0E then fail "Bad bitrate index"
+                else return $ bArray ! w
+  where
+    bArray = listArray (0,15) [32,40,48,56,64,80,96,112,128,160,192,224,256,320]
+    
 
 -- Bit shifting is the most fun I've ever done!
 getFreq :: MaybeT (BitGetT Identity) Int
 getFreq = do
     w <- lift $ getAsWord8 2
-    case w of
-        0x00 ->  return 44100
-        0x01 ->  return 48000
-        0x02 ->  return 32000
-        _ -> fail ""
+    if w > 0x02 then fail "Bad frequency index"
+                else return $ [44100,48000,32000] !! (fromIntegral w)
 
 getMode :: MaybeT (BitGetT Identity) MP3Mode
 getMode = do
     w <- lift $ getAsWord8 2
-    case w of
-        0x00 ->  return Stereo
-        0x01 ->  return JointStereo
-        0x02 ->  return DualChannel
-        0x03 ->  return Mono
-        _ -> fail ""
+    if w > 0x03 
+        then fail "Bad mode index"
+        else return $ [Stereo, JointStereo, DualChannel] !! (fromIntegral w)
 
 getModeExt :: MaybeT (BitGetT Identity) (Bool,Bool)
 getModeExt = do
     w <- lift $ getAsWord8 2
-    case w of
-        0x00 ->  return (False,False)
-        0x01 ->  return (False,True)
-        0x02 ->  return (True,False)
-        0x03 ->  return (True,True)
-        _ -> fail ""
+    if w > 0x03 then fail "Bad mode extension"
+                else return $ modeExtList !! (fromIntegral w)
+  where
+    modeExtList = [(False,False),(False,True),(True,False),(True,True)]
+    
+
+-- For future use in readFrameInfo type
+data FrameStatus = OK MP3Data | EOF MP3Header | Error MP3Header
 
 readFrameInfo :: EMP3Header -> BitGet (Either
                                          (Maybe MP3Header

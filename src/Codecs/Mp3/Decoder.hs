@@ -30,7 +30,7 @@ tableScaleLength = listArray (0,15)
 data Scales = Scales [Word8] [[Word8]] Int
 data ChannelData = ChannelData [(Int, Int)] Scales
 data DChannel
-    = DMono ChannelData ChannelData 
+    = DMono   ChannelData ChannelData 
     | DStereo ChannelData ChannelData ChannelData ChannelData
 
 -- Does decoding of granules given the main_data() chunk

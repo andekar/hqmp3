@@ -57,7 +57,7 @@ getBits i = do
 
 -- YEAHH HASKELL!!
 skip :: (Monad m) => Int64 -> BitGetT m ()
-skip i = liftM (drop i) get >>= put
+skip i = (liftM (drop i) get) >>= put
 
 getWord8 :: (Monad m) => BitGetT m Word8
 getWord8 = do
@@ -82,9 +82,6 @@ getAsWord16 i = do
     r <- liftM (BS.takeAsWord16 (fromIntegral i)) get
     skip i
     return r
-
-atLeast :: (Monad m) => Int64 -> BitGetT m Bool
-atLeast i = liftM (flip BS.atLeast i) get
 
 lookAhead :: (Monad m) => BitGetT m a -> BitGetT m a
 lookAhead bg = do
