@@ -12,10 +12,10 @@ import Debug.Trace
 import Control.Monad
 import qualified BitString as BITS
 
-type MP3Data = (MP3Header, MP3Header)
-
+type MP3Data a = (MP3Header, EMP3Header a)
+type MP3Header = EMP3Header BITS.BitString
 data MP3Mode = Stereo | JointStereo | DualChannel | Mono deriving (Show,Eq)
-data MP3Header
+data EMP3Header a
     = MP3Header { bitRate   :: Int
                 , frequency :: Int
                 , padding   :: Bool
@@ -24,7 +24,7 @@ data MP3Header
                 , fsize     :: Int -- frame  size
                 , hsize     :: Int -- header size
                 , sideInfo  :: SideInfo
-                , mp3Data   :: BITS.BitString
+                , mp3Data   :: a -- BITS.BitString
 } deriving Show
 
 -- Derived from page 17 in ISO-11172-3
