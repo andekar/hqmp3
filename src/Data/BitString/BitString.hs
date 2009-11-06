@@ -122,7 +122,9 @@ getInt i bs    = let (Chunk r f b _) = take i bs
 
 -- drop is implemented as snd . splitAt
 drop :: Int64 -> BitString -> BitString
-drop i bs = snd $ splitAt i bs
+drop = snd `dot` splitAt
+
+dot = (.) . (.)
 
 -- Checks if a BitString is empty
 null :: BitString -> Bool
