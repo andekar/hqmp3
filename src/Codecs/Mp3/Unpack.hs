@@ -41,20 +41,24 @@ unpackFrames (Just h1) = do
 
 -- | findheader will skip until it finds two consecutive sync words
 -- the syncword consist of fifteen ones
-findHeader :: BitGet ()
-findHeader = do r <- getAtLeast 1
-                when r $ do
-                   skip 1
-                   h1 <- lookAhead $ runMaybeT $ readHeader
-                   case h1 of
-                       Just h1' -> do 
-                           h2 <-lookAhead $ do
-                               skip $ fromIntegral $ fsize h1'
-                               runMaybeT readHeader
-                           case h2 of
-                               Just h2' -> return ()
-                               Nothing  -> findHeader
-                       Nothing -> findHeader
+findHeader :: BitGet (Int, Maybe EMP3Header)
+findHeader = do
+    r <- getAtLeast 1
+    if not r then return (0, Nothing) else do
+        skip 1
+        h1 <- lookAhead $ runMaybeT $ readHeader
+        case h1 of
+            Just h1' -> do
+                h2 <-lookAhead $ do
+                    skip $ fromIntegral $ fsize h1'
+                    runMaybeT readHeader
+                case h2 of
+                    Just _ -> return (1, h1)
+                    Nothing  -> do 
+                        (i',h) <- findHeader
+                        return (i' + 1, h)
+            Nothing -> do (i,h) <- findHeader
+                          return (i + 1, h)
 
 syncWord :: BitGet Bool
 syncWord = do
@@ -109,11 +113,11 @@ getMode = do
     w <- lift $ getAsWord8 2
     return $ [Stereo,JointStereo,DualChannel,Mono] !! (fromIntegral w)
 
-getModeExt :: MaybeT BitGet (Bool,Bool)
+getModeExt :: MaybeT BitGet (Bool, Bool)
 getModeExt = do
     w <- lift $ getAsWord8 2
     return $ table !! (fromIntegral w)
-  where table = [(False,False),(False,True),(True,False),(True,True)]
+  where table = [(False, False), (False, True), (True, False), (True, True)]
 
 
 
@@ -134,9 +138,13 @@ readFrameData h1@(MP3Header _ _ _ _ _ fsize hsize sin _) = do
             rhs <- getBits $ fromIntegral reads
             return $ Right ((h1{mp3Data = BITS.append lhs rhs}), h2)
         Nothing -> if s == BOF then do
-                     findHeader
-                     h2 <-lookAhead $ runMaybeT readHeader
-                     return $ Left (Nothing, s)
+                     (i,h2) <- lookAhead findHeader
+                     case h2 of
+                         Nothing -> return $ Left (Nothing, EOF)
+                         Just h2' -> do skip (fromIntegral $ 
+                                              (fromIntegral i) - 
+                                              (dataPointer $ sideInfo h2'))
+                                        readFrameData h2'
                      else do
                          rhs <- getBits $ fromIntegral fsize -- take as much
                          return $ Left ((Just h1{mp3Data = BITS.append lhs rhs}
