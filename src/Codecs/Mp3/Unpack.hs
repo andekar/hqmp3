@@ -27,12 +27,12 @@ unpackMp3 file = runBitGet first $ BITS.convert file
                unpackFrames init
 
 unpackFrames :: Maybe EMP3Header -> BitGet [MP3Header]
-unpackFrames Nothing = undefined -- do
+unpackFrames Nothing = return [] -- do
 --     r <- getAtLeast 33
 --     if r then findHeader >> readHeader >>= unpackFrames
 --          else return []
 unpackFrames (Just h1) = do
-    frame <- readFrameInfo h1
+    frame <- readFrameData h1
     case frame of
         Left _ -> return [] -- here we want to seek again or maybe quit?!?
         Right (f1,f2) -> do
@@ -59,42 +59,37 @@ findHeader = do r <- getAtLeast 1
 syncWord :: BitGet Bool
 syncWord = do
     h <- getAsWord16 15
-    return (0x7FFF == h)
+    return (0x7FFD == h)
 
 -- Finds a header in an mp3 file.
-readHeader :: MaybeT (BitGetT Identity) EMP3Header
+readHeader :: MaybeT BitGet EMP3Header
 readHeader = do
-    h <- lift $ getAsWord16 15
-    case h `shiftL` 1 of
-        0xFFFA -> do
-            prot  <- lift $ liftM not getBit
-            brate <- getBitRate
-            freq  <- getFreq
-            padd  <- lift getBit
-            lift $ skip 1 -- private bit
-            mode  <- getMode
-            mext' <- getModeExt
-            lift $ skip 4 -- copyright, original & emphasis
-            when prot $ lift $ skip 16
-            sinfo <- lift $ readSideInfo mode
-            let size = ((144 * 1000 * brate) `div` freq +
-                        b2i padd) * 8
-                f' = if prot then 2 else 0
-                ff = case mode of
-                    Mono -> 17
-                    _    -> 32
-                hsize = (f' + ff + 4) * 8
-                mext = case mode of
-                    JointStereo -> mext'
-                    _ -> (False,False)
-            return (MP3Header brate freq padd mode
-                    mext size hsize sinfo ())
-        _ -> fail ""
-  where
-    b2i :: Bool -> Int
-    b2i b = if b then 1 else 0
+    h <- lift $ syncWord
+    if not h then fail "" else do
+        prot  <- lift $ liftM not getBit
+        brate <- getBitRate
+        freq  <- getFreq
+        padd  <- lift getBit
+        lift $ skip 1 -- private bit
+        mode  <- getMode
+        mext' <- getModeExt
+        lift $ skip 4 -- copyright, original & emphasis
+        when prot $ lift $ skip 16
+        sinfo <- lift $ readSideInfo mode
+        let size = ((144 * 1000 * brate) `div` freq +
+                    if padd then 1 else 0) * 8
+            f' = if prot then 2 else 0
+            ff = case mode of
+                Mono -> 17
+                _    -> 32
+            hsize = (f' + ff + 4) * 8
+            mext = case mode of
+                JointStereo -> mext'
+                _ -> (False, False)
+        return (MP3Header brate freq padd mode
+                mext size hsize sinfo ())
 
-getBitRate :: MaybeT (BitGetT Identity) Int
+getBitRate :: MaybeT BitGet Int
 getBitRate = do 
     w <- lift $ getAsWord8 4
     if w == 0 && w == 15 then fail "Bad bitrate"
@@ -103,47 +98,49 @@ getBitRate = do
     barr = listArray (1,14) [32,40,48,56,64,80,96,112,128,160,192,224,256,320]
 
 -- Bit shifting is the most fun I've ever done!
-getFreq :: MaybeT (BitGetT Identity) Int
+getFreq :: MaybeT BitGet Int
 getFreq = do
     w <- lift $ getAsWord8 2
     if w == 0x03 then fail "Bad frequency"
                  else return $ [44100,48000,32000] !! (fromIntegral w)
 
-getMode :: MaybeT (BitGetT Identity) MP3Mode
+getMode :: MaybeT BitGet MP3Mode
 getMode = do
     w <- lift $ getAsWord8 2
     return $ [Stereo,JointStereo,DualChannel,Mono] !! (fromIntegral w)
 
-getModeExt :: MaybeT (BitGetT Identity) (Bool,Bool)
+getModeExt :: MaybeT BitGet (Bool,Bool)
 getModeExt = do
     w <- lift $ getAsWord8 2
     return $ table !! (fromIntegral w)
   where table = [(False,False),(False,True),(True,False),(True,True)]
 
-readFrameInfo :: EMP3Header -> BitGet (Either
-                                         (Maybe MP3Header
-                                         , Bool) MP3Data)
-readFrameInfo h1@(MP3Header _ _ _ _ _ fsize hsize sin _) = do
+
+
+-- readFrameData :: EMP3Header -> StateT MP3Header BitGet (Either EMP3Header MP3Data)
+readFrameData h1@(MP3Header _ _ _ _ _ fsize hsize sin _) = do
     skipId3
     let pointer = dataPointer sin
     lhs <- getBits $ fromIntegral pointer
-    -- Need to check the Maybe here
     (s, maybeH2) <- lookAhead $ do
-        skip $ fromIntegral fsize -- should be safeSkip when implemented!! to s
-        if fsize == fsize then do -- should be s
+        s <- safeSkip $ fromIntegral fsize
+        if s == BOF then do
             hh <- runMaybeT readHeader
-            return (fsize, hh) else return (fsize, Nothing) -- should be s
+            return (s, hh) else return (s, Nothing)
     case maybeH2 of
         Just h2 ->  do
             let pointer' = (dataPointer . sideInfo) h2
                 reads = fsize - pointer'
             rhs <- getBits $ fromIntegral reads
             return $ Right ((h1{mp3Data = BITS.append lhs rhs}), h2)
-        Nothing -> if s == fsize then return $ Left (Nothing, False)
-                     else do 
-                         rhs <- getBits $ fromIntegral s
+        Nothing -> if s == BOF then do
+                     findHeader
+                     h2 <-lookAhead $ runMaybeT readHeader
+                     return $ Left (Nothing, s)
+                     else do
+                         rhs <- getBits $ fromIntegral fsize -- take as much
                          return $ Left ((Just h1{mp3Data = BITS.append lhs rhs}
-                                        , False))
+                                        , s))
 
 -- Almost exactly follows the ISO standard
 readSideInfo :: MP3Mode -> BitGet SideInfo

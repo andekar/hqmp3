@@ -9,7 +9,12 @@ import Control.Monad.Trans
 import Control.Monad.Identity
 import Control.Applicative
 
+data FileStatus = EOF | BOF -- End of file and beginning of file
+    deriving (Eq, Show)
+
 newtype BitGetT m a = BitGetT { unGet :: BitString -> m (a, BitString) }
+
+type BitGet = BitGetT Identity
 
 instance (Monad m) => Functor (BitGetT m) where
     fmap f m = BitGetT $ \s -> do 
@@ -30,8 +35,6 @@ instance (Monad m) => Monad (BitGetT m) where
 instance (Monad m) => Applicative (BitGetT m) where
     pure a = return a
     (<*>) = ap
-
-type BitGet a = BitGetT Identity a
 
 runBitGet :: BitGet a -> BitString -> a
 runBitGet g bs = case runIdentity (unGet g bs) of
@@ -58,6 +61,14 @@ getBits i = do
 -- YEAHH HASKELL!!
 skip :: (Monad m) => Int64 -> BitGetT m ()
 skip i = (liftM (drop i) get) >>= put
+
+-- will return true when it was possible to skip this many bits
+safeSkip :: (Monad m) => Int64 -> BitGetT m FileStatus
+safeSkip i = do
+    bis <- get
+    case BS.safeDrop i bis of
+        Just bs' -> put bs' >> return BOF
+        Nothing  -> return EOF
 
 getWord8 :: (Monad m) => BitGetT m Word8
 getWord8 = do

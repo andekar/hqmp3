@@ -124,6 +124,9 @@ getInt i bs    = let (Chunk r f b _) = take i bs
 drop :: Int64 -> BitString -> BitString
 drop = snd `dot` splitAt
 
+safeDrop :: Int64 -> BitString -> Maybe BitString
+safeDrop i bs = if atLeast bs i then Just (drop i bs) else Nothing
+
 dot = (.) . (.)
 
 -- Checks if a BitString is empty
