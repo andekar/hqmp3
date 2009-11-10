@@ -71,7 +71,7 @@ decode t f p = decode' t
         fres <- f v
         return $ Just fres
     decode' (Node left right) = do
-        r <- getAtLeast $ fromIntegral (p - 1)
+        r <- atLeast $ fromIntegral (p - 1)
         if not r then return Nothing
              else do
                 b <- getBit
