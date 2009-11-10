@@ -8,6 +8,7 @@ import qualified BitString as BITS
 import Data.Bits
 import Data.Word
 import Data.Maybe
+import Data.Int
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString as S
 import ID3
@@ -44,16 +45,30 @@ data DChannel
 -- scale factor stuff as described in p.18 in ISO-11172-3
 decodeGranules :: SideInfo -> BITS.BitString -> DChannel
 decodeGranules (Single _ scfsi gran1 gran2) bs =
-    let (g1,scale1@(Scales p _ _),bs') = decodeGranule [] scfsi gran1 bs
-        (g2,scale2,_)   = decodeGranule p scfsi gran2 bs'
+    let [d1,d2] = map scaleBits [gran1,gran2]
+        (g1,scale1@(Scales p _ _),bs')
+            = decodeGranule [] scfsi gran1 (take' (fi d1) bs)
+        (g2,scale2,_)   = decodeGranule p scfsi gran2 
+                (tNdrop (fi d2) (fi d1) bs)
     in DMono (ChannelData g1 scale1) (ChannelData g2 scale2)
 decodeGranules (Dual _ scfsi gran1 gran2 gran3 gran4) bs =
-    let (g1,scale1@(Scales p _ _),bs')     = decodeGranule [] scfsi gran1 bs
-        (g2,scale2@(Scales p' _ _),bs'')   = decodeGranule p scfsi gran2 bs'
-        (g3,scale3@(Scales p'' _ _),bs''') = decodeGranule p' scfsi gran3 bs''
-        (g4,scale4,_)     = decodeGranule p'' scfsi gran4 bs'''
+    let [d1,d2,d3,d4] = map scaleBits [gran1,gran2,gran3,gran4]
+        (g1,scale1@(Scales p _ _),bs')
+            = decodeGranule [] scfsi gran1 (take' (fi d1) bs)
+        (g2,scale2@(Scales p' _ _), bs'')
+            = decodeGranule p scfsi gran2 (tNdrop (fi d2) (fi d1) bs)
+        (g3,scale3@(Scales p'' _ _), bs''')
+            = decodeGranule p' scfsi gran3 (tNdrop (fi d3) ((fi d1) + (fi d2)) bs)
+        (g4,scale4,_)
+            = decodeGranule p'' scfsi gran4 (tNdrop (fi d4) (fi d1 + fi d2 + fi d3) bs)
     in DStereo (ChannelData g1 scale1) (ChannelData g2 scale2)
-               (ChannelData g3 scale3) (ChannelData g4 scale4) 
+               (ChannelData g3 scale3) (ChannelData g4 scale4)
+
+drop' = BITS.drop
+take' = BITS.take
+tNdrop :: Int64 -> Int64 -> BITS.BitString -> BITS.BitString
+tNdrop s t bs = take' s $ drop' t bs
+fi = fromIntegral
 
 decodeGranule :: [Word8] -> [Bool] -> Granule -> BITS.BitString
                   -> ([(Int,Int)], Scales, BITS.BitString)
@@ -73,9 +88,8 @@ decodeGranule prev scfsi (Granule scaleBits bigValues globalGain
           t2 = getTree tableSelect_3
 
         -- TODO, count1: how big is it?
-          huffData = huffDecode [(r0,t0), (r1, t1), (r2, t2)] (count1TableSelect, 1337)
--- (region0start, region1start, region2start)
---                                 undefined undefined
+          huffData = huffDecode [(r0,t0), (r1, t1), (r2, t2)]
+                    (count1TableSelect, 0)
           (slen1, slen2) = tableScaleLength ! scaleFacCompress
           (scfsi0:scfsi1:scfsi2:scfsi3:r) = scfsi
           -- will return a list of long scalefactors
@@ -135,10 +149,10 @@ type HuffTree = (Huff.HuffTree (Int, Int), Int)
 
 huffDecode :: [(Int,HuffTree)] -> (Bool,Int) -> BitGet [(Int, Int)]
 huffDecode [(r0,t0), (r1,t1), (r2,t2)] (count1Table,count1) = do
-    r0res <- replicateM r0 $ huffDecodeXY t0
-    r1res <- replicateM r1 $ huffDecodeXY t1
-    r2res <- replicateM r2 $ huffDecodeXY t2
-    quadr <- replicateM count1 $ huffDecodeVWXY (getQuadrTree count1Table)
+    r0res <- trace "decode1" $ replicateM r0 $ huffDecodeXY t0
+    r1res <- trace "decode2" $ replicateM r1 $ huffDecodeXY t1
+    r2res <- trace "decode3" $ replicateM r2 $ huffDecodeXY t2
+    quadr <- trace "decode4" $ replicateM count1 $ huffDecodeVWXY (getQuadrTree count1Table)
     return $ r0res ++ r1res ++ r2res
 
 huffDecodeXY :: HuffTree -> BitGet (Int,Int)
