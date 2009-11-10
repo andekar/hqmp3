@@ -6,7 +6,7 @@ import Tables
 -- | This function creates a HuffTree from a "Table"
 --   as given in Tables.hs. 
 --   NOTE: This is an ugly hack (using dummy leaves temporarily)
-table2Huff :: [([Int], (Int,Int))] -> HuffTree (Int, Int) -> HuffTree (Int, Int)
+table2Huff :: (Num t, Eq t1) => [([t], t1)] -> HuffTree t1 -> HuffTree t1
 table2Huff [] t      = t
 table2Huff (x:xs)  t = let t' = convert x t 
                        in table2Huff xs t'
@@ -22,12 +22,13 @@ table2Huff (x:xs)  t = let t' = convert x t
 -- Creates the file HuffTrees.hs
 main :: IO ()
 main = do
-    writeFile "HuffTrees.hs" $ 
-        "module HuffTrees where\n\nimport Huffman\n\n" ++ 
-        concatMap (++ "\n") trees
+    putStrLn "Quadruple tables:"
+    print $ table2Huff tableHuffRqa (Leaf (-1,-1,-1,-1))
+    print $ table2Huff tableHuffRqb (Leaf (-1,-1,-1,-1))
+    putStrLn "Regular huffman tables:"
+    print $ concatMap (++ "\n") trees
   where trees = flip map [0..14] $ \i ->
             ("tree" ++ show i ++ " = ") ++ (show $ table i)
-
 
 -- Function calls to convert all tables into trees
 table 0  = table2Huff tableHuffR00 (Leaf (-1,-1))
