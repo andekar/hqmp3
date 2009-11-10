@@ -72,7 +72,8 @@ decodeGranule prev scfsi (Granule scaleBits bigValues globalGain
           t1 = getTree tableSelect_2
           t2 = getTree tableSelect_3
 
-          huffData = huffDecode [(r0,t0), (r1, t1), (r2, t2)] count1TableSelect
+        -- TODO, count1: how big is it?
+          huffData = huffDecode [(r0,t0), (r1, t1), (r2, t2)] (count1TableSelect, 1337)
 -- (region0start, region1start, region2start)
 --                                 undefined undefined
           (slen1, slen2) = tableScaleLength ! scaleFacCompress
@@ -132,11 +133,12 @@ decodeGranule prev scfsi (Granule scaleBits bigValues globalGain
 
 type HuffTree = (Huff.HuffTree (Int, Int), Int)
 
-huffDecode :: [(Int,HuffTree)] -> Bool -> BitGet [(Int, Int)]
-huffDecode [(r0,t0), (r1,t1), (r2,t2)] count1 = do
+huffDecode :: [(Int,HuffTree)] -> (Bool,Int) -> BitGet [(Int, Int)]
+huffDecode [(r0,t0), (r1,t1), (r2,t2)] (count1Table,count1) = do
     r0res <- replicateM r0 $ huffDecodeXY t0
     r1res <- replicateM r1 $ huffDecodeXY t1
     r2res <- replicateM r2 $ huffDecodeXY t2
+    quadr <- replicateM count1 $ huffDecodeVWXY (getQuadrTree count1Table)
     return $ r0res ++ r1res ++ r2res
 
 huffDecodeXY :: HuffTree -> BitGet (Int,Int)
