@@ -79,7 +79,7 @@ readHeader = do
         mext' <- getModeExt
         lift $ skip 4 -- copyright, original & emphasis
         when prot $ lift $ skip 16
-        sinfo <- lift $ readSideInfo mode
+        sinfo <- lift $ readSideInfo mode freq
         let size = ((144 * 1000 * brate) `div` freq +
                     if padd then 1 else 0) * 8
             f' = if prot then 2 else 0
@@ -151,8 +151,8 @@ readFrameData h1@(MP3Header _ _ _ _ _ fsize hsize sin _) = do
                                         , s))
 
 -- Almost exactly follows the ISO standard
-readSideInfo :: MP3Mode -> BitGet SideInfo
-readSideInfo mode = do
+readSideInfo :: MP3Mode -> Int -> BitGet SideInfo
+readSideInfo mode freq = do
     dataptr  <- getInt 9
     skipPrivate
     scaleFactors <- getScaleFactors
@@ -194,15 +194,26 @@ readSideInfo mode = do
             region0Count  <- if windowSwitching then 
                                 return (reg0 mixedBlock blockType)
                                 else getInt 4
-            region1Count  <- if windowSwitching then return reg1 else getInt 3
-            -- NOT YET FINISHED
-            let reg0len = if not windowSwitching && blockType == 2 then
-                          36 else region0Count + 1
-                reg1len = if not windowSwitching && blockType == 2 then
-                            576 else region0Count + 1 + region1Count + 1
-                reg2len = if blockType == 2 then
-                            0 else 0 --undefined
---             ifWindow <- if windowSwitching then getWinTrue else getWinFalse
+            region1Count  <- if windowSwitching then return 0 else getInt 3
+            --from this point we have some similar code to the one bjorn uses
+            let r0count = if windowSwitching
+                             then (if blockType == 2 then 8 else 7)
+                             else region0Count
+                r1count = if windowSwitching then 20 - r0count
+                             else region1Count
+                sbTable   = tableScaleBandBoundary freq
+                r1bound   = sbTable $ r0count + 1
+                r2bound   = sbTable $ r0count + 1 + r1count + 1
+                bv2       = bigValues * 2
+                reg0len     = if blockType == 2 
+                                 then min bv2 36
+                                 else min bv2 r1bound
+                reg1len     = if blockType == 2 
+                                 then min (bv2-reg0len) 540 
+                                 else min (bv2-reg0len) (r2bound - reg0len) 
+                reg2len     = if blockType == 2 
+                                 then 0   
+                                 else bv2 - (reg0len + reg1len)
             preFlag       <- getBit
             scaleFacScale <- getBit
             count1TableSelect <- getBit
@@ -216,4 +227,38 @@ readSideInfo mode = do
             reg0 False bType | bType == 2 = 8
                              | otherwise = 7
             reg0 _ _ = 7
-            reg1 = 36
+
+-- some copied stuff from Bjorn!!
+--
+-- tableScaleBandBound{Long,Short}, tableScaleBandBoundary
+--
+-- These few tables represent the boundaries, in the 576 frequency 
+-- regions, of the scale factor bands. These bands approximate the
+-- critical bands of the human auditory system, and are used to
+-- determine scaling. This scaling controls the quantization noise.
+--
+tableScaleBandBoundLong :: Int -> [Int]
+tableScaleBandBoundLong 44100 = [  0,   4,   8,  12,  16,  20,  24,  30,
+                                  36,  44,  52,  62,  74,  90, 110, 134, 
+                                 162, 196, 238, 288, 342, 418, 576] 
+tableScaleBandBoundLong 48000 = [  0,   4,   8,  12,  16,  20,  24,  30, 
+                                  36,  42,  50,  60,  72,  88, 106, 128, 
+                                 156, 190, 230, 276, 330, 384, 576] 
+tableScaleBandBoundLong 32000 = [  0,   4,   8,  12,  16,  20,  24,  30,
+                                  36,  44,  54,  66,  82, 102, 126, 156, 
+                                 194, 240, 296, 364, 448, 550, 576]
+tableScaleBandBoundLong _     = error "Wrong SR for Table."
+
+
+tableScaleBandBoundShort :: Int -> [Int]
+tableScaleBandBoundShort 44100 = [  0,   4,   8,  12,  16,  22,  30,  40, 
+                                   52,  66,  84, 106, 136, 192] 
+tableScaleBandBoundShort 48000 = [  0,   4,   8,  12,  16,  22,  28,  38, 
+                                   50,  64,  80, 100, 126, 192] 
+tableScaleBandBoundShort 32000 = [  0,   4,   8,  12,  16,  22,  30,  42, 
+                                   58,  78, 104, 138, 180, 192]
+tableScaleBandBoundShort _     = error "Wrong SR for Table."
+
+-- We only need to export the long boundaries for unpacking (Unpack.hs).
+tableScaleBandBoundary :: Int -> Int -> Int
+tableScaleBandBoundary sfreq index = (tableScaleBandBoundLong sfreq) !! index

@@ -14,11 +14,14 @@ import ID3
 import Debug.Trace
 import Control.Monad
 import Unpack
+import Mp3Trees
 
 import Data.Array.Unboxed
 import MP3Types
 
-decodeFrame = undefined
+decodeFrame :: [MP3Header] -> [DChannel]
+decodeFrame = map ((\(x,y) -> decodeGranules x y) .
+                   (\x -> (sideInfo x, mp3Data x)))
 
 -- Array to find out how much data we're supposed to read from
 -- scalefac_l. Idea stolen from Bjorn Edstrom
@@ -28,10 +31,13 @@ tableScaleLength = listArray (0,15)
          (2,1), (2,2), (2,3), (3,1) ,(3,2), (3,3), (4,2), (4,3)]
 
 data Scales = Scales [Word8] [[Word8]] Int
+    deriving Show
 data ChannelData = ChannelData [(Int, Int)] Scales
+    deriving Show
 data DChannel
     = DMono   ChannelData ChannelData 
     | DStereo ChannelData ChannelData ChannelData ChannelData
+    deriving Show
 
 -- Does decoding of granules given the main_data() chunk
 -- This function does huffman decoding, and extracts the 
@@ -56,20 +62,25 @@ decodeGranule prev scfsi (Granule scaleBits bigValues globalGain
                           mixedBlockFlag tableSelect_1 tableSelect_2
                           tableSelect_3 subBlockGain1 subBlockGain2
                           subBlockGain3 preFlag scaleFacScale count1TableSelect
-                          region0start region1start region2start) dat
-    = flip runBitGet dat $ do wedontcare <- pScaleFactors prev
+                          r0 r1 r2) dat
+    = flip runBitGet dat $ do scales <- pScaleFactors prev
                               huffData'  <- huffData
                               rest       <- getRemaining
-                              return (huffData', wedontcare, rest)
+                              return (huffData', scales, rest)
     where
-          huffData = huffDecode -- (region0start, region1start, region2start)
-                                undefined undefined
+          t0 = getTree tableSelect_1
+          t1 = getTree tableSelect_2
+          t2 = getTree tableSelect_3
+
+          huffData = huffDecode [(r0,t0), (r1, t1), (r2, t2)] count1TableSelect
+-- (region0start, region1start, region2start)
+--                                 undefined undefined
           (slen1, slen2) = tableScaleLength ! scaleFacCompress
-          (scfsi0:scfsi1:scfsi2:scfsi3:[]) = scfsi
+          (scfsi0:scfsi1:scfsi2:scfsi3:r) = scfsi
           -- will return a list of long scalefactors
           -- a list of lists of short scalefactors
           -- an int describing how much we read, this might not be needed
-          pScaleFactors :: [Word8] -> BitGet Scales-- ([Word8], [[Word8]], Int) 
+          pScaleFactors :: [Word8] -> BitGet Scales
           pScaleFactors  prev
                   -- as defined in page 18 of the mp3 iso standard
               | blockType == 2 && mixedBlockFlag = do
@@ -121,7 +132,7 @@ decodeGranule prev scfsi (Granule scaleBits bigValues globalGain
 
 type HuffTree = (Huff.HuffTree (Int, Int), Int)
 
-huffDecode :: [(Int,HuffTree)] -> Int -> BitGet [(Int, Int)]
+huffDecode :: [(Int,HuffTree)] -> Bool -> BitGet [(Int, Int)]
 huffDecode [(r0,t0), (r1,t1), (r2,t2)] count1 = do
     r0res <- replicateM r0 $ huffDecodeXY t0
     r1res <- replicateM r1 $ huffDecodeXY t1

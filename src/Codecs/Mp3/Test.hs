@@ -20,4 +20,6 @@ test :: FilePath -> IO ()
 test f = do
     file <- L.readFile f
     let fs = unpackMp3 file
-    mapM_ print fs
+        r = decodeFrame fs
+--     mapM_ print fs
+    mapM_ print r
