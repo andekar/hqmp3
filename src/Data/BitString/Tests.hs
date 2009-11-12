@@ -7,6 +7,7 @@ import Control.Monad (liftM)
 import Control.Arrow (first,second)
 import qualified Data.List as List
 import qualified Data.ByteString.Lazy as L
+import qualified Data.ByteString.Lazy.Internal as LI
 import qualified Test.QuickCheck as QC
 import Data.Bits
 
@@ -14,13 +15,43 @@ instance QC.Arbitrary Word8 where
     arbitrary = do 
         i <- QC.choose (0,255) :: QC.Gen Int
         return $ fromIntegral i
+    shrink i = map fromInteger $ QC.shrink (toInteger i)
 
 instance QC.Arbitrary BitString where
-    -- This is rather slow :(
-    arbitrary = liftM (concat . List.replicate 5 . convertWords) $ QC.vector 100
+    arbitrary = QC.sized $ \n -> QC.choose (0,n) >>= myArbitrary where 
+        myArbitrary :: Int -> QC.Gen BitString
+        myArbitrary 0 = return Empty
+        myArbitrary n = do
+            chunk <- QC.arbitrary
+            rest  <- myArbitrary (n-1)
+            begin <- liftM fromIntegral (QC.choose (0,7) :: QC.Gen Int)
+            end   <- liftM fromIntegral (QC.choose (0,7) :: QC.Gen Int)
+            return $ Chunk chunk begin end rest
+    
+    shrink Empty = []
+    shrink (Chunk lb begin end rest) = 
+        [rest] ++
+        [(Chunk i begin end rest) | i <- QC.shrink lb   ] ++
+        [(Chunk lb i end rest)    | i <- QC.shrink begin] ++
+        [(Chunk lb begin i rest)  | i <- QC.shrink end  ] ++
+        [(Chunk lb begin end i)   | i <- QC.shrink rest ]
 
 instance QC.Arbitrary L.ByteString where
-    arbitrary = liftM L.pack $ QC.vector 100
+    arbitrary = QC.sized $ \n -> QC.choose (0,n) >>= myArbitrary where 
+        myArbitrary :: Int -> QC.Gen L.ByteString
+        myArbitrary 0 = return LI.Empty
+        myArbitrary n = do
+            ws  <- QC.arbitrary
+            return $ L.pack ws
+
+    shrink = map L.pack . QC.shrink . L.unpack
+
+prop_invariant :: BitString -> Bool
+prop_invariant Empty = True
+prop_invariant (Chunk lb begin end rest)
+    | begin+end >= 8 && L.length lb == 1 = False
+    | L.null lb                          = False
+    | otherwise                          = prop_invariant rest
 
 prop_take :: Int -> BitString -> Bool
 prop_take i bs = List.take i' bList == bisToList (take (fromIntegral i') bs)
@@ -44,8 +75,10 @@ prop_splitAt i bis = List.splitAt (fromIntegral i') (bisToList bis)
                                         (splitAt i' bis))
     where i' = abs $ fromIntegral i
 
-prop_head :: BitString -> Bool
-prop_head bis = List.head (bisToList bis) == if (head bis) then 1 else 0
+prop_head :: BitString -> QC.Property
+prop_head Empty = True QC.==> True
+prop_head bis = prop_invariant bis QC.==> 
+                List.head (bisToList bis) == if (head bis) then 1 else 0
 
 prop_tail :: BitString -> Bool
 prop_tail bis = List.tail (bisToList bis) == bisToList (tail bis)
