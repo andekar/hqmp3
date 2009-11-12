@@ -136,7 +136,7 @@ prop_atLeastBS i bs = i >= 0 QC.==>
                       ((L.length bs * 8) >= (fromIntegral i))
                     == atLeastBS bs (fromIntegral i)
 
--- TODO fix these, numbers are sort of reversed
+-- TODO fix this, numbers are sort of reversed
 -- also, how does one do when begin and/or end are not 0?
 bisToList :: BitString -> [Int]
 bisToList bs = nums
@@ -153,29 +153,6 @@ bisToList bs = nums
         bit = testBit (L.head lb) (fi begin)
         f True  = 1
         f False = 0
-
--- Recursive splitAt
-splitAtMany :: Int -> [a] -> [[a]]
-splitAtMany _ [] = []
-splitAtMany i xs = f : splitAtMany i b
-  where
-    (f,b) = List.splitAt i xs
-
--- Shorthand for testing 500 times
-largeTest :: (QC.Testable prop) => prop -> IO ()
-largeTest prop = QC.quickCheckWith (QC.stdArgs { QC.maxSuccess = 500 }) prop
-
-btl :: BitString -> [Int]
-btl Empty = []
-btl (Chunk lb begin end rest)
-    | L.null lb = bisToList rest
-    | begin + end == 8 && L.length lb == 1 = bisToList rest
-    | begin == 7  = f bit : (bisToList $ Chunk (L.tail lb) 0 end rest)
-    | otherwise  = f bit : (bisToList $ Chunk lb (begin + 1) end rest)
-  where
-    bit = testBit (L.head lb) (7 - fi begin)
-    f True  = 1
-    f False = 0
 
 -- Recursive splitAt
 splitAtMany :: Int -> [a] -> [[a]]
