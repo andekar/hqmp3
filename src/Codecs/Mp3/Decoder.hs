@@ -33,7 +33,7 @@ tableScaleLength = listArray (0,15)
 
 data Scales = Scales [Word8] [[Word8]] Int
     deriving Show
-data ChannelData = ChannelData [(Int, Int)] Scales
+data ChannelData = ChannelData Scales [(Int, Int)]
     deriving Show
 data DChannel
     = DMono   ChannelData ChannelData 
