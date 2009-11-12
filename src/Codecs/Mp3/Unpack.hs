@@ -178,7 +178,7 @@ readSideInfo mode freq = do
             return (bitsL ++ bitsR)
     getGranule = do
             scaleBits        <- getInt 12
-            bigValues        <- getInt 9
+            bigValues        <- trace ("part23 " ++ show scaleBits) getInt 9
             globalGain       <- getInt 8
             scaleFacCompress <- getInt 4
             windowSwitching  <- getBit
@@ -205,7 +205,7 @@ readSideInfo mode freq = do
                 r1bound   = sbTable $ r0count + 1
                 r2bound   = sbTable $ r0count + 1 + r1count + 1
                 bv2       = bigValues * 2
-                reg0len     = if blockType == 2 
+                reg0len   = trace ("\nbv2: "++ show bv2) $ if blockType == 2 
                                  then min bv2 36
                                  else min bv2 r1bound
                 reg1len     = if blockType == 2 
@@ -224,9 +224,8 @@ readSideInfo mode freq = do
                              preFlag scaleFacScale
                              count1TableSelect reg0len reg1len reg2len
         where
-            reg0 False bType | bType == 2 = 8
-                             | otherwise = 7
-            reg0 _ _ = 7
+            reg0 False 2 = 8
+            reg0 _ _     = 7
 
 -- some copied stuff from Bjorn!!
 --

@@ -47,10 +47,8 @@ put :: (Monad m) => BitString -> BitGetT m ()
 put bs = BitGetT $ const $ return ((),bs)
 
 getBit :: (Monad m) => BitGetT m Bool
-getBit = do
-    (bit,bits) <- liftM (splitAt 1) get
-    put bits
-    return $ head bit
+getBit = do r <- getAsWord8 1
+            return $ r == 1
 
 getBits :: (Monad m) => Int64 -> BitGetT m BitString
 getBits i = do
@@ -71,16 +69,10 @@ safeSkip i = do
         Nothing  -> return EOF
 
 getWord8 :: (Monad m) => BitGetT m Word8
-getWord8 = do
-    word <- liftM takeWord8 get
-    skip 8
-    return word
+getWord8 = getAsWord8 8
 
 getWord16 :: (Monad m) => BitGetT m Word16
-getWord16 = do
-    word <- liftM takeWord16 get
-    skip 16
-    return word
+getWord16 = getAsWord16 16
 
 getAsWord8 :: (Monad m) => Int64 -> BitGetT m Word8
 getAsWord8 i = do

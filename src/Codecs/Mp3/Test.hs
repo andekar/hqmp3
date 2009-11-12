@@ -22,4 +22,4 @@ test f = do
     let fs = unpackMp3 file
         r = decodeFrame fs
 --     mapM_ print fs
-    mapM_ print r
+    mapM_ (\(f,r) -> print ("Frame: " ++ (show f)) >> print r) (zip [1..] r)
