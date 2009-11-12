@@ -104,14 +104,20 @@ prop_atLeastBS :: Int -> L.ByteString -> Bool
 prop_atLeastBS i bs = ((L.length bs * 8) >= (fromIntegral i))
                     == atLeastBS bs (fromIntegral i)
 
+-- TODO fix these, numbers are sort of reversed
 bisToList :: BitString -> [Int]
-bisToList Empty = []
-bisToList (Chunk lb begin end rest)
+bisToList bs = nums
+  where nums = btl bs
+
+btl :: BitString -> [Int]
+btl Empty = []
+btl (Chunk lb begin end rest)
     | L.null lb = bisToList rest
     | begin+end == 8 && L.length lb == 1 = bisToList rest
-    | begin == 7 = f (testBit begin $ fromIntegral $ L.head lb) : bisToList (Chunk (L.tail lb) 0 end rest)
-    | otherwise  = f (testBit begin $ fromIntegral $ L.head lb) : bisToList (Chunk lb (begin+1) end rest)
+    | begin == 7 = f bit : (bisToList $ Chunk (L.tail lb) 0 end rest)
+    | otherwise  = f bit : (bisToList $ Chunk lb (begin+1) end rest)
   where
+    bit = testBit (L.head lb) (fi begin)
     f True  = 1
     f False = 0
 
