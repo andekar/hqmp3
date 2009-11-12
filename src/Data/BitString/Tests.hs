@@ -10,6 +10,8 @@ import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Lazy.Internal as LI
 import qualified Test.QuickCheck as QC
 import Data.Bits
+import Data.Char
+import Debug.Trace
 
 instance QC.Arbitrary Word8 where
     arbitrary = do 
@@ -49,59 +51,89 @@ instance QC.Arbitrary L.ByteString where
 prop_invariant :: BitString -> Bool
 prop_invariant Empty = True
 prop_invariant (Chunk lb begin end rest)
-    | begin+end >= 8 && L.length lb == 1 = False
+    | begin + end >= 8 && L.length lb == 1 = False
+    | begin > 7 = False
+    | end > 7 = False
     | L.null lb                          = False
     | otherwise                          = prop_invariant rest
 
-prop_take :: Int -> BitString -> Bool
-prop_take i bs = List.take i' bList == bisToList (take (fromIntegral i') bs)
-   where
-       bList = bisToList bs
-       i' = fromIntegral $ abs i
+prop_take :: Int -> BitString -> QC.Property
+prop_take i bis = prop_invariant bis QC.==> 
+        List.take i' bList == bisToList (take (fromIntegral i') bis)
+      && prop_invariant (take (fromIntegral i') bis)
+    where
+        bList = bisToList bis
+        i' = fromIntegral $ abs i
 
-prop_takeWord8 :: BitString -> Bool
-prop_takeWord8 bs = List.take 8 bList
-                  == bisToList (Chunk (L.pack [(takeWord8 bs)]) 0 0 Empty)
-    where bList = bisToList bs
+-- this is broken
+prop_takeWord8 :: BitString -> QC.Property
+prop_takeWord8 bis = (prop_invariant bis && length bis >= 8 ) QC.==>
+                    List.take 8 bList
+                  == bisToList (Chunk (L.pack [takeWord8 bis]) 0 0 Empty)
+    where bList = bisToList bis
 
-prop_drop :: Int -> BitString -> Bool
-prop_drop i bis = List.drop (fromIntegral i') (bisToList bis)
-                == bisToList (drop i' bis)
+-- wrongly specified
+prop_takeAsWord8 :: Int -> BitString -> QC.Property
+prop_takeAsWord8 i bis = prop_invariant bis QC.==>
+                         List.take i (bisToList bis)
+                         == bisToList (Chunk (L.pack [takeAsWord8 i bis]
+                                             ) 0 0 Empty)
+
+prop_drop :: Int -> BitString -> QC.Property
+prop_drop i bis = prop_invariant bis QC.==>
+                  List.drop (fromIntegral i') (bisToList bis)
+                == bisToList fun
+                && prop_invariant fun
     where i' = abs $ fromIntegral i
+          fun = (drop i' bis)
 
-prop_splitAt :: Int -> BitString -> Bool
-prop_splitAt i bis = List.splitAt (fromIntegral i') (bisToList bis)
-                   == second bisToList (first bisToList 
-                                        (splitAt i' bis))
+prop_splitAt :: Int -> BitString -> QC.Property
+prop_splitAt i bis = prop_invariant bis QC.==>
+                      List.splitAt (fromIntegral i') (bisToList bis)
+                   == lr bisToList
+                   && tr (lr prop_invariant)
     where i' = abs $ fromIntegral i
+          lr f= second f (first f (splitAt i' bis))
+          tr (True,True) = True
+          tr _  = False
 
 prop_head :: BitString -> QC.Property
 prop_head Empty = True QC.==> True
-prop_head bis = prop_invariant bis QC.==> 
+prop_head bis = prop_invariant bis QC.==>
                 List.head (bisToList bis) == if (head bis) then 1 else 0
 
-prop_tail :: BitString -> Bool
-prop_tail bis = List.tail (bisToList bis) == bisToList (tail bis)
+prop_tail :: BitString -> QC.Property
+prop_tail bis = (prop_invariant bis && length bis > 0) QC.==>
+                List.tail (bisToList bis) == bisToList (tail bis)
+              && prop_invariant (tail bis)
 
-prop_append :: BitString -> BitString -> Bool
-prop_append bis bis' =  (f bis) ++ (f bis')
-                     ==  f (append bis bis')
+prop_append :: BitString -> BitString -> QC.Property
+prop_append bis bis' = prop_invariant bis && prop_invariant bis' QC.==>
+                        (f bis) ++ (f bis')
+                     ==  f fun
+                     &&  prop_invariant fun
     where f = bisToList
+          fun = append bis bis'
 
-prop_concat :: [BitString] -> Bool
-prop_concat biss = List.concat (map f biss)
+prop_concat :: [BitString] -> QC.Property
+prop_concat biss = and (map prop_invariant biss) QC.==>
+                   List.concat (map f biss)
                  == f (concat biss)
+                 && prop_invariant (concat biss)
     where f = bisToList
 
-prop_length :: BitString -> Bool
-prop_length bs = List.length (bisToList bs) == (fromIntegral $ length bs)
+prop_length :: BitString -> QC.Property
+prop_length bs = prop_invariant bs QC.==> 
+                 List.length (bisToList bs) == (fromIntegral $ length bs)
 
-prop_atLeast :: Int -> BitString -> Bool
-prop_atLeast i bs = (List.length (bisToList bs) >= (fromIntegral i))
+prop_atLeast :: Int -> BitString -> QC.Property
+prop_atLeast i bs = prop_invariant bs && i >= 0 QC.==>
+                    (List.length (bisToList bs) >= (fromIntegral i))
                         == atLeast bs (fromIntegral i)
 
-prop_atLeastBS :: Int -> L.ByteString -> Bool
-prop_atLeastBS i bs = ((L.length bs * 8) >= (fromIntegral i))
+prop_atLeastBS :: Int -> L.ByteString -> QC.Property
+prop_atLeastBS i bs = i >= 0 QC.==>
+                      ((L.length bs * 8) >= (fromIntegral i))
                     == atLeastBS bs (fromIntegral i)
 
 -- TODO fix these, numbers are sort of reversed
@@ -111,25 +143,15 @@ bisToList bs = nums
   where 
     nums = btl bs
 
-    btl :: BitString -> [Int]
-    btl Empty = []
-    btl (Chunk lb begin end rest)
-        | L.null lb = bisToList rest
-        | begin+end == 8 && L.length lb == 1 = bisToList rest
-        | begin == 7 = f bit : (bisToList $ Chunk (L.tail lb) 0 end rest)
-        | otherwise  = f bit : (bisToList $ Chunk lb (begin+1) end rest)
-      where
-        bit = testBit (L.head lb) (fi begin)
-        f True  = 1
-        f False = 0
-
--- Recursive splitAt
-splitAtMany :: Int -> [a] -> [[a]]
-splitAtMany _ [] = []
-splitAtMany i xs = f : splitAtMany i b
+btl :: BitString -> [Int]
+btl Empty = []
+btl (Chunk lb begin end rest)
+    | L.null lb = bisToList rest
+    | begin+end == 8 && L.length lb == 1 = bisToList rest
+    | begin == 7 = f bit : (bisToList $ Chunk (L.tail lb) 0 end rest)
+    | otherwise  = f bit : (bisToList $ Chunk lb (begin+1) end rest)
   where
-    (f,b) = List.splitAt i xs
+    bit = testBit (L.head lb) (fi begin)
+    f True  = 1
+    f False = 0
 
--- Shorthand for testing 500 times
-largeTest :: (QC.Testable prop) => prop -> IO ()
-largeTest prop = QC.quickCheckWith (QC.stdArgs { QC.maxSuccess = 500 }) prop
