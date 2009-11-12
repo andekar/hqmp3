@@ -69,7 +69,7 @@ index i bs = head $ drop i bs
 -- The first bit in the BitString
 head :: BitString -> Bit
 head Empty = error "BitString.head: empty string"
-head c = testBit (takeAsWord8 1 c) 7
+head c = testBit (takeAsWord8 1 c) 0
 
 -- All but the first bit in the BitString
 tail :: BitString -> BitString
@@ -100,7 +100,7 @@ takeAsWord8 i bis
               left (right bs b) (fi f + fi b)
       in s .|. r
     | i + fi f <= 8
-    = L.head $ flip right (8 - i) $ left bs f
+    = L.head $ flip right (8-i) $ left bs f
     | otherwise = L.head $ flip right (8-i) $
                   left bs f
     where (Chunk bs f b rest, _) = splitAt (fi i) bis
