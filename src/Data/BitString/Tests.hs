@@ -1,13 +1,14 @@
 module Tests where
 
 import BitString
-import Prelude hiding (head,tail,take,drop,concat,splitAt, length)
+import Prelude hiding (null,head,tail,take,drop,concat,splitAt, length)
 import Data.Word
 import Control.Monad (liftM)
 import Control.Arrow (first,second)
 import qualified Data.List as List
 import qualified Data.ByteString.Lazy as L
 import qualified Test.QuickCheck as QC
+import Data.Bits
 
 instance QC.Arbitrary Word8 where
     arbitrary = do 
@@ -15,7 +16,8 @@ instance QC.Arbitrary Word8 where
         return $ fromIntegral i
 
 instance QC.Arbitrary BitString where
-    arbitrary = liftM (concat . List.replicate 5 . convertWords) $ QC.vector 100 --This is quite slow
+    -- This is rather slow :(
+    arbitrary = liftM (concat . List.replicate 5 . convertWords) $ QC.vector 100
 
 instance QC.Arbitrary L.ByteString where
     arbitrary = liftM L.pack $ QC.vector 100
@@ -43,7 +45,7 @@ prop_splitAt i bis = List.splitAt (fromIntegral i') (bisToList bis)
     where i' = abs $ fromIntegral i
 
 prop_head :: BitString -> Bool
-prop_head bis = List.head (bisToList bis) ==  if (head bis) then 1 else 0
+prop_head bis = List.head (bisToList bis) == if (head bis) then 1 else 0
 
 prop_tail :: BitString -> Bool
 prop_tail bis = List.tail (bisToList bis) == bisToList (tail bis)
@@ -71,6 +73,12 @@ prop_atLeastBS i bs = ((L.length bs * 8) >= (fromIntegral i))
 
 bisToList :: BitString -> [Int]
 bisToList Empty = []
-bisToList ls = (f $ head ls) : (bisToList $ tail ls)
-    where f True  = 1
-          f False = 0
+bisToList (Chunk lb begin end rest)
+    | L.null lb = bisToList rest
+    | begin+end == 8 && L.length lb == 1 = bisToList rest
+    | begin == 7 = f (testBit begin $ fromIntegral $ L.head lb) : bisToList (Chunk (L.tail lb) 0 end rest)
+    | otherwise  = f (testBit begin $ fromIntegral $ L.head lb) : bisToList (Chunk lb (begin+1) end rest)
+  where
+    f True  = 1
+    f False = 0
+

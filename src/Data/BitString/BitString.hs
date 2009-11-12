@@ -69,7 +69,7 @@ index i bs = head $ drop i bs
 -- The first bit in the BitString
 head :: BitString -> Bit
 head Empty = error "BitString.head: empty string"
-head c = testBit (takeAsWord8 1 c) 0
+head c = testBit (takeAsWord8 1 c) 7
 
 -- All but the first bit in the BitString
 tail :: BitString -> BitString
