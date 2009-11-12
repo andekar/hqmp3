@@ -87,15 +87,26 @@ takeWord16 :: BitString -> Word16
 takeWord16 bs = (shiftL 8 $ fi l) .|. fi r
     where (l, r) = takeWord8 *** takeWord8 $ splitAt 8 bs
 
+-- Here magic happens
 takeAsWord8 :: Int -> BitString -> Word8
 takeAsWord8 _ Empty = 0
 takeAsWord8 0 _ = 0
 takeAsWord8 i bis
-    | i > 8 = error "Too big to make any sense"
-    | i + fi f <= 8 = L.head $ rightShiftByteString (fi b + fi f) $ left bs f
-    | otherwise = L.head $ leftShiftByteString (i - fi f) bs
-    where (Chunk bs f b _, _) = splitAt (fi i) bis
+    | i > 8 = error $ "Too big to make any sense " ++ show i
+    | not (atLeastBS bs (fi i + fb f b))
+    = let r = takeAsWord8 (fi i - ((fi (L.length bs) * 8)
+                                   - fb f b)) rest
+          s = L.head $ flip right (8 - i) $
+              left (right bs b) (fi f + fi b)
+      in s .|. r
+    | i + fi f <= 8
+    = L.head $ flip right (8 - i) $ left bs f
+    | otherwise = L.head $ flip right (8-i) $
+                  left bs f
+    where (Chunk bs f b rest, _) = splitAt (fi i) bis
           left bs f = leftShiftByteString (fi f) bs
+          right bs b = rightShiftByteString (fi b) bs
+          fb f b = fi f + fi b
 
 bss = Chunk (L.pack [0]) 0 0 (Chunk (L.pack [0x40]) 0 0 Empty)
 
@@ -163,7 +174,7 @@ splitAt i bs@(Chunk lb f b rest)
 length :: BitString -> Int64
 length Empty = 0
 length (Chunk bs f b rest)
-    = (fromIntegral (L.length bs * 8) - fi (f+b)) + length rest
+    = (fromIntegral (L.length bs * 8) - fi (f + b)) + length rest
 
 -- Lazily checks if the BitString is at least j bits.
 atLeast :: BitString -> Int64 -> Bool
