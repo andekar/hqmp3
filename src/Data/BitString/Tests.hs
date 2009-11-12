@@ -129,3 +129,7 @@ splitAtMany _ [] = []
 splitAtMany i xs = f : splitAtMany i b
   where
     (f,b) = List.splitAt i xs
+
+-- Shorthand for testing 500 times
+largeTest :: (QC.Testable prop) => prop -> IO ()
+largeTest prop = QC.quickCheckWith (QC.stdArgs { QC.maxSuccess = 500 }) prop
