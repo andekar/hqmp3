@@ -56,11 +56,11 @@ decodeGranules sideInfo bs = case sideInfo of
     (Dual _ scfsi gran1 gran2 gran3 gran4) ->
        let [d1,d2,d3,d4] = map (fi . scaleBits) [gran1,gran2,gran3,gran4]
            bs1 = take' d1 bs
-           bs2 = trace ("\nbs1 " ++ show d1) tNdrop d2 d1 bs
-           bs3 = trace ("\nbs2 " ++ show d2) tNdrop d3 (d1+d2) bs
-           bs4 = trace ("\nbs3 " ++ show d3) tNdrop d4 (d1+d2+d3) bs
+           bs2 = tNdrop d2 d1 bs
+           bs3 = tNdrop d3 (d1+d2) bs
+           bs4 = tNdrop d4 (d1+d2+d3) bs
 
-           (scfsi0,scfsi1) = trace ("\nbs4 " ++ show d4)splitAt 4 scfsi
+           (scfsi0,scfsi1) = splitAt 4 scfsi
            (g1,scale1@(Scales p _ _),_)  = decodeGranule [] scfsi0 gran1 bs1
            (g2,scale2@(Scales p' _ _),_) = decodeGranule [] scfsi1 gran2 bs2
            (g3,scale3,_)  = decodeGranule p scfsi0 gran3 bs3
@@ -89,9 +89,9 @@ decodeGranule prev scfsi (Granule scaleBits bigValues globalGain
                               rest       <- getRemaining
                               return (huffData', scales, rest)
     where
-          t0 = trace ("\nTable0: " ++ show tableSelect_1) getTree tableSelect_1
-          t1 = trace ("\nTable1: " ++ show tableSelect_2) getTree tableSelect_2
-          t2 = trace ("\nTable2: " ++ show tableSelect_3) getTree tableSelect_3
+          t0 = getTree tableSelect_1
+          t1 = getTree tableSelect_2
+          t2 = getTree tableSelect_3
 
         -- TODO, count1: how big is it?
           huffData = huffDecode [(r0,t0), (r1, t1), (r2, t2)]
@@ -104,7 +104,7 @@ decodeGranule prev scfsi (Granule scaleBits bigValues globalGain
           pScaleFactors :: [Word8] -> BitGet Scales
           pScaleFactors  prev
                   -- as defined in page 18 of the mp3 iso standard
-              | blockType == 2 && mixedBlockFlag = do
+              | blockType == 2 && mixedBlockFlag  &&  windowSwitching= do
                   -- slen1: 0 to 7 (long window scalefactor band)
                   scalefacL0 <- replicateM 8 $ getAsWord8 (fromIntegral slen1)
                   -- slen1: bands 3 to 5 (short window scalefactor band)
@@ -117,8 +117,8 @@ decodeGranule prev scfsi (Granule scaleBits bigValues globalGain
                   -- here we must insert 3 lists of all zeroes since the
                   -- slen1 starts at band 3
                       sr = replicate 3 $ replicate 3 0
-                  return $ trace ("\n#####scales: " ++ show length ++ "\n" )$ Scales scalefacL0 (sr ++ scaleFacS0 ++ scaleFacS1) length
-              | blockType == 2 = do
+                  return $ Scales scalefacL0 (sr ++ scaleFacS0 ++ scaleFacS1) length
+              | blockType == 2 && windowSwitching = do
                   -- slen1: 0 to 5
                   scaleFacS0 <- replicateM 6 $ replicateM 3 $ 
                                                getAsWord8 (fromIntegral slen1)
@@ -126,7 +126,7 @@ decodeGranule prev scfsi (Granule scaleBits bigValues globalGain
                   scaleFacS1 <- replicateM 6 $ replicateM 3 $ 
                                                getAsWord8 (fromIntegral slen2)
                   let length = 18 * slen1 + 18 * slen2
-                  return $ trace ("\n#####scales: " ++ show length ++ "\n" )$ Scales [] (scaleFacS0 ++ scaleFacS1) length
+                  return $ Scales [] (scaleFacS0 ++ scaleFacS1) length
               | otherwise = do
                   -- slen1: 0 to 10
                   s0 <- if c scfsi0 then
@@ -148,18 +148,16 @@ decodeGranule prev scfsi (Granule scaleBits bigValues globalGain
                                5 * (if c scfsi3 then slen1 else 0)
                       -- here we might need a paddig 0 after s3
                       -- (if we want a list of 22 elements)
-                  return $ trace ("\n#####scales: " ++ show length ++ "\n" )$Scales (s0 ++ s1 ++ s2 ++ s3) [] length
-                      where c sc = not sc && not (null prev)
+                  return $ Scales (s0 ++ s1 ++ s2 ++ s3) [] length
+                      where c sc = not sc || not (null prev)
 
 type HuffTree = (Huff.HuffTree (Int, Int), Int)
 
 huffDecode :: [(Int, HuffTree)] -> (Bool, Int) -> BitGet [(Int, Int)]
 huffDecode [(r0,t0), (r1,t1), (r2,t2)] (count1Table,count1) = do
-    r0res <- trace ("\nr0len " ++ show r0 ++
-                    "\nr1len " ++ show r1 ++
-                    "\nr2len " ++ show r2) replicateM (r0 `div` 2) $ huffDecodeXY t0
+    r0res <- replicateM (r0 `div` 2) $ huffDecodeXY t0
     rem <- getLength
-    r1res <- trace ("weee")$ replicateM (r1 `div` 2) $ huffDecodeXY t1
+    r1res <- replicateM (r1 `div` 2) $ huffDecodeXY t1
     r2res <- replicateM (r2 `div` 2) $ huffDecodeXY t2
 --     quadr <- replicateM (count1 `div` 4) $ huffDecodeVWXY (getQuadrTree count1Table)
     return (  r1res) --  ++ r2res
