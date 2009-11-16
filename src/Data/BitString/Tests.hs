@@ -77,7 +77,7 @@ prop_takeWord8 bis = (prop_invariant bis && length bis >= 8 ) ==>
 -- That makes the property fail
 -- TODO: This needs to be checked in takeAsWord8 
 prop_takeAsWord8 :: Int -> BitString -> Property
-prop_takeAsWord8 i bis = 
+prop_takeAsWord8 i bis =
     -- Lots of conditions here...
     prop_invariant bis && i > 0 ==>
         (fst $ foldr (\b (acc,v) -> if b == 1 
@@ -170,4 +170,4 @@ splitAtMany i xs = f : splitAtMany i b
 
 -- Shorthand for testing 500 times
 largeTest :: (Testable prop) => prop -> IO ()
-largeTest prop = quickCheckWith (stdArgs { maxSuccess = 500 }) prop
+largeTest prop = quickCheckWith (stdArgs { maxSuccess = 500, maxDiscard = 10000 }) prop

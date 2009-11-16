@@ -96,14 +96,15 @@ takeAsWord8 i bis
     | not (atLeastBS bs (fi i + fb f b))
     = let r = takeAsWord8 (fi i - ((fi (L.length bs) * 8)
                                    - fb f b)) rest
-          s = L.head $ flip right (8 - i) $
+          len = length m
+          s = L.head $ flip right (max (8 - i) (8 - fi len)) $
               left (right bs b) (fi f + fi b)
       in s .|. r
     | i + fi f <= 8
     = L.head $ flip right (8-i) $ left bs f
     | otherwise = L.head $ flip right (8-i) $
                   left bs f
-    where (Chunk bs f b rest, _) = splitAt (fi i) bis
+    where (m@(Chunk bs f b rest), _) = splitAt (fi i) bis
           left bs f = leftShiftByteString (fi f) bs
           right bs b = rightShiftByteString (fi b) bs
           fb f b = fi f + fi b
