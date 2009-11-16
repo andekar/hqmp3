@@ -161,11 +161,9 @@ huffDecodeXY (huff, linbits) = do
   where linsign :: Int -> Int -> BitGet Int
         linsign c l 
             | abs c == 15 && l > 0 = do
-                res <- getInt (fromIntegral l) >>= \r -> return (r+15)
-                sign <-getBit
-                if sign then return (negate res)
-                        else return res
-            | c /= 0 = getBit >>= \s -> if s then return (negate c) else return c
+                res  <- liftM (+15) $ getInt (fromIntegral l)
+                liftM (\s -> if s then negate res else res) getBit
+            | c /= 0 = liftM (\s -> if s then negate c else c) getBit
             | otherwise = return c
 
 huffDecodeVWXY :: Huff.HuffTree (Int,Int,Int,Int) -> BitGet (Int,Int,Int,Int)
@@ -177,4 +175,4 @@ huffDecodeVWXY huff = do
     y' <- setSign y
     return (v',w',x',y')
   where setSign 0 = return 0
-        setSign c = getBit >>= \s -> if s then return (negate c) else return c
+        setSign c = liftM (\s -> if s then negate c else c) getBit
