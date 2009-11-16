@@ -156,11 +156,10 @@ type HuffTree = (Huff.HuffTree (Int, Int), Int)
 huffDecode :: [(Int, HuffTree)] -> (Bool, Int) -> BitGet [(Int, Int)]
 huffDecode [(r0,t0), (r1,t1), (r2,t2)] (count1Table,count1) = do
     r0res <- replicateM (r0 `div` 2) $ huffDecodeXY t0
-    rem <- getLength
     r1res <- replicateM (r1 `div` 2) $ huffDecodeXY t1
     r2res <- replicateM (r2 `div` 2) $ huffDecodeXY t2
 --     quadr <- replicateM (count1 `div` 4) $ huffDecodeVWXY (getQuadrTree count1Table)
-    return (  r1res) --  ++ r2res
+    return $ r0res ++ r1res ++ r2res
 
 huffDecodeXY :: HuffTree -> BitGet (Int,Int)
 huffDecodeXY (huff, linbits) = do
