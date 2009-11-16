@@ -89,67 +89,58 @@ decodeGranule prev scfsi (Granule scaleBits bigValues globalGain
                               rest       <- getRemaining
                               return (huffData', scales, rest)
     where
-          t0 = getTree tableSelect_1
-          t1 = getTree tableSelect_2
-          t2 = getTree tableSelect_3
+      t0 = getTree tableSelect_1
+      t1 = getTree tableSelect_2
+      t2 = getTree tableSelect_3
 
-        -- TODO, count1: how big is it?
-          huffData = huffDecode [(r0,t0), (r1, t1), (r2, t2)]
-                    (count1TableSelect, 0)
-          (slen1, slen2) = tableScaleLength ! scaleFacCompress
-          (scfsi0:scfsi1:scfsi2:scfsi3:[]) = scfsi
-          -- will return a list of long scalefactors
-          -- a list of lists of short scalefactors
-          -- an int describing how much we read, this might not be needed
-          pScaleFactors :: [Word8] -> BitGet Scales
-          pScaleFactors  prev
-                  -- as defined in page 18 of the mp3 iso standard
-              | blockType == 2 && mixedBlockFlag  &&  windowSwitching= do
-                  -- slen1: 0 to 7 (long window scalefactor band)
-                  scalefacL0 <- replicateM 8 $ getAsWord8 (fromIntegral slen1)
-                  -- slen1: bands 3 to 5 (short window scalefactor band)
-                  scaleFacS0 <- replicateM 3 $ replicateM 3 $ 
-                                               getAsWord8 (fromIntegral slen1)
-                  -- slen2: bands 6 to 11
-                  scaleFacS1 <- replicateM 6 $ replicateM 3 $ 
-                                               getAsWord8 (fromIntegral slen2)
-                  let length = 17 * slen1 + 18 * slen2
-                  -- here we must insert 3 lists of all zeroes since the
-                  -- slen1 starts at band 3
-                      sr = replicate 3 $ replicate 3 0
-                  return $ Scales scalefacL0 (sr ++ scaleFacS0 ++ scaleFacS1) length
-              | blockType == 2 && windowSwitching = do
-                  -- slen1: 0 to 5
-                  scaleFacS0 <- replicateM 6 $ replicateM 3 $ 
-                                               getAsWord8 (fromIntegral slen1)
-                  -- slen2: 6 to 11
-                  scaleFacS1 <- replicateM 6 $ replicateM 3 $ 
-                                               getAsWord8 (fromIntegral slen2)
-                  let length = 18 * slen1 + 18 * slen2
-                  return $ Scales [] (scaleFacS0 ++ scaleFacS1) length
-              | otherwise = do
-                  -- slen1: 0 to 10
-                  s0 <- if c scfsi0 then
-                            replicateM 6 $ getAsWord8 (fromIntegral slen1)
-                            else return $ take 6 prev
-                  s1 <- if c scfsi1 then
-                            replicateM 5 $ getAsWord8 $ fromIntegral slen1
-                            else return $ take 5 $ drop 6 prev
-                  -- slen2: 11 to 20
-                  s2 <- if c scfsi2 then
-                            replicateM 5 $ getAsWord8 $ fromIntegral slen2
-                            else return $ take 6 $ drop 11 prev
-                  s3 <- if c scfsi3 then
-                            replicateM 5 $ getAsWord8 $ fromIntegral slen2
-                            else return $ take 6 $ drop 16 prev
-                  let length = 6 * (if c scfsi0 then slen1 else 0) +
-                               5 * (if c scfsi1 then slen1 else 0) +
-                               5 * (if c scfsi2 then slen1 else 0) +
-                               5 * (if c scfsi3 then slen1 else 0)
-                      -- here we might need a paddig 0 after s3
-                      -- (if we want a list of 22 elements)
-                  return $ Scales (s0 ++ s1 ++ s2 ++ s3) [] length
-                      where c sc = not sc || not (null prev)
+      -- TODO, count1: how big is it?
+      huffData = huffDecode [(r0,t0), (r1, t1), (r2, t2)] (count1TableSelect, 0)
+      (slen1, slen2) = tableScaleLength ! scaleFacCompress
+      (scfsi0:scfsi1:scfsi2:scfsi3:[]) = scfsi
+      -- will return a list of long scalefactors
+      -- a list of lists of short scalefactors
+      -- an int describing how much we read, this might not be needed
+      pScaleFactors :: [Word8] -> BitGet Scales
+      pScaleFactors prev
+              -- as defined in page 18 of the mp3 iso standard
+          | blockType == 2 && mixedBlockFlag && windowSwitching = do
+              -- slen1: 0 to 7       (long  window scalefactor band)
+              -- slen1: bands 3 to 5 (short window scalefactor band)
+              -- slen2: bands 6 to 11
+              scalefacL0 <- replicateM 8 $ getAsWord8 (fromIntegral slen1)
+              scaleFacS0 <- replicateM 3 $ replicateM 3 $ getAsWord8 $ fi slen1
+              scaleFacS1 <- replicateM 6 $ replicateM 3 $ getAsWord8 $ fi slen2
+              let length = 17 * slen1 + 18 * slen2
+              -- here we must insert 3 lists of all zeroes since the
+              -- slen1 starts at band 3
+                  sr = replicate 3 $ replicate 3 0
+              return $ Scales scalefacL0 (sr ++ scaleFacS0 ++ scaleFacS1) length
+          | blockType == 2 && windowSwitching = do
+              -- slen1: 0 to 5
+              -- slen2: 6 to 11
+              scaleFacS0 <- replicateM 6 $ replicateM 3 $ getAsWord8 $ fi slen1
+              scaleFacS1 <- replicateM 6 $ replicateM 3 $ getAsWord8 $ fi slen2
+              let length = 18 * slen1 + 18 * slen2
+              return $ Scales [] (scaleFacS0 ++ scaleFacS1) length
+          | otherwise = do
+              -- slen1: 0 to 10
+              s0 <- if c scfsi0 then replicateM 6 $ getAsWord8 $ fi slen1
+                                else return $ take 6 prev
+              s1 <- if c scfsi1 then replicateM 5 $ getAsWord8 $ fi slen1
+                                else return $ take 5 $ drop 6 prev
+              -- slen2: 11 to 20
+              s2 <- if c scfsi2 then replicateM 5 $ getAsWord8 $ fi slen2
+                                else return $ take 5 $ drop 11 prev
+              s3 <- if c scfsi3 then replicateM 5 $ getAsWord8 $ fi slen2
+                                else return $ take 5 $ drop 16 prev
+              let length = 6 * (if c scfsi0 then slen1 else 0) +
+                           5 * (if c scfsi1 then slen1 else 0) +
+                           5 * (if c scfsi2 then slen1 else 0) +
+                           5 * (if c scfsi3 then slen1 else 0)
+                  -- here we might need a paddig 0 after s3
+                  -- (if we want a list of 22 elements)
+              return $ Scales (s0 ++ s1 ++ s2 ++ s3) [] length
+                  where c sc = not sc || not (null prev)
 
 type HuffTree = (Huff.HuffTree (Int, Int), Int)
 
@@ -158,7 +149,7 @@ huffDecode [(r0,t0), (r1,t1), (r2,t2)] (count1Table,count1) = do
     r0res <- replicateM (r0 `div` 2) $ huffDecodeXY t0
     r1res <- replicateM (r1 `div` 2) $ huffDecodeXY t1
     r2res <- replicateM (r2 `div` 2) $ huffDecodeXY t2
---     quadr <- replicateM (count1 `div` 4) $ huffDecodeVWXY (getQuadrTree count1Table)
+    quadr <- replicateM (count1 `div` 4) $ huffDecodeVWXY (getQuadrTree count1Table)
     return $ r0res ++ r1res ++ r2res
 
 huffDecodeXY :: HuffTree -> BitGet (Int,Int)
