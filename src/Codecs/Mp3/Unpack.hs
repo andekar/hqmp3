@@ -95,7 +95,7 @@ readHeader = do
                 mext size hsize sinfo ())
 
 getBitRate :: MaybeT BitGet Int
-getBitRate = do 
+getBitRate = do
     w <- lift $ getAsWord8 4
     if w == 0 && w == 15 then fail "Bad bitrate"
                          else return $ barr ! w
@@ -120,10 +120,8 @@ getModeExt = do
     return $ table !! (fromIntegral w)
   where table = [(False, False), (False, True), (True, False), (True, True)]
 
-
-
 -- readFrameData :: EMP3Header -> StateT MP3Header BitGet (Either EMP3Header MP3Data)
-readFrameData h1@(MP3Header _ _ _ _ _ fsize hsize sin _) = do
+readFrameData h1@(MP3Header _ _ _ mode _ fsize hsize sin _) = do
     skipId3
     let pointer = dataPointer sin
     lhs <- getBits $ fromIntegral pointer
@@ -135,9 +133,12 @@ readFrameData h1@(MP3Header _ _ _ _ _ fsize hsize sin _) = do
     case maybeH2 of
         Just h2 ->  do
             let pointer' = (dataPointer . sideInfo) h2
-                reads = fsize - pointer'
+                reads = ((fsize- hsize) - pointer')
+            skip $ fromIntegral hsize
             rhs <- getBits $ fromIntegral reads
-            return $ Right ((h1{mp3Data = BITS.append lhs rhs}), h2)
+            let bits  = BITS.append lhs rhs
+            if BITS.length lhs /= fromIntegral pointer then error "lhs wrong"
+               else return $ test (Right ((h1{mp3Data = bits}), h2)) bits
         Nothing -> if s == BOF then do
                      (i,h2) <- lookAhead findHeader
                      case h2 of
@@ -148,8 +149,26 @@ readFrameData h1@(MP3Header _ _ _ _ _ fsize hsize sin _) = do
                                         readFrameData h2'
                      else do
                          rhs <- getBits $ fromIntegral fsize -- take as much
-                         return $ Left ((Just h1{mp3Data = BITS.append lhs rhs}
-                                        , s))
+                         if BITS.length lhs /= fromIntegral pointer then error "lhs wrong"
+                             else return $ test 
+                                 (Left ((Just h1{mp3Data = BITS.append lhs rhs}
+                                        , s)))
+                                  (BITS.append lhs rhs)
+    where
+        mode' = case mode of
+            Mono -> 17
+            _    -> 32
+        p230 = scaleBits $ gran1' sin
+        p231 = scaleBits $ gran2' sin
+        p232 = scaleBits $ gran3' sin
+        p233 = scaleBits $ gran4' sin
+        p23len = p230 + p231 + p232 + p233
+        test r d = if fromIntegral p23len <= BITS.length d then
+                      trace ("Expected: " ++ show p23len ++ " Got: "
+                             ++ show (BITS.length d)) r
+                      else error
+                          ("not correct length expected " ++ show p23len ++
+                           " AND " ++ show (BITS.length d))
 
 -- Almost exactly follows the ISO standard
 readSideInfo :: MP3Mode -> Int -> BitGet SideInfo
@@ -160,12 +179,12 @@ readSideInfo mode freq = do
     chanInfo <- case mode of
         Mono -> do g1 <- getGranule
                    g2 <-getGranule
-                   return (Single dataptr scaleFactors g1 g2)
+                   return (Single (dataptr * 8) scaleFactors g1 g2)
         Stereo -> do g1 <- getGranule
                      g2 <- getGranule
                      g3 <- getGranule
                      g4 <- getGranule
-                     return (Dual dataptr scaleFactors g1 g2 g3 g4)
+                     return (Dual (dataptr * 8) scaleFactors g1 g2 g3 g4)
     return chanInfo
   where
     skipPrivate = case mode of

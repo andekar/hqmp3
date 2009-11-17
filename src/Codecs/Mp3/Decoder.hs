@@ -59,14 +59,20 @@ decodeGranules sideInfo bs = case sideInfo of
            bs2 = tNdrop d2 d1 bs
            bs3 = tNdrop d3 (d1+d2) bs
            bs4 = tNdrop d4 (d1+d2+d3) bs
+           
+           br = (BITS.length bs1 +
+                 BITS.length bs2 +
+                 BITS.length bs3 +
+                 BITS.length bs4)
+                 == (d1 + d2 + d3 + d4)
 
            (scfsi0,scfsi1) = splitAt 4 scfsi
-           (g1,scale1@(Scales p _ _),_)  = decodeGranule [] scfsi0 gran1 bs1
-           (g2,scale2@(Scales p' _ _),_) = decodeGranule [] scfsi1 gran2 bs2
-           (g3,scale3,_)  = decodeGranule p scfsi0 gran3 bs3
-           (g4,scale4,_)  = decodeGranule p' scfsi1 gran4 bs4
-       in DStereo (ChannelData scale1 g1) (ChannelData scale2 g2)
-                  (ChannelData scale3 g3) (ChannelData scale4 g4)
+           (g1,scale1@(Scales p _ _),s)  = decodeGranule [] scfsi0 gran1 bs1
+           (g2,scale2@(Scales p' _ _),s') = decodeGranule [] scfsi1 gran2 bs2
+           (g3,scale3,ss)  = decodeGranule p scfsi0 gran3 bs3
+           (g4,scale4,ss')  = decodeGranule p' scfsi1 gran4 bs4
+       in  DStereo (ChannelData scale1 g1) (ChannelData scale2 g2)
+                   (ChannelData scale3 g3) (ChannelData scale4 g4)
   where
       take' = BITS.take
       tNdrop :: Int64 -> Int64 -> BITS.BitString -> BITS.BitString
