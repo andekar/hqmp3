@@ -1,4 +1,4 @@
-module Mp3Trees (getTree, getQuadrTree) where
+module Mp3Trees (getTree, getQuadrTree, HuffTable) where
 
 import Huffman ( HuffTree (..) )
 

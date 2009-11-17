@@ -138,7 +138,7 @@ readFrameData h1@(MP3Header _ _ _ mode _ fsize hsize sin _) = do
             rhs <- getBits $ fromIntegral reads
             let bits  = BITS.append lhs rhs
             if BITS.length lhs /= fromIntegral pointer then error "lhs wrong"
-               else return $ test (Right ((h1{mp3Data = bits}), h2)) bits
+               else return (Right ((h1{mp3Data = bits}), h2))
         Nothing -> if s == BOF then do
                      (i,h2) <- lookAhead findHeader
                      case h2 of
@@ -150,10 +150,8 @@ readFrameData h1@(MP3Header _ _ _ mode _ fsize hsize sin _) = do
                      else do
                          rhs <- getBits $ fromIntegral fsize -- take as much
                          if BITS.length lhs /= fromIntegral pointer then error "lhs wrong"
-                             else return $ test 
-                                 (Left ((Just h1{mp3Data = BITS.append lhs rhs}
-                                        , s)))
-                                  (BITS.append lhs rhs)
+                             else return $ 
+                                  (Left ((Just h1{mp3Data = BITS.append lhs rhs} , s)))
     where
         mode' = case mode of
             Mono -> 17
@@ -163,12 +161,6 @@ readFrameData h1@(MP3Header _ _ _ mode _ fsize hsize sin _) = do
         p232 = scaleBits $ gran3' sin
         p233 = scaleBits $ gran4' sin
         p23len = p230 + p231 + p232 + p233
-        test r d = if fromIntegral p23len <= BITS.length d then
-                      trace ("Expected: " ++ show p23len ++ " Got: "
-                             ++ show (BITS.length d)) r
-                      else error
-                          ("not correct length expected " ++ show p23len ++
-                           " AND " ++ show (BITS.length d))
 
 -- Almost exactly follows the ISO standard
 readSideInfo :: MP3Mode -> Int -> BitGet SideInfo
@@ -234,8 +226,8 @@ readSideInfo mode freq = do
                 reg2len     = if blockType == 2 
                                  then 0   
                                  else bv2 - (reg0len + reg1len)
-            preFlag       <- getBit
-            scaleFacScale <- getBit
+            preFlag           <- getBit
+            scaleFacScale     <- getBit
             count1TableSelect <- getBit
             return $ Granule scaleBits bigValues globalGain scaleFacCompress
                              windowSwitching blockType mixedBlock tableSelect1

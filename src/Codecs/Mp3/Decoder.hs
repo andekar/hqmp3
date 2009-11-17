@@ -31,10 +31,8 @@ tableScaleLength = listArray (0,15)
         [(0,0), (0,1), (0,2), (0,3), (3,0), (1,1), (1,2), (1,3),
          (2,1), (2,2), (2,3), (3,1) ,(3,2), (3,3), (4,2), (4,3)]
 
-data Scales = Scales [Word8] [[Word8]] Int
-    deriving Show
-data ChannelData = ChannelData Scales [(Int, Int)]
-    deriving Show
+data Scales = Scales [Word8] [[Word8]] Int deriving Show
+data ChannelData = ChannelData Scales [(Int, Int)] deriving Show
 data DChannel
     = DMono   ChannelData ChannelData 
     | DStereo ChannelData ChannelData ChannelData ChannelData
@@ -47,7 +45,7 @@ decodeGranules :: SideInfo -> BITS.BitString -> DChannel
 decodeGranules sideInfo bs = case sideInfo of
     (Single _ scfsi gran1 gran2) -> 
        let [d1,d2] = map (fi . scaleBits) [gran1,gran2]
-           bs1 = take' d1 bs
+           bs1 = BITS.take d1 bs
            bs2 = tNdrop d2 d1 bs
            (g1,scale1@(Scales p _ _),_) = decodeGranule [] scfsi gran1 bs1
            (g2,scale2,_)                = decodeGranule p  scfsi gran2 bs2
@@ -55,7 +53,7 @@ decodeGranules sideInfo bs = case sideInfo of
 
     (Dual _ scfsi gran1 gran2 gran3 gran4) ->
        let [d1,d2,d3,d4] = map (fi . scaleBits) [gran1,gran2,gran3,gran4]
-           bs1 = take' d1 bs
+           bs1 = BITS.take d1 bs
            bs2 = tNdrop d2 d1 bs
            bs3 = tNdrop d3 (d1+d2) bs
            bs4 = tNdrop d4 (d1+d2+d3) bs
@@ -74,7 +72,6 @@ decodeGranules sideInfo bs = case sideInfo of
        in  DStereo (ChannelData scale1 g1) (ChannelData scale2 g2)
                    (ChannelData scale3 g3) (ChannelData scale4 g4)
   where
-      take' = BITS.take
       tNdrop :: Int64 -> Int64 -> BITS.BitString -> BITS.BitString
       tNdrop s t bs = BITS.take s $ BITS.drop t bs
 
@@ -113,7 +110,7 @@ decodeGranule prev scfsi (Granule scaleBits bigValues globalGain
               -- slen1: 0 to 7       (long  window scalefactor band)
               -- slen1: bands 3 to 5 (short window scalefactor band)
               -- slen2: bands 6 to 11
-              scalefacL0 <- replicateM 8 $ getAsWord8 (fromIntegral slen1)
+              scalefacL0 <- replicateM 8 $ getAsWord8 (fi slen1)
               scaleFacS0 <- replicateM 3 $ replicateM 3 $ getAsWord8 $ fi slen1
               scaleFacS1 <- replicateM 6 $ replicateM 3 $ getAsWord8 $ fi slen2
               let length = 17 * slen1 + 18 * slen2
@@ -146,19 +143,17 @@ decodeGranule prev scfsi (Granule scaleBits bigValues globalGain
                   -- here we might need a paddig 0 after s3
                   -- (if we want a list of 22 elements)
               return $ Scales (s0 ++ s1 ++ s2 ++ s3) [] length
-                  where c sc = not sc || not (null prev)
+                  where c sc = not sc && not (null prev)
 
-type HuffTree = (Huff.HuffTree (Int, Int), Int)
-
-huffDecode :: [(Int, HuffTree)] -> (Bool, Int) -> BitGet [(Int, Int)]
+huffDecode :: [(Int, HuffTable)] -> (Bool, Int) -> BitGet [(Int, Int)]
 huffDecode [(r0,t0), (r1,t1), (r2,t2)] (count1Table,count1) = do
     r0res <- replicateM (r0 `div` 2) $ huffDecodeXY t0
     r1res <- replicateM (r1 `div` 2) $ huffDecodeXY t1
     r2res <- replicateM (r2 `div` 2) $ huffDecodeXY t2
     quadr <- replicateM (count1 `div` 4) $ huffDecodeVWXY (getQuadrTree count1Table)
-    return $ r0res ++ r1res ++ r2res
+    return $ quadr `seq` r0res ++ r1res ++ r2res 
 
-huffDecodeXY :: HuffTree -> BitGet (Int,Int)
+huffDecodeXY :: HuffTable -> BitGet (Int,Int)
 huffDecodeXY (huff, linbits) = do
     Just (x,y) <- Huff.decode huff return 0
     x' <- linsign x linbits
@@ -167,7 +162,7 @@ huffDecodeXY (huff, linbits) = do
   where linsign :: Int -> Int -> BitGet Int
         linsign c l 
             | abs c == 15 && l > 0 = do
-                res  <- liftM (+15) $ getInt (fromIntegral l)
+                res  <- liftM (+15) $ getInt (fi l)
                 liftM (\s -> if s then negate res else res) getBit
             | c /= 0 = liftM (\s -> if s then negate c else c) getBit
             | otherwise = return c
