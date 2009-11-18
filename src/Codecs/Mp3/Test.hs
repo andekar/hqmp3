@@ -14,7 +14,7 @@ import Decoder
 import MP3Types
 import Unpack
 
-main = test "/home/tobsi/machinae_supremacy-cryosleep.mp3"
+main = test "song4.mp3"
 
 test :: FilePath -> IO ()
 test f = do

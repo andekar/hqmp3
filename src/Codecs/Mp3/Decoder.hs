@@ -152,7 +152,7 @@ huffDecode [(r0,t0), (r1,t1), (r2,t2)] (count1Table,count1) = do
     r2res <- replicateM (r2 `div` 2) $ huffDecodeXY t2
     rem <- getLength
     quadr <- if rem > 0 then huffDecodeVWXY (getQuadrTree count1Table)
-                        else return []
+                         else return []
     return $ quadr `seq` r0res ++ r1res ++ r2res 
 
 huffDecodeXY :: HuffTable -> BitGet (Int,Int)
@@ -162,7 +162,7 @@ huffDecodeXY (huff, linbits) = do
     y' <- linsign y linbits
     return (x', y')
   where linsign :: Int -> Int -> BitGet Int
-        linsign c l 
+        linsign c l
             | c == 15 && l > 0 = do
                 res  <- liftM (+15) $ getInt (fi l)
                 liftM (\s -> if s then negate res else res) getBit
@@ -171,15 +171,18 @@ huffDecodeXY (huff, linbits) = do
 
 huffDecodeVWXY :: Huff.HuffTree (Int,Int,Int,Int) -> BitGet [(Int,Int,Int,Int)]
 huffDecodeVWXY huff = do
-    Just (v,w,x,y) <- Huff.decode huff return 0
-    v' <- setSign v
-    w' <- setSign w
-    x' <- setSign x
-    y' <- setSign y
-    rem <- getLength
-    rest <- if rem > 0 then do
-        huffDecodeVWXY huff
-        else return []
-    return ((v',w',x',y'):rest)
+    ret <- Huff.decode huff return 0
+    case ret of
+        (Just (v,w,x,y)) -> do
+            v' <- setSign v
+            w' <- setSign w
+            x' <- setSign x
+            y' <- setSign y
+            rem <- getLength
+            rest <- if rem > 0 then do
+                huffDecodeVWXY huff
+                else return []
+            return ((v',w',x',y'):rest)
+        Nothing -> return []
   where setSign 0 = return 0
         setSign c = liftM (\s -> if s then negate c else c) getBit
