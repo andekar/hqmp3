@@ -92,9 +92,9 @@ decodeGranule prev scfsi (Granule scaleBits bigValues globalGain
                               rest       <- getRemaining
                               return (huffData', scales, rest)
     where
-      t0 = getTree tableSelect_1
-      t1 = getTree tableSelect_2
-      t2 = getTree tableSelect_3
+      t0 = trace ("Table0: " ++ show tableSelect_1) $ getTree tableSelect_1
+      t1 = trace ("Table1: " ++ show tableSelect_2) $ getTree tableSelect_2
+      t2 = trace ("Table2: " ++ show tableSelect_3) $ getTree tableSelect_3
 
       -- TODO, count1: how big is it?
       huffData = huffDecode [(r0,t0), (r1, t1), (r2, t2)] (count1TableSelect, 0)
@@ -161,10 +161,10 @@ huffDecodeXY (huff, linbits) = do
     return (x', y')
   where linsign :: Int -> Int -> BitGet Int
         linsign c l 
-            | abs c == 15 && l > 0 = do
+            | c == 15 && l > 0 = do
                 res  <- liftM (+15) $ getInt (fi l)
                 liftM (\s -> if s then negate res else res) getBit
-            | c /= 0 = liftM (\s -> if s then negate c else c) getBit
+            | c > 0 = liftM (\s -> if s then negate c else c) getBit
             | otherwise = return c
 
 huffDecodeVWXY :: Huff.HuffTree (Int,Int,Int,Int) -> BitGet (Int,Int,Int,Int)
