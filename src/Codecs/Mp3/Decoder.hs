@@ -1,6 +1,6 @@
 {-# OPTIONS -w #-}
 
-module Decoder (decodeFrame) where
+module Decoder (decodeFrame, DChannel(..), ChannelData(..), Scales(..)) where
 
 import BitGet
 import qualified Huffman as Huff
@@ -53,11 +53,11 @@ decodeGranules sideInfo bs = case sideInfo of
 
     (Dual _ scfsi gran1 gran2 gran3 gran4) ->
        let [d1,d2,d3,d4] = map (fi . scaleBits) [gran1,gran2,gran3,gran4]
-           bs1 = BITS.take d1 bs
-           bs2 = tNdrop d2 d1 bs
-           bs3 = tNdrop d3 (d1+d2) bs
-           bs4 = tNdrop d4 (d1+d2+d3) bs
-           
+           (bs1,bs')    = BITS.splitAt d1 bs
+           (bs2, bs'')  = BITS.splitAt d2 bs'
+           (bs3, bs''') = BITS.splitAt d3 bs''
+           (bs4, _)     = BITS.splitAt d4 bs'''
+
            br = (BITS.length bs1 +
                  BITS.length bs2 +
                  BITS.length bs3 +
@@ -65,7 +65,7 @@ decodeGranules sideInfo bs = case sideInfo of
                  == (d1 + d2 + d3 + d4)
 
            (scfsi0,scfsi1) = splitAt 4 scfsi
-           (g1,scale1@(Scales p _ _),s)  = decodeGranule [] scfsi0 gran1 bs1
+           (g1,scale1@(Scales p _ _),s)   = decodeGranule [] scfsi0 gran1 bs1
            (g2,scale2@(Scales p' _ _),s') = decodeGranule [] scfsi1 gran2 bs2
            (g3,scale3,ss)  = decodeGranule p scfsi0 gran3 bs3
            (g4,scale4,ss')  = decodeGranule p' scfsi1 gran4 bs4
@@ -92,12 +92,12 @@ decodeGranule prev scfsi (Granule scaleBits bigValues globalGain
                               rest       <- getRemaining
                               return (huffData', scales, rest)
     where
-      t0 = trace ("Table0: " ++ show tableSelect_1) $ getTree tableSelect_1
-      t1 = trace ("Table1: " ++ show tableSelect_2) $ getTree tableSelect_2
-      t2 = trace ("Table2: " ++ show tableSelect_3) $ getTree tableSelect_3
+      t0 = getTree tableSelect_1
+      t1 = getTree tableSelect_2
+      t2 = getTree tableSelect_3
 
       -- TODO, count1: how big is it?
-      huffData = huffDecode [(r0,t0), (r1, t1), (r2, t2)] (count1TableSelect, 0)
+      huffData =huffDecode [(r0,t0), (r1, t1), (r2, t2)] (count1TableSelect, 0)
       (slen1, slen2) = tableScaleLength ! scaleFacCompress
       (scfsi0:scfsi1:scfsi2:scfsi3:[]) = scfsi
       -- will return a list of long scalefactors
@@ -112,12 +112,12 @@ decodeGranule prev scfsi (Granule scaleBits bigValues globalGain
               -- slen2: bands 6 to 11
               scalefacL0 <- replicateM 8 $ getAsWord8 (fi slen1)
               scaleFacS0 <- replicateM 3 $ replicateM 3 $ getAsWord8 $ fi slen1
-              scaleFacS1 <- replicateM 6 $ replicateM 3 $ getAsWord8 $ fi slen2
+              scaleFacS1 <- replicateM 7 $ replicateM 3 $ getAsWord8 $ fi slen2
               let length = 17 * slen1 + 18 * slen2
               -- here we must insert 3 lists of all zeroes since the
               -- slen1 starts at band 3
                   sr = replicate 3 $ replicate 3 0
-              return $ Scales scalefacL0 (sr ++ scaleFacS0 ++ scaleFacS1) length
+              return $ Scales scalefacL0 (scaleFacS0 ++ scaleFacS1) length
           | blockType == 2 && windowSwitching = do
               -- slen1: 0 to 5
               -- slen2: 6 to 11
@@ -143,14 +143,16 @@ decodeGranule prev scfsi (Granule scaleBits bigValues globalGain
                   -- here we might need a paddig 0 after s3
                   -- (if we want a list of 22 elements)
               return $ Scales (s0 ++ s1 ++ s2 ++ s3) [] length
-                  where c sc = not sc && not (null prev)
+                  where c sc = not (not sc && not (null prev))
 
 huffDecode :: [(Int, HuffTable)] -> (Bool, Int) -> BitGet [(Int, Int)]
 huffDecode [(r0,t0), (r1,t1), (r2,t2)] (count1Table,count1) = do
     r0res <- replicateM (r0 `div` 2) $ huffDecodeXY t0
     r1res <- replicateM (r1 `div` 2) $ huffDecodeXY t1
     r2res <- replicateM (r2 `div` 2) $ huffDecodeXY t2
-    quadr <- replicateM (count1 `div` 4) $ huffDecodeVWXY (getQuadrTree count1Table)
+    rem <- getLength
+    quadr <- if rem > 0 then huffDecodeVWXY (getQuadrTree count1Table)
+                        else return []
     return $ quadr `seq` r0res ++ r1res ++ r2res 
 
 huffDecodeXY :: HuffTable -> BitGet (Int,Int)
@@ -167,13 +169,17 @@ huffDecodeXY (huff, linbits) = do
             | c > 0 = liftM (\s -> if s then negate c else c) getBit
             | otherwise = return c
 
-huffDecodeVWXY :: Huff.HuffTree (Int,Int,Int,Int) -> BitGet (Int,Int,Int,Int)
+huffDecodeVWXY :: Huff.HuffTree (Int,Int,Int,Int) -> BitGet [(Int,Int,Int,Int)]
 huffDecodeVWXY huff = do
     Just (v,w,x,y) <- Huff.decode huff return 0
     v' <- setSign v
     w' <- setSign w
     x' <- setSign x
     y' <- setSign y
-    return (v',w',x',y')
+    rem <- getLength
+    rest <- if rem > 0 then do
+        huffDecodeVWXY huff
+        else return []
+    return ((v',w',x',y'):rest)
   where setSign 0 = return 0
         setSign c = liftM (\s -> if s then negate c else c) getBit
