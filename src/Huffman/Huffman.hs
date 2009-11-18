@@ -67,9 +67,7 @@ createTree p = do
 decode :: Eq a => HuffTree a -> (a -> BitGet a) -> Int64 -> BitGet (Maybe a)
 decode t f p = decode' t
   where
-    decode' (Leaf v) = do
-        fres <- f v
-        return $ Just fres
+    decode' (Leaf v) = liftM Just (f v) 
     decode' (Node left right) = do
         r <- getAtLeast $ fromIntegral (p + 1)
         if not r then return Nothing
