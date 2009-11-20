@@ -88,7 +88,7 @@ decodeGranule prev scfsi (Granule scaleBits bigValues globalGain
                           subBlockGain3 preFlag scaleFacScale count1TableSelect
                           r0 r1 r2) dat
     = flip runBitGet dat $ do scales     <- pScaleFactors prev
-                              huffData'  <- huffData
+                              huffData'  <- trace (show scales) huffData
                               rest       <- getRemaining
                               return (huffData', scales, rest)
     where
@@ -97,7 +97,7 @@ decodeGranule prev scfsi (Granule scaleBits bigValues globalGain
       t2 = getTree tableSelect_3
 
       -- TODO, count1: how big is it?
-      huffData =huffDecode [(r0,t0), (r1, t1), (r2, t2)] (count1TableSelect, 0)
+      huffData = huffDecode [(r0,t0), (r1, t1), (r2, t2)] (count1TableSelect, 0)
       (slen1, slen2) = tableScaleLength ! scaleFacCompress
       (scfsi0:scfsi1:scfsi2:scfsi3:[]) = scfsi
       -- will return a list of long scalefactors
@@ -131,7 +131,7 @@ decodeGranule prev scfsi (Granule scaleBits bigValues globalGain
                                 else replicateM 5 $ getAsWord8 $ fi slen2
               s3 <- if c scfsi3 then return $ take 5 $ drop 16 prev
                                 else replicateM 5 $ getAsWord8 $ fi slen2
-                  -- here we might need a paddig 0 after s3
+                  -- here we might need a padding 0 after s3
                   -- (if we want a list of 22 elements)
               return $ Scales (s0 ++ s1 ++ s2 ++ s3) []
                   where c sc = not sc && not (null prev)
