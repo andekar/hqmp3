@@ -31,7 +31,7 @@ tableScaleLength = listArray (0,15)
         [(0,0), (0,1), (0,2), (0,3), (3,0), (1,1), (1,2), (1,3),
          (2,1), (2,2), (2,3), (3,1) ,(3,2), (3,3), (4,2), (4,3)]
 
-data Scales = Scales [Word8] [[Word8]] Int deriving Show
+data Scales = Scales [Word8] [[Word8]] deriving Show
 data ChannelData = ChannelData Scales [(Int, Int)] deriving Show
 data DChannel
     = DMono   ChannelData ChannelData 
@@ -47,7 +47,7 @@ decodeGranules sideInfo bs = case sideInfo of
        let [d1,d2] = map (fi . scaleBits) [gran1,gran2]
            bs1 = BITS.take d1 bs
            bs2 = tNdrop d2 d1 bs
-           (g1,scale1@(Scales p _ _),_) = decodeGranule [] scfsi gran1 bs1
+           (g1,scale1@(Scales p _),_) = decodeGranule [] scfsi gran1 bs1
            (g2,scale2,_)                = decodeGranule p  scfsi gran2 bs2
        in DMono (ChannelData scale1 g1) (ChannelData scale2 g2)
 
@@ -65,8 +65,8 @@ decodeGranules sideInfo bs = case sideInfo of
                  == (d1 + d2 + d3 + d4)
 
            (scfsi0,scfsi1) = splitAt 4 scfsi
-           (g1,scale1@(Scales p _ _),s)   = decodeGranule [] scfsi0 gran1 bs1
-           (g2,scale2@(Scales p' _ _),s') = decodeGranule [] scfsi1 gran2 bs2
+           (g1,scale1@(Scales p _),s)   = decodeGranule [] scfsi0 gran1 bs1
+           (g2,scale2@(Scales p' _),s') = decodeGranule [] scfsi1 gran2 bs2
            (g3,scale3,ss)  = decodeGranule p scfsi0 gran3 bs3
            (g4,scale4,ss')  = decodeGranule p' scfsi1 gran4 bs4
        in  DStereo (ChannelData scale1 g1) (ChannelData scale2 g2)
@@ -110,50 +110,43 @@ decodeGranule prev scfsi (Granule scaleBits bigValues globalGain
               -- slen1: 0 to 7       (long  window scalefactor band)
               -- slen1: bands 3 to 5 (short window scalefactor band)
               -- slen2: bands 6 to 11
-              scalefacL0 <- replicateM 8 $ getAsWord8 (fi slen1)
+              scalefacL0 <- replicateM 8 $ getAsWord8 $ fi slen1
               scaleFacS0 <- replicateM 3 $ replicateM 3 $ getAsWord8 $ fi slen1
               scaleFacS1 <- replicateM 7 $ replicateM 3 $ getAsWord8 $ fi slen2
-              let length = 17 * slen1 + 18 * slen2
-              -- here we must insert 3 lists of all zeroes since the
-              -- slen1 starts at band 3
-                  sr = replicate 3 $ replicate 3 0
-              return $ Scales scalefacL0 (scaleFacS0 ++ scaleFacS1) length
+              return $ Scales scalefacL0 (scaleFacS0 ++ scaleFacS1)
           | blockType == 2 && windowSwitching = do
               -- slen1: 0 to 5
               -- slen2: 6 to 11
               scaleFacS0 <- replicateM 6 $ replicateM 3 $ getAsWord8 $ fi slen1
               scaleFacS1 <- replicateM 6 $ replicateM 3 $ getAsWord8 $ fi slen2
-              let length = 18 * slen1 + 18 * slen2
-              return $ Scales [] (scaleFacS0 ++ scaleFacS1) length
+              return $ Scales [] (scaleFacS0 ++ scaleFacS1)
           | otherwise = do
               -- slen1: 0 to 10
-              s0 <- if c scfsi0 then replicateM 6 $ getAsWord8 $ fi slen1
-                                else return $ take 6 prev
-              s1 <- if c scfsi1 then replicateM 5 $ getAsWord8 $ fi slen1
-                                else return $ take 5 $ drop 6 prev
+              s0 <- if c scfsi0 then return $ take 6 prev
+                                else replicateM 6 $ getAsWord8 $ fi slen1
+              s1 <- if c scfsi1 then return $ take 5 $ drop 6 prev
+                                else replicateM 5 $ getAsWord8 $ fi slen1
               -- slen2: 11 to 20
-              s2 <- if c scfsi2 then replicateM 5 $ getAsWord8 $ fi slen2
-                                else return $ take 5 $ drop 11 prev
-              s3 <- if c scfsi3 then replicateM 5 $ getAsWord8 $ fi slen2
-                                else return $ take 5 $ drop 16 prev
-              let length = 6 * (if c scfsi0 then slen1 else 0) +
-                           5 * (if c scfsi1 then slen1 else 0) +
-                           5 * (if c scfsi2 then slen1 else 0) +
-                           5 * (if c scfsi3 then slen1 else 0)
+              s2 <- if c scfsi2 then return $ take 5 $ drop 11 prev
+                                else replicateM 5 $ getAsWord8 $ fi slen2
+              s3 <- if c scfsi3 then return $ take 5 $ drop 16 prev
+                                else replicateM 5 $ getAsWord8 $ fi slen2
                   -- here we might need a paddig 0 after s3
                   -- (if we want a list of 22 elements)
-              return $ Scales (s0 ++ s1 ++ s2 ++ s3) [] length
-                  where c sc = not (not sc && not (null prev))
+              return $ Scales (s0 ++ s1 ++ s2 ++ s3) []
+                  where c sc = not sc && not (null prev)
 
 huffDecode :: [(Int, HuffTable)] -> (Bool, Int) -> BitGet [(Int, Int)]
 huffDecode [(r0,t0), (r1,t1), (r2,t2)] (count1Table,count1) = do
     r0res <- replicateM (r0 `div` 2) $ huffDecodeXY t0
-    r1res <- replicateM (r1 `div` 2) $ huffDecodeXY t1
-    r2res <- replicateM (r2 `div` 2) $ huffDecodeXY t2
-    rem <- getLength
-    quadr <- if rem > 0 then huffDecodeVWXY (getQuadrTree count1Table)
-                         else return []
-    return $ quadr `seq` r0res ++ r1res ++ r2res 
+    r1res <- trace ("r0len " ++ show r0 ++ show r0res) $
+                    replicateM (r1 `div` 2) $ huffDecodeXY t1
+    r2res <- trace ("r1len " ++ show r1 ++ show r1res) $
+                    replicateM (r2 `div` 2) $ huffDecodeXY t2
+    rem <- trace ("r2len " ++ show r2 ++ show r2res) $ getLength
+    quadr <- return () --if rem > 0 then huffDecodeVWXY (getQuadrTree count1Table)
+--                         else return []
+    return $ quadr `seq` r0res ++ r1res ++ r2res
 
 huffDecodeXY :: HuffTable -> BitGet (Int,Int)
 huffDecodeXY (huff, linbits) = do

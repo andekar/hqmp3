@@ -29,4 +29,4 @@ fun m = case m of
     (DMono ch1 ch2) -> r ch2
     (DStereo ch1 ch2 ch3 ch4) -> r ch4
   where r (ChannelData sc list) = length list `seq` 1
-        r' (Scales l1 l2 l3) = length l2 `seq` 1
+        r' (Scales l1 l2) = length l2 `seq` 1
