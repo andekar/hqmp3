@@ -1,4 +1,4 @@
-module Main () where
+module Main (test) where
 import BitGet
 import qualified Huffman as Huff
 -- import Data.Binary.Strict.BitGet

@@ -45,9 +45,9 @@ decodeGranules :: SideInfo -> BITS.BitString -> DChannel
 decodeGranules sideInfo bs = case sideInfo of
     (Single _ scfsi gran1 gran2) -> 
        let [d1,d2] = map (fi . scaleBits) [gran1,gran2]
-           bs1 = BITS.take d1 bs
-           bs2 = tNdrop d2 d1 bs
-           (g1,scale1@(Scales p _),_) = decodeGranule [] scfsi gran1 bs1
+           (bs1,bs2) = BITS.splitAt d1 bs
+--            bs2 = tNdrop d2 d1 bs
+           (g1,scale1@(Scales p _),_)   = decodeGranule [] scfsi gran1 bs1
            (g2,scale2,_)                = decodeGranule p  scfsi gran2 bs2
        in DMono (ChannelData scale1 g1) (ChannelData scale2 g2)
 
@@ -62,12 +62,12 @@ decodeGranules sideInfo bs = case sideInfo of
                  BITS.length bs2 +
                  BITS.length bs3 +
                  BITS.length bs4)
-                 == (d1 + d2 + d3 + d4)
+                 >= (d1 + d2 + d3 + d4)
 
            (scfsi0,scfsi1) = splitAt 4 scfsi
            (g1,scale1@(Scales p _),s)   = decodeGranule [] scfsi0 gran1 bs1
            (g2,scale2@(Scales p' _),s') = decodeGranule [] scfsi1 gran2 bs2
-           (g3,scale3,ss)  = decodeGranule p scfsi0 gran3 bs3
+           (g3,scale3,ss)   = decodeGranule p scfsi0 gran3 bs3
            (g4,scale4,ss')  = decodeGranule p' scfsi1 gran4 bs4
        in  DStereo (ChannelData scale1 g1) (ChannelData scale2 g2)
                    (ChannelData scale3 g3) (ChannelData scale4 g4)
@@ -88,7 +88,7 @@ decodeGranule prev scfsi (Granule scaleBits bigValues globalGain
                           subBlockGain3 preFlag scaleFacScale count1TableSelect
                           r0 r1 r2) dat
     = flip runBitGet dat $ do scales     <- pScaleFactors prev
-                              huffData'  <- trace (show scales) huffData
+                              huffData'  <- huffData
                               rest       <- getRemaining
                               return (huffData', scales, rest)
     where
@@ -134,19 +134,18 @@ decodeGranule prev scfsi (Granule scaleBits bigValues globalGain
                   -- here we might need a padding 0 after s3
                   -- (if we want a list of 22 elements)
               return $ Scales (s0 ++ s1 ++ s2 ++ s3) []
-                  where c sc = not sc && not (null prev)
+                  where c sc = sc && not (null prev)
 
 huffDecode :: [(Int, HuffTable)] -> (Bool, Int) -> BitGet [(Int, Int)]
 huffDecode [(r0,t0), (r1,t1), (r2,t2)] (count1Table,count1) = do
+    rem'  <- getLength
     r0res <- replicateM (r0 `div` 2) $ huffDecodeXY t0
-    r1res <- trace ("r0len " ++ show r0 ++ show r0res) $
-                    replicateM (r1 `div` 2) $ huffDecodeXY t1
-    r2res <- trace ("r1len " ++ show r1 ++ show r1res) $
-                    replicateM (r2 `div` 2) $ huffDecodeXY t2
-    rem <- trace ("r2len " ++ show r2 ++ show r2res) $ getLength
-    quadr <- return () --if rem > 0 then huffDecodeVWXY (getQuadrTree count1Table)
+    r1res <- replicateM (r1 `div` 2) $ huffDecodeXY t1
+    r2res <- replicateM (r2 `div` 2) $ huffDecodeXY t2
+    rem   <- getLength
+    quadr <- huffDecodeVWXY (getQuadrTree count1Table) -- return () --if rem > 0 then huffDecodeVWXY (getQuadrTree count1Table)
 --                         else return []
-    return $ quadr `seq` r0res ++ r1res ++ r2res
+    return $ rem `seq` r0res ++ r1res ++ r2res
 
 huffDecodeXY :: HuffTable -> BitGet (Int,Int)
 huffDecodeXY (huff, linbits) = do
