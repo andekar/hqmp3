@@ -73,5 +73,3 @@ data Granule = Granule {
   , region2Start     :: Int
 } deriving Show
 
-data AudioData = AudioData
-

@@ -30,6 +30,7 @@ tableScaleLength = listArray (0,15)
         [(0,0), (0,1), (0,2), (0,3), (3,0), (1,1), (1,2), (1,3),
          (2,1), (2,2), (2,3), (3,1) ,(3,2), (3,3), (4,2), (4,3)]
 
+-- Scales [long blocks] [[windows for short blocks]]
 data Scales = Scales [Word8] [[Word8]] deriving Show
 data ChannelData a = ChannelData Scales [a] deriving Show
 data DChannel a 
@@ -177,15 +178,67 @@ requantize chan = case chan of
     (DStereo g1 g2 g3 g4) -> DStereo (f g1) (f g2) (f g3) (f g4)
   where f = uncurry requantizeGran
 
-requantizeGran :: Granule -> ChannelData Int -> (Granule, ChannelData Double)
+-- samplerate, granule, data, (granule, requantized data)
+requantizeGran :: Int -> Granule -> ChannelData Int -> (Granule, ChannelData Double)
 requantizeGran gran (ChannelData scales xs) = 
         (gran, ChannelData scales $ map (requantizeValue . fromIntegral) xs)
   where
     requantizeValue :: Floating a => a -> a
-    requantizeValue x = 
-        let subgain = undefined
-            gain = undefined
-            y = (signum x) * ((abs x) ** (3/4))
-            z = 2.0 ** (1/4 * (gain - 210 - 8 * subgain))
-            in y * z
+    requantizeValue i
+        | bt == 2 && ws && mixblock = -- s
+            let window  = undefined
+            in undefined
+        | bt == 2 = undefined
+    
+    -- used above
+    x        = (signum x) * ((abs x) ** (4/3))
+    y_s      = 2.0 ** (1/4 * (ggain - 210 - 8 * subgain))
+    y_l      = 2.0 ** (1/4 * (ggain - 210))
+    -- helper variables
+    bt       = blockType gran
+    ws       = windowSwitching gran
+    ggain    = globalGain gran
+    subgain  = undefined
+    mixblock = mixedBlock gran
 
+        
+
+
+-- CODE BELOW TAKEN FROM BJORN
+
+tableScaleBandBoundLong :: Int -> [Int]
+tableScaleBandBoundLong 44100 = [ 0,   4,   8,  12,  16,  20,  24,  30,
+                                  36,  44,  52,  62,  74,  90, 110, 134, 
+                                 162, 196, 238, 288, 342, 418, 576] 
+tableScaleBandBoundLong 48000 = [  0,   4,   8,  12,  16,  20,  24,  30, 
+                                  36,  42,  50,  60,  72,  88, 106, 128, 
+                                 156, 190, 230, 276, 330, 384, 576] 
+tableScaleBandBoundLong 32000 = [  0,   4,   8,  12,  16,  20,  24,  30,
+                                  36,  44,  54,  66,  82, 102, 126, 156, 
+                                 194, 240, 296, 364, 448, 550, 576]
+tableScaleBandBoundLong _     = error "Wrong SR for Table."
+
+
+tableScaleBandBoundShort :: Int -> [Int]
+tableScaleBandBoundShort 44100 = [  0,   4,   8,  12,  16,  22,  30,  40, 
+                                   52,  66,  84, 106, 136, 192] 
+tableScaleBandBoundShort 48000 = [  0,   4,   8,  12,  16,  22,  28,  38, 
+                                   50,  64,  80, 100, 126, 192] 
+tableScaleBandBoundShort 32000 = [  0,   4,   8,  12,  16,  22,  30,  42, 
+                                   58,  78, 104, 138, 180, 192]
+tableScaleBandBoundShort _     = error "Wrong SR for Table."
+
+
+tableScaleBandIndexLong :: Int -> [Int]
+tableScaleBandIndexLong = indexify .  consecutiveDiff . tableScaleBandBoundLong
+  where indexify xs = concat (zipWith replicate xs [0..])
+
+tableScaleBandIndexShort :: Int -> [(Int, Int)]
+tableScaleBandIndexShort i = indexifyWindows $ consecutiveDiff $ tableScaleBandBoundShort i
+  where
+    indexifyWindows xs = concat (zipWith addFirst [0..] (map buildTriple xs))
+    addFirst n = map (\x -> (n, x))
+    buildTriple n = replicate n 0 ++ replicate n 1 ++ replicate n 2
+
+consecutiveDiff :: Num a => [a] -> [a]
+consecutiveDiff xs = zipWith (-) (tail xs) xs
