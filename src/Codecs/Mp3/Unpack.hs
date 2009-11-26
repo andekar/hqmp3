@@ -91,8 +91,7 @@ readHeader = do
             mext = case mode of
                 JointStereo -> mext'
                 _ -> (False, False)
-        return (MP3Header brate freq padd mode
-                mext size hsize sinfo ())
+        return (MP3Header freq mode mext size hsize sinfo ())
 
 getBitRate :: MaybeT BitGet Int
 getBitRate = do
@@ -121,7 +120,7 @@ getModeExt = do
   where table = [(False, False), (False, True), (True, False), (True, True)]
 
 -- readFrameData :: EMP3Header -> StateT MP3Header BitGet (Either EMP3Header MP3Data)
-readFrameData h1@(MP3Header _ _ _ mode _ fsize hsize sin _) = do
+readFrameData h1@(MP3Header _ mode _ fsize hsize sin _) = do
     skipId3
     let pointer = dataPointer sin
     lhs <- getBits $ fromIntegral pointer
@@ -170,13 +169,13 @@ readSideInfo mode freq = do
     scaleFactors <- getScaleFactors
     chanInfo <- case mode of
         Mono -> do g1 <- getGranule
-                   g2 <-getGranule
-                   return (Single (dataptr * 8) scaleFactors g1 g2)
+                   g2 <- getGranule
+                   return $ Single (dataptr * 8) scaleFactors g1 g2
         Stereo -> do g1 <- getGranule
                      g2 <- getGranule
                      g3 <- getGranule
                      g4 <- getGranule
-                     return (Dual (dataptr * 8) scaleFactors g1 g2 g3 g4)
+                     return $ Dual (dataptr * 8) scaleFactors g1 g2 g3 g4
     return chanInfo
   where
     skipPrivate = case mode of
@@ -200,9 +199,15 @@ readSideInfo mode freq = do
             tableSelect1  <- getInt 5
             tableSelect2  <- getInt 5
             tableSelect3  <- if windowSwitching then return 0 else getInt 5
-            subBlockGain1 <- if windowSwitching then getInt 3 else return 0
-            subBlockGain2 <- if windowSwitching then getInt 3 else return 0
-            subBlockGain3 <- if windowSwitching then getInt 3 else return 0
+            subBlockGain1 <- if windowSwitching 
+                             then liftM fromIntegral (getInt 3)
+                             else return 0
+            subBlockGain2 <- if windowSwitching 
+                             then liftM fromIntegral (getInt 3)
+                             else return 0
+            subBlockGain3 <- if windowSwitching 
+                             then liftM fromIntegral (getInt 3)
+                             else return 0
             region0Count  <- if windowSwitching then 
                                 return (reg0 mixedBlock blockType)
                                 else getInt 4

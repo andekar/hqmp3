@@ -172,6 +172,11 @@ huffDecodeVWXY huff = do
   where setSign 0 = return 0
         setSign c = liftM (\s -> if s then negate c else c) getBit
 
+-- 
+-- Requantization below
+--
+
+
 requantize :: DChannel Int -> DChannel Double
 requantize chan = case chan of
     (DMono g1 g2)         -> DMono   (f g1) (f g2)
@@ -180,10 +185,10 @@ requantize chan = case chan of
 
 -- samplerate, granule, data, (granule, requantized data)
 requantizeGran :: Int -> Granule -> ChannelData Int -> (Granule, ChannelData Double)
-requantizeGran gran (ChannelData scales xs) = 
+requantizeGran freq gran (ChannelData scales@(Scales long short) xs) = 
         (gran, ChannelData scales $ map (requantizeValue . fromIntegral) xs)
   where
-    requantizeValue :: Floating a => a -> a
+    requantizeValue :: Int -> Double
     requantizeValue i
         | bt == 2 && ws && mixblock = -- s
             let window  = undefined
@@ -230,7 +235,7 @@ tableScaleBandBoundShort _     = error "Wrong SR for Table."
 
 
 tableScaleBandIndexLong :: Int -> [Int]
-tableScaleBandIndexLong = indexify .  consecutiveDiff . tableScaleBandBoundLong
+tableScaleBandIndexLong = indexify . consecutiveDiff . tableScaleBandBoundLong
   where indexify xs = concat (zipWith replicate xs [0..])
 
 tableScaleBandIndexShort :: Int -> [(Int, Int)]
