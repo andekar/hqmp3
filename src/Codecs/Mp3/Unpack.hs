@@ -17,11 +17,11 @@ import Control.Monad.Maybe
 import Control.Monad.Trans
 import Control.Monad.Identity
 import MP3Types
-import qualified BitString as BITS
+import qualified BitString as BS
 import Data.Array
 
 unpackMp3 :: L.ByteString -> [MP3Header]
-unpackMp3 file = runBitGet first $ BITS.convert file
+unpackMp3 file = runBitGet first $ BS.convert file
     where first = do
                skipId3
                init <- lookAhead $ runMaybeT readHeader
@@ -47,7 +47,7 @@ findHeader = do
     r <- getAtLeast 1
     if not r then return (0, Nothing) else do
         skip 1
-        h1 <- lookAhead $ runMaybeT $ readHeader
+        h1 <- lookAhead $ runMaybeT readHeader
         case h1 of
             Just h1' -> do
                 h2 <-lookAhead $ do
@@ -69,7 +69,7 @@ syncWord = do
 -- Finds a header in an mp3 file.
 readHeader :: MaybeT BitGet EMP3Header
 readHeader = do
-    h <- lift $ syncWord
+    h <- lift syncWord
     if not h then fail "" else do
         prot  <- lift $ liftM not getBit
         brate <- getBitRate
@@ -106,20 +106,21 @@ getFreq :: MaybeT BitGet Int
 getFreq = do
     w <- lift $ getAsWord8 2
     if w == 0x03 then fail "Bad frequency"
-                 else return $ [44100,48000,32000] !! (fromIntegral w)
+                 else return $ [44100,48000,32000] !! fromIntegral w
 
 getMode :: MaybeT BitGet MP3Mode
 getMode = do
     w <- lift $ getAsWord8 2
-    return $ [Stereo,JointStereo,DualChannel,Mono] !! (fromIntegral w)
+    return $ [Stereo,JointStereo,DualChannel,Mono] !! fromIntegral w
 
 getModeExt :: MaybeT BitGet (Bool, Bool)
 getModeExt = do
     w <- lift $ getAsWord8 2
-    return $ table !! (fromIntegral w)
+    return $ table !! fromIntegral w
   where table = [(False, False), (False, True), (True, False), (True, True)]
 
 -- readFrameData :: EMP3Header -> StateT MP3Header BitGet (Either EMP3Header MP3Data)
+-- heh
 readFrameData h1@(MP3Header _ mode _ fsize hsize sin _) = do
     skipId3
     let pointer = dataPointer sin
@@ -135,22 +136,18 @@ readFrameData h1@(MP3Header _ mode _ fsize hsize sin _) = do
                 reads = ((fsize- hsize) - pointer')
             skip $ fromIntegral hsize
             rhs <- getBits $ fromIntegral reads
-            let bits  = BITS.append lhs rhs
-            if BITS.length lhs /= fromIntegral pointer then error "lhs wrong"
-               else return (Right ((h1{mp3Data = bits}), h2))
+            let bits  = BS.append lhs rhs
+            return $ Right (h1{mp3Data = bits}, h2)
         Nothing -> if s == BOF then do
                      (i,h2) <- lookAhead findHeader
                      case h2 of
                          Nothing -> return $ Left (Nothing, EOF)
-                         Just h2' -> do skip (fromIntegral $ 
-                                              (fromIntegral i) - 
-                                              (dataPointer $ sideInfo h2'))
+                         Just h2' -> do skip (fromIntegral $ (fromIntegral i) - 
+                                             (dataPointer $ sideInfo h2'))
                                         readFrameData h2'
                      else do
                          rhs <- getBits $ fromIntegral fsize -- take as much
-                         if BITS.length lhs /= fromIntegral pointer then error "lhs wrong"
-                             else return $ 
-                                  (Left ((Just h1{mp3Data = BITS.append lhs rhs} , s)))
+                         return $ Left (Just h1{mp3Data = BS.append lhs rhs} , s)
     where
         mode' = case mode of
             Mono -> 17
@@ -161,13 +158,13 @@ readFrameData h1@(MP3Header _ mode _ fsize hsize sin _) = do
         p233 = scaleBits $ gran4' sin
         p23len = p230 + p231 + p232 + p233
 
--- Almost exactly follows the ISO standard
+-- "Almost" exactly follows the ISO standard
 readSideInfo :: MP3Mode -> Int -> BitGet SideInfo
 readSideInfo mode freq = do
     dataptr  <- getInt 9
     skipPrivate
     scaleFactors <- getScaleFactors
-    chanInfo <- case mode of
+    case mode of
         Mono -> do g1 <- getGranule
                    g2 <- getGranule
                    return $ Single (dataptr * 8) scaleFactors g1 g2
@@ -176,7 +173,6 @@ readSideInfo mode freq = do
                      g3 <- getGranule
                      g4 <- getGranule
                      return $ Dual (dataptr * 8) scaleFactors g1 g2 g3 g4
-    return chanInfo
   where
     skipPrivate = case mode of
         Mono -> skip 5
@@ -188,7 +184,7 @@ readSideInfo mode freq = do
             bitsR <- replicateM 4 getBit
             return (bitsL ++ bitsR)
     getGranule = do
-            scaleBits        <- getInt 12
+            part23len        <- getInt 12
             bigValues        <- getInt 9
             globalGain       <- getInt 8
             scaleFacCompress <- getInt 4
@@ -196,16 +192,16 @@ readSideInfo mode freq = do
 
             blockType  <- getInt $ if windowSwitching then 2 else 0
             mixedBlock <- if windowSwitching then getBit else return False
+            tableSelect0  <- getInt 5
             tableSelect1  <- getInt 5
-            tableSelect2  <- getInt 5
-            tableSelect3  <- if windowSwitching then return 0 else getInt 5
+            tableSelect2  <- if windowSwitching then return 0 else getInt 5
+            subBlockGain0 <- if windowSwitching 
+                             then liftM fromIntegral (getInt 3)
+                             else return 0
             subBlockGain1 <- if windowSwitching 
                              then liftM fromIntegral (getInt 3)
                              else return 0
             subBlockGain2 <- if windowSwitching 
-                             then liftM fromIntegral (getInt 3)
-                             else return 0
-            subBlockGain3 <- if windowSwitching 
                              then liftM fromIntegral (getInt 3)
                              else return 0
             region0Count  <- if windowSwitching then 
@@ -234,10 +230,10 @@ readSideInfo mode freq = do
             preFlag           <- getBit
             scaleFacScale     <- getBit
             count1TableSelect <- getBit
-            return $ Granule scaleBits bigValues globalGain scaleFacCompress
-                             windowSwitching blockType mixedBlock tableSelect1
-                             tableSelect2 tableSelect3 subBlockGain1
-                             subBlockGain2 subBlockGain3
+            return $ Granule part23len bigValues globalGain scaleFacCompress
+                             windowSwitching blockType mixedBlock tableSelect0
+                             tableSelect1 tableSelect2 subBlockGain0
+                             subBlockGain1 subBlockGain2
                              preFlag scaleFacScale
                              count1TableSelect reg0len reg1len reg2len
         where
@@ -277,4 +273,4 @@ tableScaleBandBoundShort _     = error "Wrong SR for Table."
 
 -- We only need to export the long boundaries for unpacking (Unpack.hs).
 tableScaleBandBoundary :: Int -> Int -> Int
-tableScaleBandBoundary sfreq index = (tableScaleBandBoundLong sfreq) !! index
+tableScaleBandBoundary sfreq index = tableScaleBandBoundLong sfreq !! index

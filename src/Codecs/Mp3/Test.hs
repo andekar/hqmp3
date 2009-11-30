@@ -1,3 +1,4 @@
+{-# OPTIONS -w #-}
 module Main (test) where
 import BitGet
 import qualified Huffman as Huff
@@ -24,9 +25,9 @@ test f = do
 --     mapM_ print fs
     mapM_ (\(f,r) -> print ("Frame: " ++ (show f)) >> print (fun r)) (zip [1..] r)
 
-fun :: DChannel -> Int
+fun :: DChannel a -> Int
 fun m = case m of
-    (DMono ch1 ch2) -> r ch1 + r ch2
-    (DStereo ch1 ch2 ch3 ch4) -> r ch1 + r ch2 + r ch3 + r ch4
+    (DMono   (g1,ch1) (g2,ch2) ) -> r ch1 + r ch2
+    (DStereo (g1,ch1) (g2,ch2) (g3,ch3) (g4,ch4)) -> r ch1 + r ch2 + r ch3 + r ch4
   where r (ChannelData sc list) = length list `seq` 1
         r' (Scales l1 l2) = length l2 `seq` 1
