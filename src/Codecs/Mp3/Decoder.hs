@@ -1,6 +1,6 @@
 {-# OPTIONS -w #-}
 
-module Decoder (decodeFrame, DChannel(..), ChannelData(..), Scales(..)) where
+module Decoder (decodeFrames, DChannel(..), ChannelData(..), Scales(..)) where
 
 import BitGet
 import qualified Huffman as Huff
@@ -20,8 +20,12 @@ import Mp3Trees
 import Data.Array.Unboxed
 import MP3Types
 
-decodeFrame :: [MP3Header] -> [DChannel Int]
-decodeFrame = map (uncurry decodeGranules . (sideInfo &&& mp3Data))
+decodeFrames :: [MP3Header] -> [DChannel Double]
+decodeFrames hs = requantized
+  where
+    unpacked    = map (uncurry decodeGranules . (sideInfo &&& mp3Data)) hs
+    requantized = zipWith requantize freqs unpacked
+    freqs = map frequency hs
 
 -- Array to find out how much data we're supposed to read from
 -- scalefac_l. Idea stolen from Bjorn Edstrom
@@ -31,7 +35,7 @@ tableScaleLength = listArray (0,15)
          (2,1), (2,2), (2,3), (3,1) ,(3,2), (3,3), (4,2), (4,3)]
 
 -- Scales [long blocks] [[windows for short blocks]]
-data Scales = Scales [Word8] [[Word8]] deriving Show
+data Scales        = Scales [Word8] [[Word8]] deriving Show
 data ChannelData a = ChannelData Scales [a] deriving Show
 data DChannel a 
     = DMono   (Granule, ChannelData a) 
@@ -108,13 +112,15 @@ decodeGranule prev scfsi (Granule scaleBits bigValues globalGain
               scalefacL0 <- replicateM 8 $ getAsWord8 $ fi slen1
               scaleFacS0 <- replicateM 3 $ replicateM 3 $ getAsWord8 $ fi slen1
               scaleFacS1 <- replicateM 7 $ replicateM 3 $ getAsWord8 $ fi slen2
-              return $ Scales scalefacL0 (scaleFacS0 ++ scaleFacS1)
+              let scaleS = [[0,0,0],[0,0,0],[0,0,0]] ++ scaleFacS0 ++ scaleFacS1
+              return $ Scales (padWith 22 0 scalefacL0) 
+                              (padWith 22 [0,0,0] scaleS)
           | blockType == 2 && windowSwitching = do
               -- slen1: 0 to 5
               -- slen2: 6 to 11
               scaleFacS0 <- replicateM 6 $ replicateM 3 $ getAsWord8 $ fi slen1
               scaleFacS1 <- replicateM 6 $ replicateM 3 $ getAsWord8 $ fi slen2
-              return $ Scales [] (scaleFacS0 ++ scaleFacS1)
+              return $ Scales [] (padWith 22 [0,0,0] $ scaleFacS0 ++ scaleFacS1)
           | otherwise = do
               -- slen1: 0 to 10
               s0 <- if recycle scfsi0 then return $ take 6 prev
@@ -128,8 +134,10 @@ decodeGranule prev scfsi (Granule scaleBits bigValues globalGain
                                 else replicateM 5 $ getAsWord8 $ fi slen2
                   -- here we might need a padding 0 after s3
                   -- (if we want a list of 22 elements)
-              return $ Scales (s0 ++ s1 ++ s2 ++ s3) []
+              return $ Scales (s0 ++ s1 ++ s2 ++ s3 ++ [0]) []
                   where recycle sc = sc && not (null prev)
+                        padWith :: Int -> a -> [a] -> [a]
+                        padWith n pad xs = xs ++ replicate (n - length xs) pad
 
 -- swamp...c?
 huffDecode :: [(Int, HuffTable)] -> Bool -> BitGet [Int]
@@ -182,33 +190,54 @@ requantize freq chan = case chan of
     (DStereo g1 g2 g3 g4) -> DStereo (f g1) (f g2) (f g3) (f g4)
   where f = uncurry $ requantizeGran freq
 
--- samplerate, granule, data, (granule, requantized data)
-
 requantizeGran :: Int -> Granule -> ChannelData Int -> 
                                     (Granule, ChannelData Double)
-requantizeGran freq gran (ChannelData scales@(Scales long short) xs) = 
-        (gran, ChannelData scales $ map (requantizeValue . fromIntegral) xs)
+requantizeGran freq gran (ChannelData scales@(Scales longScales shortScales) xs)
+    = (gran, ChannelData scales $ requantizeValues xs)
   where
-    requantizeValue :: Int -> Double
-    requantizeValue i
-        | bt == 2 && ws && mixblock = -- s
-            let window  = undefined
-            in undefined
-        | bt == 2 = undefined
-    
-    -- used above
-    x        = (signum x) * ((abs x) ** (4/3))
-    y_s      = 2.0 ** (0.25 * (fromIntegral $ ggain - 210 - 8 * subgain))
-    y_l      = 2.0 ** (0.25 * (fromIntegral $ ggain - 210))
-    -- helper variables
-    bt       = blockType gran
-    ws       = windowSwitching gran
-    ggain    = globalGain gran
-    subgain  = undefined
-    mixblock = mixedBlock gran
+    requantizeValues :: [Int] -> [Double]
+    requantizeValues compressed
+        | blockflag == 2 && mixedflag = take 36 long ++ drop 36 short
+        | blockflag == 2 && winSwitch = short
+        | otherwise                   = long
+        where 
+            blockflag = blockType gran
+            mixedflag = mixedBlock gran
+            winSwitch = windowSwitching gran
+            gain      = fromIntegral $ globalGain gran
+            subgain1  = subBlockGain1 gran
+            subgain2  = subBlockGain2 gran
+            subgain3  = subBlockGain3 gran
 
-        
+            long  = zipWith procLong  compressed longbands
+            short = zipWith procShort compressed shortbands
 
+            procLong :: Int -> Int -> Double
+            procLong sample sfb = 
+                let localgain   = fi $ longScales !! sfb
+                    dsample     = fromIntegral sample :: Double
+                in gain * localgain * dsample **^ (4/3)
+
+            procShort :: Int -> (Int,Int) -> Double
+            procShort sample (sfb, win) =
+                let localgain = fi $ (shortScales !! sfb) !! win
+                    blockgain = case win of 0 -> subgain1
+                                            1 -> subgain2
+                                            2 -> subgain3
+                    dsample   = fromIntegral sample
+                in gain * localgain * blockgain * dsample **^ (4/3)
+                                    
+            -- Frequency index (0-575) to scale factor band index (0-21).
+            longbands = tableScaleBandIndexLong freq
+            -- Frequency index to scale factor band index and window index (0-2).
+            shortbands = tableScaleBandIndexShort freq
+
+-- b **^ e == sign(b) * abs(b)**e
+(**^) :: (Floating a, Ord a) => a -> a -> a
+b **^ e = let sign = if b < 0 then -1 else 1
+              b'   = abs b
+          in sign * b' ** e
+infixr 8 **^
 
 -- CODE BELOW TAKEN FROM BJORN
 
