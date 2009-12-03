@@ -26,37 +26,47 @@ data Scales        = Scales { long :: [Word8]
                             , short :: [[Word8]]
                             }
     deriving Show
-data ChannelData a = ChannelData Scales a deriving Show
+data ChannelData a = ChannelData { scale :: Scales
+                                 , chanData :: a}
+    deriving Show
 
 instance Functor ChannelData where
     f `fmap` ChannelData sc a = ChannelData sc (f a)
 
 type DChannel a = SideInfo (ChannelData a)
 decodeFrames :: [MP3Header BS.BitString] -> [DChannel [Double]]
-decodeFrames hs = requantized -- synthehised
+decodeFrames hs = reordered -- synthehised
   where
     -- steps in decoding, done in this order
     unpacked    = map (decodeGranules . sideInfo) hs
     requantized = zipWith requantize freqs unpacked
---     reordered   = map mp3Reorder requantized
+    reordered   = map mp3Reorder requantized
 --    unaliased   = map reduceAliases reordered
 --    synthehised = map (synthMore . synthIMCDT) unaliased
     -- variables needed above
-    freqs  = map frequency hs
+    freqs  = map (sampleRate . sideInfo) hs
 
 -- Okee
-mp3Reorder :: Int -> Int -> Bool -> ChannelData [Double] -> ChannelData [Double]
-mp3Reorder sr bt switching chan@(ChannelData sc ds)
-    | bt == 2 && switching = ChannelData sc $ take 46 ds ++ drop 36 freq'
-    | bt == 2              = ChannelData sc freq'
-    | otherwise            = chan
-    where
+mp3Reorder :: DChannel [Double] -> DChannel [Double]
+mp3Reorder sInfo = case sInfo of
+    (Single sr a b g0 g1) -> Single sr a b (reorder sr g0) (reorder sr g1)
+    (Dual sr a b g0 g1 g2 g3) -> Dual sr a b  (reorder sr g0) (reorder sr g1)
+                                             (reorder sr g2) (reorder sr g3)
+  where reorder sr g
+             | blockType g == 2 && windowSwitching g
+             = g {mp3Data = ChannelData  (scale $ mp3Data g) $
+                  take 46 (chanData $ mp3Data g) ++
+                  drop 36 (freq' sr (chanData $ mp3Data g))}
+             | blockType g == 2 = g {mp3Data = 
+                                     ChannelData (scale $ mp3Data g)
+                                     (freq' sr (chanData $ mp3Data g))}
+             | otherwise = g
+
         -- We want the output list to be as long as the input list to 
         -- correctly handle IS Stereo decoding, but the unsafe reorderList 
         -- requires the input to be as long as the index list.
-        inlen  = length $ ds
-        freq'  = take inlen $ reorderList rtable (padWith 576 0.0 ds)
-        rtable = tableReorder sr
+        freq' sr ds  = take (length ds) $ 
+                       reorderList (tableReorder sr) (padWith 576 0.0 ds)
 
 -- 'reorderList' takes a list of indices and a list of elements and
 -- reorders the list based on the indices. Example:
@@ -86,13 +96,13 @@ tableScaleLength = listArray (0,15)
 -- scale factor stuff as described in p.18 in ISO-11172-3
 decodeGranules :: SideInfo BS.BitString -> DChannel [Int]
 decodeGranules sideInfo = case sideInfo of
-    single@(Single _ scfsi gran0 gran1) -> 
+    single@(Single _ _ scfsi gran0 gran1) -> 
        let (g0,scale0) = decodeGranule [] scfsi gran0
            (g1,scale1) = decodeGranule (long scale0)  scfsi gran1
        in single { gran0 = gran0 {mp3Data = (ChannelData scale0 g0)}
                  , gran1 = gran1 {mp3Data = (ChannelData scale1 g1)}}
 
-    dual@(Dual _ scfsi gran0 gran1 gran2 gran3) ->
+    dual@(Dual _ _ scfsi gran0 gran1 gran2 gran3) ->
        let (scfsi0,scfsi1) = splitAt 4 scfsi
            (g0,scale0) = decodeGranule [] scfsi0 gran0
            (g1,scale1) = decodeGranule [] scfsi1 gran1
@@ -210,8 +220,8 @@ huffDecodeVWXY huff = do
 
 requantize :: Int -> DChannel [Int] -> DChannel [Double]
 requantize freq chan = case chan of
-    (Single a b g1 g2)    -> Single a b (f g1) (f g2)
-    (Dual a b g1 g2 g3 g4) -> Dual a b (f g1) (f g2) (f g3) (f g4)
+    (Single sr a b g1 g2)    -> Single sr a b (f g1) (f g2)
+    (Dual sr a b g1 g2 g3 g4) -> Dual sr a b (f g1) (f g2) (f g3) (f g4)
   where f = requantizeGran freq
         
 

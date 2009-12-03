@@ -17,27 +17,24 @@ data MP3Mode    = Stereo | JointStereo | DualChannel | Mono deriving (Show,Eq)
 
 -- CMP3Header
 data CMP3Header a b = MP3Header {
---                  bitRate   :: Int
-                  frequency :: Int
---                , padding   :: Bool
-                , mode      :: MP3Mode
+                  mode      :: MP3Mode
                 , mext      :: (Bool,Bool) -- used only with jointstereo
                 , fsize     :: Int -- frame  size
                 , hsize     :: Int -- header size
---                , pointer   :: Int -- pointer found in sideinfo
                 , sideInfo  :: SideInfo b
---                 , mp3Data'   :: a -- BITS.BitString
 } deriving Show
 
 -- Derived from page 17 in ISO-11172-3
 -- The side info is totalling 17 or 32 bits, mono and stereo, respectively
 data SideInfo a
-    = Single { dataPointer :: Int -- 9 bits
+    = Single { sampleRate  :: Int
+             , dataPointer :: Int -- 9 bits
              , scales      :: [Bool]
              , gran0       :: Granule a
              , gran1       :: Granule a
              }
-    | Dual   { dataPointer :: Int -- 9 bits
+    | Dual   { sampleRate  :: Int
+             , dataPointer :: Int -- 9 bits
              , scales' :: [Bool]
              , gran0'  :: Granule a
              , gran1'  :: Granule a
@@ -47,8 +44,8 @@ data SideInfo a
 
 instance Functor SideInfo where
     fmap f side = case side of
-        (Single _ _ g0 g1) -> side {gran0 = fmap f g0, gran1 = fmap f g1}
-        (Dual _ _ g0 g1 g2 g3) -> side { gran0' = fmap f g0
+        (Single _ _ _ g0 g1) -> side {gran0 = fmap f g0, gran1 = fmap f g1}
+        (Dual _ _ _ g0 g1 g2 g3) -> side { gran0' = fmap f g0
                                        , gran1' = fmap f g1
                                        , gran2' = fmap f g2
                                        , gran3' = fmap f g3}

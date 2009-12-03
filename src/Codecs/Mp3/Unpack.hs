@@ -91,7 +91,7 @@ readHeader = do
             mext = case mode of
                 JointStereo -> mext'
                 _ -> (False, False)
-        return (MP3Header freq mode mext size hsize sinfo)
+        return (MP3Header mode mext size hsize sinfo)
 
 getBitRate :: MaybeT BitGet Int
 getBitRate = do
@@ -121,7 +121,7 @@ getModeExt = do
 
 -- readFrameData :: EMP3Header -> StateT MP3Header BitGet (Either EMP3Header MP3Data)
 -- heh
-readFrameData h1@(MP3Header _ mode _ fsize hsize sin) = do
+readFrameData h1@(MP3Header mode _ fsize hsize sin) = do
     skipId3
     let pointer = dataPointer sin
     lhs <- getBits $ fromIntegral pointer
@@ -170,12 +170,12 @@ readSideInfo mode freq = do
     case mode of
         Mono -> do g1 <- getGranule
                    g2 <- getGranule
-                   return $ Single (dataptr * 8) scaleFactors g1 g2
+                   return $ Single freq (dataptr * 8) scaleFactors g1 g2
         Stereo -> do g1 <- getGranule
                      g2 <- getGranule
                      g3 <- getGranule
                      g4 <- getGranule
-                     return $ Dual (dataptr * 8) scaleFactors g1 g2 g3 g4
+                     return $ Dual freq (dataptr * 8) scaleFactors g1 g2 g3 g4
   where
     skipPrivate = case mode of
         Mono -> skip 5
@@ -245,16 +245,16 @@ readSideInfo mode freq = do
 
 chopData ::  SideInfo Int -> BS.BitString -> SideInfo BS.BitString
 chopData side bits = case side of
-    (Single p s g1 g2) -> flip runBitGet bits $ do
+    (Single sr p s g1 g2) -> flip runBitGet bits $ do
                          g1' <- forGranule g1
                          g2' <- forGranule g2
-                         return $ Single p s g1' g2'
-    (Dual p s g1 g2 g3 g4) -> flip runBitGet bits $ do
+                         return $ Single sr p s g1' g2'
+    (Dual sr p s g1 g2 g3 g4) -> flip runBitGet bits $ do
                          g1' <- forGranule g1
                          g2' <- forGranule g2
                          g3' <- forGranule g3
                          g4' <- forGranule g4
-                         return $ Dual p s g1' g2' g3' g4'
+                         return $ Dual sr p s g1' g2' g3' g4'
   where forGranule :: Granule Int -> BitGet (Granule BS.BitString)
         forGranule g = do info <- getBits $ fi $ mp3Data g
                           return $ g {mp3Data = info}
