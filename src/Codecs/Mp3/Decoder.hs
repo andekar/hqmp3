@@ -1,6 +1,6 @@
 {-# OPTIONS -w #-}
 
-module Decoder (decodeFrames, DChannel(..), ChannelData(..), Scales(..)) where
+module Decoder (decodeFrames, ChannelData(..), Scales(..)) where
 
 import BitGet
 import qualified Huffman as Huff
@@ -21,13 +21,24 @@ import Debug.Trace
 import Data.Array.Unboxed
 import MP3Types
 
-decodeFrames :: [MP3Header] -> [DChannel [Double]]
+-- Scales [long blocks] [[windows for short blocks]]
+data Scales        = Scales { long :: [Word8] 
+                            , short :: [[Word8]]
+                            }
+    deriving Show
+data ChannelData a = ChannelData Scales a deriving Show
+
+instance Functor ChannelData where
+    f `fmap` ChannelData sc a = ChannelData sc (f a)
+
+type DChannel a = SideInfo (ChannelData a)
+decodeFrames :: [MP3Header BS.BitString] -> [DChannel [Double]]
 decodeFrames hs = requantized -- synthehised
   where
     -- steps in decoding, done in this order
-    unpacked    = map (uncurry decodeGranules . (sideInfo &&& mp3Data)) hs
+    unpacked    = map (decodeGranules . sideInfo) hs
     requantized = zipWith requantize freqs unpacked
---    reordered   = map mp3Reorder requantized
+--     reordered   = map mp3Reorder requantized
 --    unaliased   = map reduceAliases reordered
 --    synthehised = map (synthMore . synthIMCDT) unaliased
     -- variables needed above
@@ -69,73 +80,43 @@ tableScaleLength = listArray (0,15)
         [(0,0), (0,1), (0,2), (0,3), (3,0), (1,1), (1,2), (1,3),
          (2,1), (2,2), (2,3), (3,1) ,(3,2), (3,3), (4,2), (4,3)]
 
--- Scales [long blocks] [[windows for short blocks]]
-data Scales        = Scales [Word8] [[Word8]] deriving Show
-data ChannelData a = ChannelData Scales a deriving Show
-data DChannel a 
-    = DMono   (Granule, ChannelData a) 
-              (Granule, ChannelData a)
-    | DStereo (Granule, ChannelData a)
-              (Granule, ChannelData a)
-              (Granule, ChannelData a)
-              (Granule, ChannelData a)
-    deriving Show
-
-instance Functor ChannelData where
-    f `fmap` ChannelData sc a = ChannelData sc (f a)
-instance Functor DChannel where
-    f `fmap` DMono (g1,cd1) (g2,cd2) = DMono (g1,f `fmap` cd1)
-                                             (g2,f `fmap` cd2)
-    f `fmap` DStereo (g1,cd1) (g2,cd2) (g3,cd3) (g4,cd4) = 
-             DStereo (g1, f `fmap` cd1)
-                     (g2, f `fmap` cd2)
-                     (g3, f `fmap` cd3)
-                     (g4, f `fmap` cd4)
 
 -- Does decoding of granules given the main_data() chunk
 -- This function does huffman decoding, and extracts the 
 -- scale factor stuff as described in p.18 in ISO-11172-3
-decodeGranules :: SideInfo -> BS.BitString -> DChannel [Int]
-decodeGranules sideInfo bs = case sideInfo of
-    (Single _ scfsi gran1 gran2) -> 
-       let [d1,d2] = map (fi . scaleBits) [gran1,gran2]
-           (bs1,bs2) = BS.splitAt d1 bs
-           (g1,scale1@(Scales p _)) = decodeGranule [] scfsi gran1 bs1
-           (g2,scale2)              = decodeGranule p  scfsi gran2 bs2
-       in DMono (gran1, ChannelData scale1 g1)
-                (gran2, ChannelData scale2 g2)
+decodeGranules :: SideInfo BS.BitString -> DChannel [Int]
+decodeGranules sideInfo = case sideInfo of
+    single@(Single _ scfsi gran0 gran1) -> 
+       let (g0,scale0) = decodeGranule [] scfsi gran0
+           (g1,scale1) = decodeGranule (long scale0)  scfsi gran1
+       in single { gran0 = gran0 {mp3Data = (ChannelData scale0 g0)}
+                 , gran1 = gran1 {mp3Data = (ChannelData scale1 g1)}}
 
-    (Dual _ scfsi gran1 gran2 gran3 gran4) ->
-       let [d1,d2,d3,d4] = map (fi . scaleBits) [gran1,gran2,gran3,gran4]
-           (bs1,bs')    = BS.splitAt d1 bs
-           (bs2, bs'')  = BS.splitAt d2 bs'
-           (bs3, bs''') = BS.splitAt d3 bs''
-           (bs4, _)     = BS.splitAt d4 bs'''
-
-           (scfsi0,scfsi1) = splitAt 4 scfsi
-           (g1,scale1@(Scales p _))  = decodeGranule [] scfsi0 gran1 bs1
-           (g2,scale2@(Scales p' _)) = decodeGranule [] scfsi1 gran2 bs2
-           (g3,scale3) = decodeGranule p scfsi0 gran3 bs3
-           (g4,scale4) = decodeGranule p' scfsi1 gran4 bs4
-       in  DStereo (gran1, ChannelData scale1 g1) 
-                   (gran2, ChannelData scale2 g2)
-                   (gran3, ChannelData scale3 g3)
-                   (gran4, ChannelData scale4 g4)
+    dual@(Dual _ scfsi gran0 gran1 gran2 gran3) ->
+       let (scfsi0,scfsi1) = splitAt 4 scfsi
+           (g0,scale0) = decodeGranule [] scfsi0 gran0
+           (g1,scale1) = decodeGranule [] scfsi1 gran1
+           (g2,scale2) = decodeGranule (long scale1) scfsi0 gran2
+           (g3,scale3) = decodeGranule (long scale2) scfsi1 gran3
+       in  dual { gran0' = gran0 {mp3Data = (ChannelData scale0 g0)}
+                , gran1' = gran1 {mp3Data = (ChannelData scale1 g1)}
+                , gran2' = gran2 {mp3Data = (ChannelData scale2 g2)}
+                , gran3' = gran3 {mp3Data = (ChannelData scale3 g3)}}
 
 -- Handy stuff
 fi :: (Integral a, Num b) => a -> b
 fi = fromIntegral
 
-decodeGranule :: [Word8] -> [Bool] -> Granule -> BS.BitString -> ([Int], Scales)
-decodeGranule prev scfsi (Granule scaleBits bigValues globalGain
+decodeGranule :: [Word8] -> [Bool] -> Granule BS.BitString -> ([Int], Scales)
+decodeGranule prev scfsi (Granule bigValues globalGain
                           scaleFacCompress windowSwitching blockType
                           mixedBlockFlag tableSelect_0 tableSelect_1
                           tableSelect_2 subBlockGain1 subBlockGain2
                           subBlockGain3 preFlag scaleFacScale count1TableSelect
-                          r0 r1 r2) dat
-    = flip runBitGet dat $ do scales    <- pScaleFactors prev
-                              huffData' <- huffData
-                              return (huffData', scales)
+                          r0 r1 r2 mp3Data)
+    = flip runBitGet mp3Data $ do scales    <- pScaleFactors prev
+                                  huffData' <- huffData
+                                  return (huffData', scales)
     where
       t0 = getTree tableSelect_0
       t1 = getTree tableSelect_1
@@ -186,7 +167,6 @@ decodeGranule prev scfsi (Granule scaleBits bigValues globalGain
 -- swamp...c?
 huffDecode :: [(Int, HuffTable)] -> Bool -> BitGet [Int]
 huffDecode [(r0,t0), (r1,t1), (r2,t2)] count1Table = do
-    rem'  <- getLength
     r0res <- liftM concat $ replicateM (r0 `div` 2) $ huffDecodeXY t0
     r1res <- liftM concat $ replicateM (r1 `div` 2) $ huffDecodeXY t1
     r2res <- liftM concat $ replicateM (r2 `div` 2) $ huffDecodeXY t2
@@ -230,15 +210,17 @@ huffDecodeVWXY huff = do
 
 requantize :: Int -> DChannel [Int] -> DChannel [Double]
 requantize freq chan = case chan of
-    (DMono g1 g2)         -> DMono   (f g1) (f g2)
-    (DStereo g1 g2 g3 g4) -> DStereo (f g1) (f g2) (f g3) (f g4)
-  where f = uncurry $ requantizeGran freq
+    (Single a b g1 g2)    -> Single a b (f g1) (f g2)
+    (Dual a b g1 g2 g3 g4) -> Dual a b (f g1) (f g2) (f g3) (f g4)
+  where f = requantizeGran freq
         
 
-requantizeGran :: Int -> Granule -> ChannelData [Int] -> (Granule, ChannelData [Double])
-requantizeGran freq gran (ChannelData scales@(Scales longScales shortScales) xs)
-    = (gran, ChannelData scales $ requantizeValues xs)
+requantizeGran :: Int -> Granule (ChannelData [Int]) -> (Granule (ChannelData [Double]))
+requantizeGran freq gran
+    = gran {mp3Data =  ChannelData scales $ requantizeValues xs}
   where
+    (ChannelData scales@(Scales longScales shortScales) xs)
+              = mp3Data gran
     requantizeValues :: [Int] -> [Double]
     requantizeValues compressed
         | blockflag == 2 && mixedflag = take 36 long ++ drop 36 short

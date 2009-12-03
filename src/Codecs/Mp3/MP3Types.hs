@@ -10,13 +10,13 @@ import ID3
 import Control.Monad
 import qualified BitString as BITS
 
-type MP3Data    = (MP3Header, EMP3Header)
-type MP3Header  = CMP3Header BITS.BitString
-type EMP3Header = CMP3Header ()
+type MP3Data a    = (MP3Header a, EMP3Header a)
+type MP3Header a  = CMP3Header BITS.BitString a
+type EMP3Header a = CMP3Header () a
 data MP3Mode    = Stereo | JointStereo | DualChannel | Mono deriving (Show,Eq)
 
 -- CMP3Header
-data CMP3Header a = MP3Header { 
+data CMP3Header a b = MP3Header {
 --                  bitRate   :: Int
                   frequency :: Int
 --                , padding   :: Bool
@@ -25,30 +25,38 @@ data CMP3Header a = MP3Header {
                 , fsize     :: Int -- frame  size
                 , hsize     :: Int -- header size
 --                , pointer   :: Int -- pointer found in sideinfo
-                , sideInfo  :: SideInfo
-                , mp3Data   :: a -- BITS.BitString
+                , sideInfo  :: SideInfo b
+--                 , mp3Data'   :: a -- BITS.BitString
 } deriving Show
 
 -- Derived from page 17 in ISO-11172-3
 -- The side info is totalling 17 or 32 bits, mono and stereo, respectively
-data SideInfo
+data SideInfo a
     = Single { dataPointer :: Int -- 9 bits
              , scales      :: [Bool]
-             , gran1       :: Granule
-             , gran2       :: Granule
+             , gran0       :: Granule a
+             , gran1       :: Granule a
              }
     | Dual   { dataPointer :: Int -- 9 bits
              , scales' :: [Bool]
-             , gran1'  :: Granule
-             , gran2'  :: Granule
-             , gran3'  :: Granule
-             , gran4'  :: Granule
+             , gran0'  :: Granule a
+             , gran1'  :: Granule a
+             , gran2'  :: Granule a
+             , gran3'  :: Granule a
              } deriving Show
 
+instance Functor SideInfo where
+    fmap f side = case side of
+        (Single _ _ g0 g1) -> side {gran0 = fmap f g0, gran1 = fmap f g1}
+        (Dual _ _ g0 g1 g2 g3) -> side { gran0' = fmap f g0
+                                       , gran1' = fmap f g1
+                                       , gran2' = fmap f g2
+                                       , gran3' = fmap f g3}
+
 -- Granule is computed for each specific channel
-data Granule = Granule {
-    scaleBits         :: Int        -- 12 bits
-  , bigValues         :: Int        -- 9 bits
+data Granule a = Granule {
+--     scaleBits         :: Int        -- 12 bits
+    bigValues         :: Int        -- 9 bits
   , globalGain        :: Int        -- 8 bits
   , scaleFacCompress  :: Int        -- 4 bits scaleLength?
   , windowSwitching   :: Bool       -- 1 bit
@@ -74,5 +82,9 @@ data Granule = Granule {
   , region0Start     :: Int
   , region1Start     :: Int
   , region2Start     :: Int
+
+  , mp3Data          :: a
 } deriving Show
 
+instance Functor Granule where
+    fmap f gran = gran {mp3Data = f (mp3Data gran)}

@@ -20,14 +20,14 @@ import MP3Types
 import qualified BitString as BS
 import Data.Array
 
-unpackMp3 :: L.ByteString -> [MP3Header]
+unpackMp3 :: L.ByteString -> [(MP3Header BS.BitString)]
 unpackMp3 file = runBitGet first $ BS.convert file
     where first = do
                skipId3
                init <- lookAhead $ runMaybeT readHeader
                unpackFrames init
 
-unpackFrames :: Maybe EMP3Header -> BitGet [MP3Header]
+unpackFrames :: Maybe (EMP3Header Int) -> BitGet [(MP3Header BS.BitString)]
 unpackFrames Nothing = return [] -- do
 --     r <- getAtLeast 33
 --     if r then findHeader >> readHeader >>= unpackFrames
@@ -42,7 +42,7 @@ unpackFrames (Just h1) = do
 
 -- | findheader will skip until it finds two consecutive sync words
 -- the syncword consist of fifteen ones
-findHeader :: BitGet (Int, Maybe EMP3Header)
+findHeader :: BitGet (Int, Maybe (EMP3Header Int))
 findHeader = do
     r <- getAtLeast 1
     if not r then return (0, Nothing) else do
@@ -67,7 +67,7 @@ syncWord = do
     return (0x7FFD == h)
 
 -- Finds a header in an mp3 file.
-readHeader :: MaybeT BitGet EMP3Header
+readHeader :: MaybeT BitGet (EMP3Header Int)
 readHeader = do
     h <- lift syncWord
     if not h then fail "" else do
@@ -91,7 +91,7 @@ readHeader = do
             mext = case mode of
                 JointStereo -> mext'
                 _ -> (False, False)
-        return (MP3Header freq mode mext size hsize sinfo ())
+        return (MP3Header freq mode mext size hsize sinfo)
 
 getBitRate :: MaybeT BitGet Int
 getBitRate = do
@@ -121,7 +121,7 @@ getModeExt = do
 
 -- readFrameData :: EMP3Header -> StateT MP3Header BitGet (Either EMP3Header MP3Data)
 -- heh
-readFrameData h1@(MP3Header _ mode _ fsize hsize sin _) = do
+readFrameData h1@(MP3Header _ mode _ fsize hsize sin) = do
     skipId3
     let pointer = dataPointer sin
     lhs <- getBits $ fromIntegral pointer
@@ -137,7 +137,8 @@ readFrameData h1@(MP3Header _ mode _ fsize hsize sin _) = do
             skip $ fromIntegral hsize
             rhs <- getBits $ fromIntegral reads
             let bits  = BS.append lhs rhs
-            return $ Right (h1{mp3Data = bits}, h2)
+                sin'  = chopData sin bits
+            return $ Right (h1{sideInfo = sin'}, h2)
         Nothing -> if s == BOF then do
                      (i,h2) <- lookAhead findHeader
                      case h2 of
@@ -147,19 +148,21 @@ readFrameData h1@(MP3Header _ mode _ fsize hsize sin _) = do
                                         readFrameData h2'
                      else do
                          rhs <- getBits $ fromIntegral fsize -- take as much
-                         return $ Left (Just h1{mp3Data = BS.append lhs rhs} , s)
+                         let bits  = BS.append lhs rhs
+                             sin'  = chopData sin bits
+                         return $ Left (Just h1{sideInfo = sin'} , s)
     where
         mode' = case mode of
             Mono -> 17
             _    -> 32
-        p230 = scaleBits $ gran1' sin
-        p231 = scaleBits $ gran2' sin
-        p232 = scaleBits $ gran3' sin
-        p233 = scaleBits $ gran4' sin
+        p230 = mp3Data $ gran0' sin
+        p231 = mp3Data $ gran1' sin
+        p232 = mp3Data $ gran2' sin
+        p233 = mp3Data $ gran3' sin
         p23len = p230 + p231 + p232 + p233
 
 -- "Almost" exactly follows the ISO standard
-readSideInfo :: MP3Mode -> Int -> BitGet SideInfo
+readSideInfo :: MP3Mode -> Int -> BitGet (SideInfo Int)
 readSideInfo mode freq = do
     dataptr  <- getInt 9
     skipPrivate
@@ -195,10 +198,10 @@ readSideInfo mode freq = do
             tableSelect0  <- getInt 5
             tableSelect1  <- getInt 5
             tableSelect2  <- if windowSwitching then return 0 else getInt 5
-            subBlockGain0 <- if windowSwitching 
+            subBlockGain0 <- if windowSwitching
                              then liftM fromIntegral (getInt 3)
                              else return 0
-            subBlockGain1 <- if windowSwitching 
+            subBlockGain1 <- if windowSwitching
                              then liftM fromIntegral (getInt 3)
                              else return 0
             subBlockGain2 <- if windowSwitching 
@@ -230,15 +233,35 @@ readSideInfo mode freq = do
             preFlag           <- getBit
             scaleFacScale     <- getBit
             count1TableSelect <- getBit
-            return $ Granule part23len bigValues globalGain scaleFacCompress
+            return $ Granule bigValues globalGain scaleFacCompress
                              windowSwitching blockType mixedBlock tableSelect0
                              tableSelect1 tableSelect2 subBlockGain0
                              subBlockGain1 subBlockGain2
                              preFlag scaleFacScale
-                             count1TableSelect reg0len reg1len reg2len
+                             count1TableSelect reg0len reg1len reg2len part23len
         where
             reg0 False 2 = 8
             reg0 _ _     = 7
+
+chopData ::  SideInfo Int -> BS.BitString -> SideInfo BS.BitString
+chopData side bits = case side of
+    (Single p s g1 g2) -> flip runBitGet bits $ do
+                         g1' <- forGranule g1
+                         g2' <- forGranule g2
+                         return $ Single p s g1' g2'
+    (Dual p s g1 g2 g3 g4) -> flip runBitGet bits $ do
+                         g1' <- forGranule g1
+                         g2' <- forGranule g2
+                         g3' <- forGranule g3
+                         g4' <- forGranule g4
+                         return $ Dual p s g1' g2' g3' g4'
+  where forGranule :: Granule Int -> BitGet (Granule BS.BitString)
+        forGranule g = do info <- getBits $ fi $ mp3Data g
+                          return $ g {mp3Data = info}
+
+-- handy stuff
+fi :: (Integral a, Num b) => a -> b
+fi = fromIntegral
 
 -- some copied stuff from Bjorn!!
 --
