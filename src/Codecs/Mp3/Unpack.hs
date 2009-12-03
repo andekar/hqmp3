@@ -20,14 +20,14 @@ import MP3Types
 import qualified BitString as BS
 import Data.Array
 
-unpackMp3 :: L.ByteString -> [(MP3Header BS.BitString)]
+unpackMp3 :: L.ByteString -> [MP3Header BS.BitString]
 unpackMp3 file = runBitGet first $ BS.convert file
     where first = do
                skipId3
                init <- lookAhead $ runMaybeT readHeader
                unpackFrames init
 
-unpackFrames :: Maybe (EMP3Header Int) -> BitGet [(MP3Header BS.BitString)]
+unpackFrames :: Maybe (MP3Header Int) -> BitGet [MP3Header BS.BitString]
 unpackFrames Nothing = return [] -- do
 --     r <- getAtLeast 33
 --     if r then findHeader >> readHeader >>= unpackFrames
@@ -42,7 +42,7 @@ unpackFrames (Just h1) = do
 
 -- | findheader will skip until it finds two consecutive sync words
 -- the syncword consist of fifteen ones
-findHeader :: BitGet (Int, Maybe (EMP3Header Int))
+findHeader :: BitGet (Int, Maybe (MP3Header Int))
 findHeader = do
     r <- getAtLeast 1
     if not r then return (0, Nothing) else do
@@ -67,7 +67,7 @@ syncWord = do
     return (0x7FFD == h)
 
 -- Finds a header in an mp3 file.
-readHeader :: MaybeT BitGet (EMP3Header Int)
+readHeader :: MaybeT BitGet (MP3Header Int)
 readHeader = do
     h <- lift syncWord
     if not h then fail "" else do
@@ -191,50 +191,42 @@ readSideInfo mode freq = do
             bigValues        <- getInt 9
             globalGain       <- getInt 8
             scaleFacCompress <- getInt 4
-            windowSwitching  <- getBit
+            w                <- getBit -- windowSwitching
 
-            blockType  <- getInt $ if windowSwitching then 2 else 0
-            mixedBlock <- if windowSwitching then getBit else return False
+            blockType  <- getInt $ if w then 2 else 0
+            mixedBlock <- if w then getBit else return False
             tableSelect0  <- getInt 5
             tableSelect1  <- getInt 5
-            tableSelect2  <- if windowSwitching then return 0 else getInt 5
-            subBlockGain0 <- if windowSwitching
-                             then liftM fromIntegral (getInt 3)
-                             else return 0
-            subBlockGain1 <- if windowSwitching
-                             then liftM fromIntegral (getInt 3)
-                             else return 0
-            subBlockGain2 <- if windowSwitching 
-                             then liftM fromIntegral (getInt 3)
-                             else return 0
-            region0Count  <- if windowSwitching then 
-                                return (reg0 mixedBlock blockType)
+            tableSelect2  <- if w then return 0 else getInt 5
+            subBlockGain0 <- if w then liftM fromIntegral (getInt 3)
+                                else return 0
+            subBlockGain1 <- if w then liftM fromIntegral (getInt 3)
+                                else return 0
+            subBlockGain2 <- if w then liftM fromIntegral (getInt 3)
+                                else return 0
+            region0Count  <- if w then return (reg0 mixedBlock blockType)
                                 else getInt 4
-            region1Count  <- if windowSwitching then return 0 else getInt 3
+            region1Count  <- if w then return 0 else getInt 3
             --from this point we have some similar code to the one bjorn uses
-            let r0count = if windowSwitching
-                             then (if blockType == 2 then 8 else 7)
+            let r0count = if w then (if blockType == 2 then 8 else 7)
                              else region0Count
-                r1count = if windowSwitching then 20 - r0count
+                r1count = if w then 20 - r0count
                              else region1Count
                 sbTable   = tableScaleBandBoundary freq
                 r1bound   = sbTable $ r0count + 1
                 r2bound   = sbTable $ r0count + 1 + r1count + 1
                 bv2       = bigValues * 2
-                reg0len   = if blockType == 2 
-                                 then min bv2 36
-                                 else min bv2 r1bound
-                reg1len     = if blockType == 2 
-                                 then min (bv2-reg0len) 540 
+                reg0len   = if blockType == 2 then min bv2 36
+                               else min bv2 r1bound
+                reg1len     = if blockType == 2 then min (bv2-reg0len) 540 
                                  else min (bv2-reg0len) (r2bound - reg0len) 
-                reg2len     = if blockType == 2 
-                                 then 0   
+                reg2len     = if blockType == 2 then 0   
                                  else bv2 - (reg0len + reg1len)
             preFlag           <- getBit
             scaleFacScale     <- getBit
             count1TableSelect <- getBit
             return $ Granule bigValues globalGain scaleFacCompress
-                             windowSwitching blockType mixedBlock tableSelect0
+                             w blockType mixedBlock tableSelect0
                              tableSelect1 tableSelect2 subBlockGain0
                              subBlockGain1 subBlockGain2
                              preFlag scaleFacScale

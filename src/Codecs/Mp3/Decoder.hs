@@ -21,13 +21,14 @@ import Debug.Trace
 import Data.Array.Unboxed
 import MP3Types
 
--- Scales [long blocks] [[windows for short blocks]]
-data Scales        = Scales { long :: [Word8] 
-                            , short :: [[Word8]]
-                            }
+data Scales = Scales { long :: [Word8] 
+                     , short :: [[Word8]]
+                     }
     deriving Show
+
 data ChannelData a = ChannelData { scale :: Scales
-                                 , chanData :: a}
+                                 , chanData :: a
+                                 }
     deriving Show
 
 instance Functor ChannelData where

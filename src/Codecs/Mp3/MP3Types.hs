@@ -10,19 +10,18 @@ import ID3
 import Control.Monad
 import qualified BitString as BITS
 
-type MP3Data a    = (MP3Header a, EMP3Header a)
-type MP3Header a  = CMP3Header BITS.BitString a
-type EMP3Header a = CMP3Header () a
+type MP3Data a    = (MP3Header a, MP3Header a)
 data MP3Mode    = Stereo | JointStereo | DualChannel | Mono deriving (Show,Eq)
 
 -- CMP3Header
-data CMP3Header a b = MP3Header {
-                  mode      :: MP3Mode
+data MP3Header a
+    = MP3Header { mode      :: MP3Mode
                 , mext      :: (Bool,Bool) -- used only with jointstereo
                 , fsize     :: Int -- frame  size
                 , hsize     :: Int -- header size
-                , sideInfo  :: SideInfo b
-} deriving Show
+                , sideInfo  :: SideInfo a
+                }
+    deriving Show
 
 -- Derived from page 17 in ISO-11172-3
 -- The side info is totalling 17 or 32 bits, mono and stereo, respectively
