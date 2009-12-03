@@ -1,6 +1,6 @@
 {-# OPTIONS -w #-}
 
-module Decoder (decodeFrames, ChannelData(..), Scales(..)) where
+module Decoder (decodeFrames, DChannel,  ChannelData(..), Scales(..)) where
 
 import BitGet
 import qualified Huffman as Huff
