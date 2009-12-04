@@ -14,11 +14,14 @@ import Control.Monad
 import Decoder
 import MP3Types
 import Unpack
+import System.Environment
 
 import qualified PCMWriter as PCM
 import System.IO
 
-main = test "/home/tobsi/song2.mp3"
+main = do
+    (arg:[]) <- getArgs
+    test arg
 
 test :: FilePath -> IO ()
 test f = do
@@ -28,10 +31,11 @@ test f = do
     let fs = unpackMp3 file
         dc = decodeFrames fs
     forM_ dc $ \dchan -> do
-        let (left,right) = extract dchan
+        let (left,right) = dchan
         PCM.writeSamples out left right
         putStrLn "# Oh yeah!"
   where
+--       extract :: ([Double], [Double]) -> (Double)
     extract :: DChannel [Double] -> ([Double],[Double])
     extract chan = case chan of
         Single _ _ _ g0 g1 -> (fromChanData $ mp3Data g0, fromChanData $ mp3Data g1)

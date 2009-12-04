@@ -39,7 +39,7 @@ instance Functor ChannelData where
 
 type DChannel a = SideInfo (ChannelData a)
 
-decodeFrames :: [MP3Header BS.BitString] -> [[Double]]
+decodeFrames :: [MP3Header BS.BitString] -> [([Double],[Double])]
 decodeFrames hs = output
   where
     -- steps in decoding, done in this order
@@ -48,7 +48,7 @@ decodeFrames hs = output
     reordered   = map mp3Reorder requantized
 
     -- here sadly we need a foldl or even better, a State Monad!
-    output = map snd (LS.evalState (decodeRest reordered) emptyMP3DecodeState)
+    output = LS.evalState (decodeRest reordered) emptyMP3DecodeState
     -- variables needed
     freqs  = map (sampleRate . sideInfo) hs
 
