@@ -17,11 +17,14 @@ import Control.Arrow
 import Unpack
 import Mp3Trees
 import Debug.Trace
+import qualified Control.Monad.State.Lazy as LS
 
 import Data.Array.Unboxed
 import MP3Types
 
 import HybridFilterBank
+
+import Types
 
 data Scales = Scales { long :: [Word8] 
                      , short :: [[Word8]] }
@@ -36,7 +39,7 @@ instance Functor ChannelData where
 
 type DChannel a = SideInfo (ChannelData a)
 
-decodeFrames :: [MP3Header BS.BitString] -> [DChannel [Double]]
+decodeFrames :: [MP3Header BS.BitString] -> [[Double]]
 decodeFrames hs = output
   where
     -- steps in decoding, done in this order
@@ -44,33 +47,45 @@ decodeFrames hs = output
     requantized = zipWith requantize freqs unpacked
     reordered   = map mp3Reorder requantized
 
-    output = map (snd . decodeRest) reordered
-
+    -- here sadly we need a foldl or even better, a State Monad!
+    output = map snd (LS.evalState (decodeRest reordered) emptyMP3DecodeState)
     -- variables needed
     freqs  = map (sampleRate . sideInfo) hs
 
 -- Does the "step1" as in bjorns decoder :(
-decodeRest :: DChannel [Double] -> ([Double],[Double])
-decodeRest chan = case chan of
-    (Single _ _ _ g0 g1) -> 
-        let (state0, output0) = step1
-            (state1, output1) = step1
-        in  (output0 ++ output1, output0 ++ output1)
-    (Dual _ _ _ g0 g1 g2 g3) ->
-        let (state0, output0) = step1
-            (state1, output1) = step1
-            (state2, output2) = step1
-            (state3, output3) = step1
-        in  (output0 ++ output2, output1 ++ output3)
+-- Note that we skip stereoIS and StereoMS
+decodeRest :: [DChannel [Double]] -> LS.State MP3DecodeState [([Double],[Double])]
+decodeRest ~(chan:xs) = do
+  prevState <- LS.get
+  case chan of
+    (Single _ _ _ g0 g1) -> do
+        let (state0, output0) = step1 g0 (decodeState0 prevState)
+            (state1, output1) = step1 g1 state0
+        LS.put $ MP3DecodeState state1 state1
+        rest <- decodeRest xs
+        return ((output0 ++ output1, output0 ++ output1):rest) -- this is really NASTY code!!!!!!!!!
+    (Dual _ _ _ g0 g1 g2 g3) -> do
+        let (state0, output0) = step1 g0 (decodeState0 prevState)
+            (state1, output1) = step1 g1 (decodeState1 prevState)
+            (state2, output2) = step1 g2 state0
+            (state3, output3) = step1 g3 state1
+        LS.put $ MP3DecodeState state2 state3
+        rest <- decodeRest xs
+        return ((output0 ++ output2, output1 ++ output3) : rest)
   where
     -- step1 blockFlag -> blockType -> Data -> (State, Output)
-    step1 :: Granule [Double] -> MP3DecodeState -> [Double]
+--     step1 :: Granule [Double] -> MP3DecodeState -> (Double ,[Double])
     step1 gran state =
-        let bf  = undefined
+        let bf  = toBlockflag (mixedBlock gran) (blockType gran)
             bt  = blockType gran
-            inp = mp3Data gran
+            inp = chanData $ mp3Data gran
         in mp3HybridFilterBank bf bt state inp
 
+-- Sadly this is needed because of Bjorns structure
+toBlockflag mixedflag blocktype
+        | mixedflag == True = MixedBlocks
+        | mixedflag == False && blocktype /= 2 = ShortBlocks
+        | otherwise = LongBlocks
 
 data MP3DecodeState = MP3DecodeState {
     decodeState0 :: MP3HybridState,
