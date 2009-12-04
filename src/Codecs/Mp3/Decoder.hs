@@ -22,19 +22,18 @@ import Data.Array.Unboxed
 import MP3Types
 
 data Scales = Scales { long :: [Word8] 
-                     , short :: [[Word8]]
-                     }
+                     , short :: [[Word8]] }
     deriving Show
 
 data ChannelData a = ChannelData { scale :: Scales
-                                 , chanData :: a
-                                 }
+                                 , chanData :: a }
     deriving Show
 
 instance Functor ChannelData where
     f `fmap` ChannelData sc a = ChannelData sc (f a)
 
 type DChannel a = SideInfo (ChannelData a)
+
 decodeFrames :: [MP3Header BS.BitString] -> [DChannel [Double]]
 decodeFrames hs = reordered -- synthehised
   where
@@ -55,12 +54,12 @@ mp3Reorder sInfo = case sInfo of
                                              (reorder sr g2) (reorder sr g3)
   where reorder sr g
              | blockType g == 2 && windowSwitching g
-             = g {mp3Data = ChannelData  (scale $ mp3Data g) $
-                  take 46 (chanData $ mp3Data g) ++
-                  drop 36 (freq' sr (chanData $ mp3Data g))}
+             = g {mp3Data = ChannelData  (scData g) $
+                  take 46 (chData g) ++
+                  drop 36 (freq' sr $ chData g)}
              | blockType g == 2 = g {mp3Data = 
-                                     ChannelData (scale $ mp3Data g)
-                                     (freq' sr (chanData $ mp3Data g))}
+                                     ChannelData (scData g)
+                                     (freq' sr $ chData g)}
              | otherwise = g
 
         -- We want the output list to be as long as the input list to 
@@ -68,6 +67,8 @@ mp3Reorder sInfo = case sInfo of
         -- requires the input to be as long as the index list.
         freq' sr ds  = take (length ds) $ 
                        reorderList (tableReorder sr) (padWith 576 0.0 ds)
+        chData = chanData . mp3Data
+        scData = scale . mp3Data
 
 -- 'reorderList' takes a list of indices and a list of elements and
 -- reorders the list based on the indices. Example:
@@ -114,24 +115,18 @@ decodeGranules sideInfo = case sideInfo of
                 , gran2' = gran2 {mp3Data = (ChannelData scale2 g2)}
                 , gran3' = gran3 {mp3Data = (ChannelData scale3 g3)}}
 
--- Handy stuff
-fi :: (Integral a, Num b) => a -> b
-fi = fromIntegral
-
 decodeGranule :: [Word8] -> [Bool] -> Granule BS.BitString -> ([Int], Scales)
-decodeGranule prev scfsi (Granule bigValues globalGain
-                          scaleFacCompress windowSwitching blockType
-                          mixedBlockFlag tableSelect_0 tableSelect_1
-                          tableSelect_2 subBlockGain1 subBlockGain2
-                          subBlockGain3 preFlag scaleFacScale count1TableSelect
+decodeGranule prev scfsi (Granule _ _
+                          scaleFacCompress window blockType blockFlag ts_0 ts_1
+                          ts_2 _ _ _ preFlag scaleFacScale count1TableSelect
                           r0 r1 r2 mp3Data)
     = flip runBitGet mp3Data $ do scales    <- pScaleFactors prev
                                   huffData' <- huffData
                                   return (huffData', scales)
     where
-      t0 = getTree tableSelect_0
-      t1 = getTree tableSelect_1
-      t2 = getTree tableSelect_2
+      t0 = getTree ts_0 -- tableSelect
+      t1 = getTree ts_1
+      t2 = getTree ts_2
 
       huffData = huffDecode [(r0,t0), (r1, t1), (r2, t2)] count1TableSelect
       (slen1, slen2) = tableScaleLength ! scaleFacCompress
@@ -143,22 +138,22 @@ decodeGranule prev scfsi (Granule bigValues globalGain
       pScaleFactors :: [Word8] -> BitGet Scales
       pScaleFactors prev
               -- as defined in page 18 of the mp3 iso standard
-          | blockType == 2 && mixedBlockFlag && windowSwitching = do
+          | blockType == 2 && blockFlag && window = do
               -- slen1: 0 to 7       (long  window scalefactor band)
               -- slen1: bands 3 to 5 (short window scalefactor band)
               -- slen2: bands 6 to 11
               scalefacL0 <- replicateM 8 $ getAsWord8 $ fi slen1
               scaleFacS0 <- replicateM 3 $ replicateM 3 $ getAsWord8 $ fi slen1
               scaleFacS1 <- replicateM 7 $ replicateM 3 $ getAsWord8 $ fi slen2
-              let scaleS = [[0,0,0],[0,0,0],[0,0,0]] ++ scaleFacS0 ++ scaleFacS1
+              let scaleS= [[0,0,0],[0,0,0],[0,0,0]] ++ scaleFacS0 ++ scaleFacS1
               return $ Scales (padWith 22 0 scalefacL0) 
                               (padWith 22 [0,0,0] scaleS)
-          | blockType == 2 && windowSwitching = do
+          | blockType == 2 && window = do
               -- slen1: 0 to 5
               -- slen2: 6 to 11
               scaleFacS0 <- replicateM 6 $ replicateM 3 $ getAsWord8 $ fi slen1
               scaleFacS1 <- replicateM 6 $ replicateM 3 $ getAsWord8 $ fi slen2
-              return $ Scales [] (padWith 22 [0,0,0] $ scaleFacS0 ++ scaleFacS1)
+              return$ Scales [] (padWith 22 [0,0,0] $ scaleFacS0 ++ scaleFacS1)
           | otherwise = do
               -- slen1: 0 to 10
               s0 <- if recycle scfsi0 then return $ take 6 prev
@@ -175,7 +170,6 @@ decodeGranule prev scfsi (Granule bigValues globalGain
               return $ Scales (s0 ++ s1 ++ s2 ++ s3 ++ [0]) []
                   where recycle sc = sc && not (null prev)
 
--- swamp...c?
 huffDecode :: [(Int, HuffTable)] -> Bool -> BitGet [Int]
 huffDecode [(r0,t0), (r1,t1), (r2,t2)] count1Table = do
     r0res <- liftM concat $ replicateM (r0 `div` 2) $ huffDecodeXY t0
@@ -208,8 +202,7 @@ huffDecodeVWXY huff = do
             x' <- setSign x
             y' <- setSign y
             rem <- getLength
-            rest <- if rem > 0 then huffDecodeVWXY huff
-                               else return []
+            rest <- if rem > 0 then huffDecodeVWXY huff else return []
             return $ v' : w' : x' : y' : rest
         Nothing -> return []
   where setSign 0 = return 0
@@ -226,7 +219,8 @@ requantize freq chan = case chan of
   where f = requantizeGran freq
         
 
-requantizeGran :: Int -> Granule (ChannelData [Int]) -> (Granule (ChannelData [Double]))
+requantizeGran :: Int -> Granule (ChannelData [Int]) ->
+                  (Granule (ChannelData [Double]))
 requantizeGran freq gran
     = gran {mp3Data =  ChannelData scales $ requantizeValues xs}
   where
@@ -241,7 +235,7 @@ requantizeGran freq gran
             blockflag = blockType gran
             mixedflag = mixedBlock gran
             winSwitch = windowSwitching gran
-            gain      = fromIntegral $ globalGain gran
+            gain      = fi $ globalGain gran
             subgain1  = subBlockGain1 gran
             subgain2  = subBlockGain2 gran
             subgain3  = subBlockGain3 gran
@@ -252,7 +246,7 @@ requantizeGran freq gran
             procLong :: Int -> Int -> Double
             procLong sample sfb = 
                 let localgain   = fi $ longScales !! sfb
-                    dsample     = fromIntegral sample :: Double
+                    dsample     = fi sample :: Double
                 in gain * localgain * dsample **^ (4/3)
 
             procShort :: Int -> (Int,Int) -> Double
@@ -261,7 +255,7 @@ requantizeGran freq gran
                     blockgain = case win of 0 -> subgain1
                                             1 -> subgain2
                                             2 -> subgain3
-                    dsample   = fromIntegral sample
+                    dsample   = fi sample
                 in gain * localgain * blockgain * dsample **^ (4/3)
                                     
             -- Frequency index (0-575) to scale factor band index (0-21).

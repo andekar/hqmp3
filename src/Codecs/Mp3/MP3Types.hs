@@ -84,3 +84,7 @@ data Granule a = Granule {
 
 instance Functor Granule where
     fmap f gran = gran {mp3Data = f (mp3Data gran)}
+
+-- handy stuff does not belong here but is used everywhere
+fi :: (Integral a, Num b) => a -> b
+fi = fromIntegral

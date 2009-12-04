@@ -114,7 +114,7 @@ bss = Chunk (L.pack [0]) 0 0 (Chunk (L.pack [0x40]) 0 0 Empty)
 takeAsWord16 :: Int -> BitString -> Word16
 takeAsWord16 i bis
     | i > 16 = error "way WAY too much to put in Word16!"
-    | i <= 8 = fromIntegral $ takeAsWord8 i bis
+    | i <= 8 = fi $ takeAsWord8 i bis
     | otherwise = (fi l `shiftL` m) .|. fi r
     where (l, r) = takeAsWord8 8 *** takeAsWord8 m $ splitAt 8 bis
           m = i `mod` 8
@@ -175,7 +175,7 @@ splitAt i bs@(Chunk lb f b rest)
 length :: BitString -> Int64
 length Empty = 0
 length (Chunk bs f b rest)
-    = (fromIntegral (L.length bs * 8) - fi (f + b)) + length rest
+    = (fi (L.length bs * 8) - fi (f + b)) + length rest
 
 -- Lazily checks if the BitString is at least j bits.
 atLeast :: BitString -> Int64 -> Bool
@@ -196,8 +196,8 @@ atLeastBS :: L.ByteString -> Int64 -> Bool
 atLeastBS LI.Empty 0 = True
 atLeastBS LI.Empty _ = False
 atLeastBS (LI.Chunk sb lb) i
-    | i <= fromIntegral (S.length sb * 8) = True
-    | otherwise = atLeastBS lb (i - (fromIntegral $ S.length sb) * 8)
+    | i <= fi (S.length sb * 8) = True
+    | otherwise = atLeastBS lb (i - (fi $ S.length sb) * 8)
 
 -- Taken from the BitGet library, just altered for lazy bytestrings
 rightShiftByteString :: Int -> L.ByteString -> L.ByteString
