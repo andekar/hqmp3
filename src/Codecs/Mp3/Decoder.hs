@@ -100,9 +100,9 @@ emptyMP3DecodeState = MP3DecodeState emptyMP3HybridState emptyMP3HybridState
 mp3Reorder :: DChannel [Double] -> DChannel [Double]
 mp3Reorder sInfo = case sInfo of
     (Single sr a b g0 g1)     -> Single sr a b (reorder sr g0) (reorder sr g1)
-    (Dual sr a b g0 g1 g2 g3) -> trace (show (f (reorder sr g0) ++ f (reorder sr g2) ++ 
-                                            f (reorder sr g1) ++ f (reorder sr g3)))
-                                     $ Dual sr a b (reorder sr g0) (reorder sr g1)
+    (Dual sr a b g0 g1 g2 g3) -> --trace (show (f (reorder sr g0) ++ f (reorder sr g2) ++ 
+--                                             f (reorder sr g1) ++ f (reorder sr g3)))
+                                    Dual sr a b (reorder sr g0) (reorder sr g1)
                                             (reorder sr g2) (reorder sr g3)
   where reorder sr g
              | mixedBlock g
@@ -151,12 +151,12 @@ decodeGranules sideInfo = case sideInfo of
        let (scfsi0,scfsi1) = splitAt 4 scfsi
            (g0,scale0@(l0,_)) = decodeGranule [] scfsi0 gran0
            (g1,scale1@(l1,_)) = decodeGranule [] scfsi1 gran1
-           (g2,scale2@(l2,_)) = decodeGranule l1 scfsi0 gran2
-           (g3,scale3@(l3,_)) = decodeGranule l2 scfsi1 gran3
+           (g2,scale2@(l2,_)) = decodeGranule l0 scfsi0 gran2
+           (g3,scale3@(l3,_)) = decodeGranule l1 scfsi1 gran3
        in  dual { gran0' = gran0 {mp3Data = (ChannelData (mp3UnpackScaleFactors scale0 (scaleFacCompress gran0) (scaleFacScale gran0)) g0)}
-                , gran1' = gran1 {mp3Data = (ChannelData (mp3UnpackScaleFactors scale0 (scaleFacCompress gran1) (scaleFacScale gran1)) g1)}
-                , gran2' = gran2 {mp3Data = (ChannelData (mp3UnpackScaleFactors scale0 (scaleFacCompress gran2) (scaleFacScale gran2)) g2)}
-                , gran3' = gran3 {mp3Data = (ChannelData (mp3UnpackScaleFactors scale0 (scaleFacCompress gran3) (scaleFacScale gran3)) g3)}}
+                , gran1' = gran1 {mp3Data = (ChannelData (mp3UnpackScaleFactors scale1 (scaleFacCompress gran1) (scaleFacScale gran1)) g1)}
+                , gran2' = gran2 {mp3Data = (ChannelData (mp3UnpackScaleFactors scale2 (scaleFacCompress gran2) (scaleFacScale gran2)) g2)}
+                , gran3' = gran3 {mp3Data = (ChannelData (mp3UnpackScaleFactors scale3 (scaleFacCompress gran3) (scaleFacScale gran3)) g3)}}
 
 decodeGranule :: [Int] -> [Bool] -> Granule BS.BitString -> ([Int], ([Int],[[Int]]))
 decodeGranule prev scfsi (Granule _ _
@@ -226,7 +226,7 @@ mp3UnpackScaleFactors (large, small) preflag scalefacbit =
                                   else zipWith (+) large tablePretab
         large'' = map floatFunc large'
         small'  = map (map floatFunc) small
-    in trace (show (large,small)) $ Scales large'' small'
+    in Scales large'' small'
     where
         floatFunc = mp3FloatRep3 (if scalefacbit then 1 else 0)
 
