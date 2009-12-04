@@ -198,7 +198,7 @@ readSideInfo mode freq = do
                              else region1Count
                 sbTable   = tableScaleBandBoundary freq
                 r1bound   = sbTable $ r0count + 1
-                r2bound   = sbTable $ r1bound + r1count + 1
+                r2bound   = sbTable $ r0count + 1 + r1count + 1
                 bv2       = bigValues * 2
                 reg0len   = if blockType == 2 then min bv2 36
                                else min bv2 r1bound
