@@ -30,6 +30,7 @@ test f = do
     PCM.writeHeader out
     let fs = unpackMp3 file
         dc = decodeFrames fs
+--     mapM_ print dc
     forM_ dc $ \dchan -> do
         let (left,right) = dchan
         PCM.writeSamples out left right

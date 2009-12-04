@@ -53,7 +53,7 @@ instance Functor SideInfo where
 data Granule a = Granule {
 --     scaleBits         :: Int        -- 12 bits
     bigValues         :: Int        -- 9 bits
-  , globalGain        :: Int        -- 8 bits
+  , globalGain        :: Double     -- 8 bits
   , scaleFacCompress  :: Int        -- 4 bits scaleLength?
   , windowSwitching   :: Bool       -- 1 bit
     -- windowzzz

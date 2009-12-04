@@ -23,11 +23,11 @@ import Data.Array.Unboxed
 import MP3Types
 
 import HybridFilterBank
-
+import Tables hiding (tableScaleBandIndexLong,tableScaleBandIndexShort)
 import Types
 
-data Scales = Scales { long :: [Word8] 
-                     , short :: [[Word8]] }
+data Scales = Scales { long :: [Double]
+                     , short :: [[Double]] }
     deriving Show
 
 data ChannelData a = ChannelData { scale :: Scales
@@ -84,7 +84,7 @@ decodeRest ~(chan:xs) = do
 -- Sadly this is needed because of Bjorns structure
 toBlockflag mixedflag blocktype
         | mixedflag == True = MixedBlocks
-        | mixedflag == False && blocktype /= 2 = ShortBlocks
+        | blocktype == 2 = ShortBlocks
         | otherwise = LongBlocks
 
 data MP3DecodeState = MP3DecodeState {
@@ -100,18 +100,20 @@ emptyMP3DecodeState = MP3DecodeState emptyMP3HybridState emptyMP3HybridState
 mp3Reorder :: DChannel [Double] -> DChannel [Double]
 mp3Reorder sInfo = case sInfo of
     (Single sr a b g0 g1)     -> Single sr a b (reorder sr g0) (reorder sr g1)
-    (Dual sr a b g0 g1 g2 g3) -> Dual sr a b (reorder sr g0) (reorder sr g1)
-                                             (reorder sr g2) (reorder sr g3)
+    (Dual sr a b g0 g1 g2 g3) -> trace (show (f (reorder sr g0) ++ f (reorder sr g2) ++ 
+                                            f (reorder sr g1) ++ f (reorder sr g3)))
+                                     $ Dual sr a b (reorder sr g0) (reorder sr g1)
+                                            (reorder sr g2) (reorder sr g3)
   where reorder sr g
-             | blockType g == 2 && windowSwitching g
+             | mixedBlock g
              = g {mp3Data = ChannelData  (scData g) $
                   take 46 (chData g) ++
                   drop 36 (freq' sr $ chData g)}
              | blockType g == 2 = g {mp3Data = 
                                      ChannelData (scData g)
-                                     (freq' sr $ chData g)}
-             | otherwise = g
-
+                                     (freq' sr $ chData g)} -- short blocks
+             | otherwise = g -- long blocks
+        f = chanData . mp3Data
         -- We want the output list to be as long as the input list to 
         -- correctly handle IS Stereo decoding, but the unsafe reorderList 
         -- requires the input to be as long as the index list.
@@ -140,30 +142,31 @@ tableScaleLength = listArray (0,15)
 decodeGranules :: SideInfo BS.BitString -> DChannel [Int]
 decodeGranules sideInfo = case sideInfo of
     single@(Single _ _ scfsi gran0 gran1) -> 
-       let (g0,scale0) = decodeGranule [] scfsi gran0
-           (g1,scale1) = decodeGranule (long scale0)  scfsi gran1
-       in single { gran0 = gran0 {mp3Data = (ChannelData scale0 g0)}
-                 , gran1 = gran1 {mp3Data = (ChannelData scale1 g1)}}
+       let (g0,scale0@(l,s)) = decodeGranule [] scfsi gran0
+           (g1,scale1) = decodeGranule l scfsi gran1
+       in single { gran0 = gran0 {mp3Data = (ChannelData (mp3UnpackScaleFactors scale0 (scaleFacCompress gran0) (scaleFacScale gran0)) g0)}
+                 , gran1 = gran1 {mp3Data = (ChannelData (mp3UnpackScaleFactors scale1 (scaleFacCompress gran1) (scaleFacScale gran1)) g1)}}
 
     dual@(Dual _ _ scfsi gran0 gran1 gran2 gran3) ->
        let (scfsi0,scfsi1) = splitAt 4 scfsi
-           (g0,scale0) = decodeGranule [] scfsi0 gran0
-           (g1,scale1) = decodeGranule [] scfsi1 gran1
-           (g2,scale2) = decodeGranule (long scale1) scfsi0 gran2
-           (g3,scale3) = decodeGranule (long scale2) scfsi1 gran3
-       in  dual { gran0' = gran0 {mp3Data = (ChannelData scale0 g0)}
-                , gran1' = gran1 {mp3Data = (ChannelData scale1 g1)}
-                , gran2' = gran2 {mp3Data = (ChannelData scale2 g2)}
-                , gran3' = gran3 {mp3Data = (ChannelData scale3 g3)}}
+           (g0,scale0@(l0,_)) = decodeGranule [] scfsi0 gran0
+           (g1,scale1@(l1,_)) = decodeGranule [] scfsi1 gran1
+           (g2,scale2@(l2,_)) = decodeGranule l1 scfsi0 gran2
+           (g3,scale3@(l3,_)) = decodeGranule l2 scfsi1 gran3
+       in  dual { gran0' = gran0 {mp3Data = (ChannelData (mp3UnpackScaleFactors scale0 (scaleFacCompress gran0) (scaleFacScale gran0)) g0)}
+                , gran1' = gran1 {mp3Data = (ChannelData (mp3UnpackScaleFactors scale0 (scaleFacCompress gran1) (scaleFacScale gran1)) g1)}
+                , gran2' = gran2 {mp3Data = (ChannelData (mp3UnpackScaleFactors scale0 (scaleFacCompress gran2) (scaleFacScale gran2)) g2)}
+                , gran3' = gran3 {mp3Data = (ChannelData (mp3UnpackScaleFactors scale0 (scaleFacCompress gran3) (scaleFacScale gran3)) g3)}}
 
-decodeGranule :: [Word8] -> [Bool] -> Granule BS.BitString -> ([Int], Scales)
+decodeGranule :: [Int] -> [Bool] -> Granule BS.BitString -> ([Int], ([Int],[[Int]]))
 decodeGranule prev scfsi (Granule _ _
                           scaleFacCompress window blockType blockFlag ts_0 ts_1
                           ts_2 _ _ _ preFlag scaleFacScale count1TableSelect
                           r0 r1 r2 mp3Data)
-    = flip runBitGet mp3Data $ do scales    <- pScaleFactors prev
+    = flip runBitGet mp3Data $ do (l,s)   <- pScaleFactors prev
                                   huffData' <- huffData
-                                  return (huffData', scales)
+--                                   let (l',s') = mp3UnpackScaleFactors l s scaleFacCompress scaleFacScale
+                                  return (huffData', (l,s))
     where
       t0 = getTree ts_0 -- tableSelect
       t1 = getTree ts_1
@@ -176,7 +179,7 @@ decodeGranule prev scfsi (Granule _ _
       -- will return a list of long scalefactors
       -- a list of lists of short scalefactors
       -- an int describing how much we read, this might not be needed
-      pScaleFactors :: [Word8] -> BitGet Scales
+      pScaleFactors :: [Int] -> BitGet ([Int],[[Int]])
       pScaleFactors prev
               -- as defined in page 18 of the mp3 iso standard
           | blockType == 2 && blockFlag && window = do
@@ -187,29 +190,51 @@ decodeGranule prev scfsi (Granule _ _
               scaleFacS0 <- replicateM 3 $ replicateM 3 $ getAsWord8 $ fi slen1
               scaleFacS1 <- replicateM 7 $ replicateM 3 $ getAsWord8 $ fi slen2
               let scaleS= [[0,0,0],[0,0,0],[0,0,0]] ++ scaleFacS0 ++ scaleFacS1
-              return $ Scales (padWith 22 0 scalefacL0) 
-                              (padWith 22 [0,0,0] scaleS)
+              return $ ((map fi $  padWith 22 0 scalefacL0),
+                              map (map fi) (padWith 22 [0,0,0] scaleS))
           | blockType == 2 && window = do
               -- slen1: 0 to 5
               -- slen2: 6 to 11
               scaleFacS0 <- replicateM 6 $ replicateM 3 $ getAsWord8 $ fi slen1
               scaleFacS1 <- replicateM 6 $ replicateM 3 $ getAsWord8 $ fi slen2
-              return$ Scales [] (padWith 22 [0,0,0] $ scaleFacS0 ++ scaleFacS1)
+              return$ ([], map (map fi) (padWith 22 [0,0,0] $ scaleFacS0 ++ scaleFacS1))
           | otherwise = do
               -- slen1: 0 to 10
               s0 <- if recycle scfsi0 then return $ take 6 prev
-                                else replicateM 6 $ getAsWord8 $ fi slen1
+                                else replicateM 6 $ liftM fi $ getAsWord8 $ fi slen1
               s1 <- if recycle scfsi1 then return $ take 5 $ drop 6 prev
-                                else replicateM 5 $ getAsWord8 $ fi slen1
+                                else replicateM 5 $ liftM fi $ getAsWord8 $ fi slen1
               -- slen2: 11 to 20
               s2 <- if recycle scfsi2 then return $ take 5 $ drop 11 prev
-                                else replicateM 5 $ getAsWord8 $ fi slen2
+                                else replicateM 5 $ liftM fi $ getAsWord8 $ fi slen2
               s3 <- if recycle scfsi3 then return $ take 5 $ drop 16 prev
-                                else replicateM 5 $ getAsWord8 $ fi slen2
+                                else replicateM 5 $ liftM fi $ getAsWord8 $ fi slen2
                   -- here we might need a padding 0 after s3
                   -- (if we want a list of 22 elements)
-              return $ Scales (s0 ++ s1 ++ s2 ++ s3 ++ [0]) []
+              return $ ((s0 ++ s1 ++ s2 ++ s3 ++ [0]), [])
                   where recycle sc = sc && not (null prev)
+
+-- Above parses the scale factors to bits. This functions takes the bits
+-- and converts them to doubles according to the correct floating point
+-- representation. (See discussion at mp3FloatRep1 above).
+--
+-- Preflag is simply a predefined table that may be set to give the
+-- higher scale factors a larger range than 4 bits.
+mp3UnpackScaleFactors :: ([Int], [[Int]]) -> Int -> Bool -> Scales
+mp3UnpackScaleFactors (large, small) preflag scalefacbit =
+    let large'  = if preflag == 0 then large
+                                  else zipWith (+) large tablePretab
+        large'' = map floatFunc large'
+        small'  = map (map floatFunc) small
+    in trace (show (large,small)) $ Scales large'' small'
+    where
+        floatFunc = mp3FloatRep3 (if scalefacbit then 1 else 0)
+
+-- Two different floating point representations can be used for the scale
+-- factors. (See discussion at mp3FloatRep1).
+mp3FloatRep3 :: Int -> Int -> Double
+mp3FloatRep3 0 n = 2.0 ** ((-0.5) * (fi n))
+mp3FloatRep3 1 n = 2.0 ** ((-1)   * (fi n))
 
 huffDecode :: [(Int, HuffTable)] -> Bool -> BitGet [Int]
 huffDecode [(r0,t0), (r1,t1), (r2,t2)] count1Table = do
@@ -253,12 +278,12 @@ huffDecodeVWXY huff = do
 -- Requantization below
 --
 
-requantize :: Int -> DChannel [Int] -> DChannel [Double]
-requantize freq chan = case chan of
-    (Single sr a b g1 g2)    -> Single sr a b (f g1) (f g2)
-    (Dual sr a b g1 g2 g3 g4) -> Dual sr a b (f g1) (f g2) (f g3) (f g4)
-  where f = requantizeGran freq
-        
+requantize :: Int ->  DChannel [Int] -> DChannel [Double]
+requantize _ chan = case chan of
+    (Single sr a b g1 g2)    -> Single sr a b (f sr g1) (f sr g2)
+    (Dual sr a b g1 g2 g3 g4) -> Dual sr a b (f sr g1) (f sr g2) (f sr g3) (f sr g4)
+  where f sr = requantizeGran sr
+
 
 requantizeGran :: Int -> Granule (ChannelData [Int]) ->
                   (Granule (ChannelData [Double]))
@@ -269,14 +294,14 @@ requantizeGran freq gran
               = mp3Data gran
     requantizeValues :: [Int] -> [Double]
     requantizeValues compressed
-        | blockflag == 2 && mixedflag = take 36 long ++ drop 36 short
-        | blockflag == 2 && winSwitch = short
-        | otherwise                   = long
-        where 
+        | mixedflag = take 36 long ++ drop 36 short
+        | blockflag == 2 = short
+        | otherwise = long
+        where
             blockflag = blockType gran
             mixedflag = mixedBlock gran
             winSwitch = windowSwitching gran
-            gain      = fi $ globalGain gran
+            gain      = globalGain gran
             subgain1  = subBlockGain1 gran
             subgain2  = subBlockGain2 gran
             subgain3  = subBlockGain3 gran
@@ -286,18 +311,20 @@ requantizeGran freq gran
 
             procLong :: Int -> Int -> Double
             procLong sample sfb = 
-                let localgain   = fi $ longScales !! sfb
+                let localgain   = longScales !! sfb
                     dsample     = fi sample :: Double
                 in gain * localgain * dsample **^ (4/3)
+-- trace ("Gain: " ++ show gain ++ " LocalGain: " ++ show localgain ++ " dsample: " ++ show dsample) $ gain * localgain * dsample **^ (4/3)
 
             procShort :: Int -> (Int,Int) -> Double
             procShort sample (sfb, win) =
-                let localgain = fi $ (shortScales !! sfb) !! win
+                let localgain = (shortScales !! sfb) !! win
                     blockgain = case win of 0 -> subgain1
                                             1 -> subgain2
                                             2 -> subgain3
                     dsample   = fi sample
                 in gain * localgain * blockgain * dsample **^ (4/3)
+-- trace ("Gain: " ++ show gain ++ " LocalGain: " ++ show localgain ++ " blockGain: " ++ show blockgain ++ " dsample: " ++ show dsample) $ gain * localgain * blockgain * dsample **^ (4/3)
                                     
             -- Frequency index (0-575) to scale factor band index (0-21).
             longbands = tableScaleBandIndexLong freq

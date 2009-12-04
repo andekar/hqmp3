@@ -18,6 +18,7 @@ import Control.Monad.Identity
 import MP3Types
 import qualified BitString as BS
 import Data.Array
+import Tables hiding (tableScaleBandBoundary)
 
 unpackMp3 :: L.ByteString -> [MP3Header BS.BitString]
 unpackMp3 file = runBitGet first $ BS.convert file
@@ -209,14 +210,20 @@ readSideInfo mode freq = do
             preFlag           <- getBit
             scaleFacScale     <- getBit
             count1TableSelect <- getBit
-            return $ Granule bigValues globalGain scaleFacCompress
+            return $ Granule bigValues (mp3FloatRep1 globalGain) scaleFacCompress
                              w blockType mixedBlock tableSelect0
-                             tableSelect1 tableSelect2 subBlockGain0
-                             subBlockGain1 subBlockGain2
+                             tableSelect1 tableSelect2 (mp3FloatRep2 subBlockGain0)
+                             (mp3FloatRep2 subBlockGain1) (mp3FloatRep2 subBlockGain2)
                              preFlag scaleFacScale count1TableSelect
                              reg0len reg1len reg2len part23len
     reg0 False 2 = 8
     reg0 _ _     = 7
+
+mp3FloatRep1 :: Int -> Double
+mp3FloatRep1 n = 2.0 ** (0.25 * (fromIntegral n - 210))
+
+mp3FloatRep2 :: Int -> Double
+mp3FloatRep2 n = 2.0 ** (0.25 * (fromIntegral (-n * 8)))
 
 chopData ::  SideInfo Int -> BS.BitString -> SideInfo BS.BitString
 chopData side bits = case side of
