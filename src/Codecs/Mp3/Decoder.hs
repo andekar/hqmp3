@@ -21,6 +21,8 @@ import Debug.Trace
 import Data.Array.Unboxed
 import MP3Types
 
+import HybridFilterBank
+
 data Scales = Scales { long :: [Word8] 
                      , short :: [[Word8]] }
     deriving Show
@@ -35,22 +37,55 @@ instance Functor ChannelData where
 type DChannel a = SideInfo (ChannelData a)
 
 decodeFrames :: [MP3Header BS.BitString] -> [DChannel [Double]]
-decodeFrames hs = reordered -- synthehised
+decodeFrames hs = output
   where
     -- steps in decoding, done in this order
     unpacked    = map (decodeGranules . sideInfo) hs
     requantized = zipWith requantize freqs unpacked
     reordered   = map mp3Reorder requantized
---    unaliased   = map reduceAliases reordered
---    synthehised = map (synthMore . synthIMCDT) unaliased
-    -- variables needed above
+
+    output = map (snd . decodeRest) reordered
+
+    -- variables needed
     freqs  = map (sampleRate . sideInfo) hs
+
+-- Does the "step1" as in bjorns decoder :(
+decodeRest :: DChannel [Double] -> ([Double],[Double])
+decodeRest chan = case chan of
+    (Single _ _ _ g0 g1) -> 
+        let (state0, output0) = step1
+            (state1, output1) = step1
+        in  (output0 ++ output1, output0 ++ output1)
+    (Dual _ _ _ g0 g1 g2 g3) ->
+        let (state0, output0) = step1
+            (state1, output1) = step1
+            (state2, output2) = step1
+            (state3, output3) = step1
+        in  (output0 ++ output2, output1 ++ output3)
+  where
+    -- step1 blockFlag -> blockType -> Data -> (State, Output)
+    step1 :: Granule [Double] -> MP3DecodeState -> [Double]
+    step1 gran state =
+        let bf  = undefined
+            bt  = blockType gran
+            inp = mp3Data gran
+        in mp3HybridFilterBank bf bt state inp
+
+
+data MP3DecodeState = MP3DecodeState {
+    decodeState0 :: MP3HybridState,
+    decodeState1 :: MP3HybridState
+} 
+
+emptyMP3DecodeState :: MP3DecodeState
+emptyMP3DecodeState = MP3DecodeState emptyMP3HybridState emptyMP3HybridState
+
 
 -- Okee
 mp3Reorder :: DChannel [Double] -> DChannel [Double]
 mp3Reorder sInfo = case sInfo of
-    (Single sr a b g0 g1) -> Single sr a b (reorder sr g0) (reorder sr g1)
-    (Dual sr a b g0 g1 g2 g3) -> Dual sr a b  (reorder sr g0) (reorder sr g1)
+    (Single sr a b g0 g1)     -> Single sr a b (reorder sr g0) (reorder sr g1)
+    (Dual sr a b g0 g1 g2 g3) -> Dual sr a b (reorder sr g0) (reorder sr g1)
                                              (reorder sr g2) (reorder sr g3)
   where reorder sr g
              | blockType g == 2 && windowSwitching g
@@ -75,15 +110,6 @@ mp3Reorder sInfo = case sInfo of
 -- reorderList [1,2,0] [a,b,c] == [b,c,a]
 reorderList :: [Int] -> [a] -> [a]
 reorderList indices list = map (list !!) indices
-
-reduceAliases :: DChannel [Double] -> DChannel [Double]
-reduceAliases = undefined
-
-synthMore :: DChannel [Double] -> DChannel [Double]
-synthMore = undefined
-
-synthIMCDT :: DChannel [Double] -> DChannel [Double]
-synthIMCDT = undefined
 
 -- Array to find out how much data we're supposed to read from
 -- scalefac_l. Idea stolen from Bjorn Edstrom
