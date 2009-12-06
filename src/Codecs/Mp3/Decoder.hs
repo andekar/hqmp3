@@ -26,12 +26,14 @@ import HybridFilterBank
 import Tables hiding (tableScaleBandIndexLong,tableScaleBandIndexShort)
 import Types
 
-data Scales = Scales { long :: [Double]
-                     , short :: [[Double]] }
+data Scales
+    = Scales { long :: [Double]
+             , short :: [[Double]] }
     deriving Show
 
-data ChannelData a = ChannelData { scale :: Scales
-                                 , chanData :: a }
+data ChannelData a
+    = ChannelData { scale :: Scales
+                  , chanData :: a }
     deriving Show
 
 instance Functor ChannelData where
@@ -70,11 +72,10 @@ decodeRest ~(chan:xs) = do
             (state2, output2) = step1 g2 state0
             (state3, output3) = step1 g3 state1
         LS.put $ MP3DecodeState state2 state3
-        rest <- decodeRest xs
+        rest <- {-trace ("\n\nmp3Data " ++ show (output0 ++ output2 ++ output1 ++ output3) ++ "\n\n\n") -}(decodeRest xs)
         return ((output0 ++ output2, output1 ++ output3) : rest)
   where
     -- step1 blockFlag -> blockType -> Data -> (State, Output)
---     step1 :: Granule [Double] -> MP3DecodeState -> (Double ,[Double])
     step1 gran state =
         let bf  = toBlockflag (mixedBlock gran) (blockType gran)
             bt  = blockType gran
@@ -90,7 +91,7 @@ toBlockflag mixedflag blocktype
 data MP3DecodeState = MP3DecodeState {
     decodeState0 :: MP3HybridState,
     decodeState1 :: MP3HybridState
-} 
+} deriving Show
 
 emptyMP3DecodeState :: MP3DecodeState
 emptyMP3DecodeState = MP3DecodeState emptyMP3HybridState emptyMP3HybridState
@@ -100,9 +101,7 @@ emptyMP3DecodeState = MP3DecodeState emptyMP3HybridState emptyMP3HybridState
 mp3Reorder :: DChannel [Double] -> DChannel [Double]
 mp3Reorder sInfo = case sInfo of
     (Single sr a b g0 g1)     -> Single sr a b (reorder sr g0) (reorder sr g1)
-    (Dual sr a b g0 g1 g2 g3) -> --trace (show (f (reorder sr g0) ++ f (reorder sr g2) ++ 
---                                             f (reorder sr g1) ++ f (reorder sr g3)))
-                                    Dual sr a b (reorder sr g0) (reorder sr g1)
+    (Dual sr a b g0 g1 g2 g3) -> Dual sr a b (reorder sr g0) (reorder sr g1)
                                             (reorder sr g2) (reorder sr g3)
   where reorder sr g
              | mixedBlock g
@@ -144,8 +143,8 @@ decodeGranules sideInfo = case sideInfo of
     single@(Single _ _ scfsi gran0 gran1) -> 
        let (g0,scale0@(l,s)) = decodeGranule [] scfsi gran0
            (g1,scale1) = decodeGranule l scfsi gran1
-       in single { gran0 = gran0 {mp3Data = (ChannelData (mp3UnpackScaleFactors scale0 (scaleFacCompress gran0) (scaleFacScale gran0)) g0)}
-                 , gran1 = gran1 {mp3Data = (ChannelData (mp3UnpackScaleFactors scale1 (scaleFacCompress gran1) (scaleFacScale gran1)) g1)}}
+       in single { gran0 = setChannel scale0 g0 gran0
+                 , gran1 = setChannel scale1 g1 gran1}
 
     dual@(Dual _ _ scfsi gran0 gran1 gran2 gran3) ->
        let (scfsi0,scfsi1) = splitAt 4 scfsi
@@ -153,10 +152,16 @@ decodeGranules sideInfo = case sideInfo of
            (g1,scale1@(l1,_)) = decodeGranule [] scfsi1 gran1
            (g2,scale2@(l2,_)) = decodeGranule l0 scfsi0 gran2
            (g3,scale3@(l3,_)) = decodeGranule l1 scfsi1 gran3
-       in  dual { gran0' = gran0 {mp3Data = (ChannelData (mp3UnpackScaleFactors scale0 (scaleFacCompress gran0) (scaleFacScale gran0)) g0)}
-                , gran1' = gran1 {mp3Data = (ChannelData (mp3UnpackScaleFactors scale1 (scaleFacCompress gran1) (scaleFacScale gran1)) g1)}
-                , gran2' = gran2 {mp3Data = (ChannelData (mp3UnpackScaleFactors scale2 (scaleFacCompress gran2) (scaleFacScale gran2)) g2)}
-                , gran3' = gran3 {mp3Data = (ChannelData (mp3UnpackScaleFactors scale3 (scaleFacCompress gran3) (scaleFacScale gran3)) g3)}}
+       in  dual { gran0' = setChannel scale0 g0 gran0
+                , gran1' = setChannel scale1 g1 gran1
+                , gran2' = setChannel scale2 g2 gran2
+                , gran3' = setChannel scale3 g3 gran3}
+
+  where setChannel s g gr = gr {mp3Data = (ChannelData (scales s g gr) g)}
+        scales s g gr = unpack s (cpress gr) (sscale gr)
+        cpress = preFlag
+        sscale = scaleFacScale
+        unpack = mp3UnpackScaleFactors
 
 decodeGranule :: [Int] -> [Bool] -> Granule BS.BitString -> ([Int], ([Int],[[Int]]))
 decodeGranule prev scfsi (Granule _ _
@@ -190,8 +195,8 @@ decodeGranule prev scfsi (Granule _ _
               scaleFacS0 <- replicateM 3 $ replicateM 3 $ getAsWord8 $ fi slen1
               scaleFacS1 <- replicateM 7 $ replicateM 3 $ getAsWord8 $ fi slen2
               let scaleS= [[0,0,0],[0,0,0],[0,0,0]] ++ scaleFacS0 ++ scaleFacS1
-              return $ ((map fi $  padWith 22 0 scalefacL0),
-                              map (map fi) (padWith 22 [0,0,0] scaleS))
+              return ((map fi $  padWith 22 0 scalefacL0),
+                      map (map fi) (padWith 22 [0,0,0] scaleS))
           | blockType == 2 && window = do
               -- slen1: 0 to 5
               -- slen2: 6 to 11
@@ -201,17 +206,17 @@ decodeGranule prev scfsi (Granule _ _
           | otherwise = do
               -- slen1: 0 to 10
               s0 <- if recycle scfsi0 then return $ take 6 prev
-                                else replicateM 6 $ liftM fi $ getAsWord8 $ fi slen1
+                       else replicateM 6 $ liftM fi $ getAsWord8 $ fi slen1
               s1 <- if recycle scfsi1 then return $ take 5 $ drop 6 prev
-                                else replicateM 5 $ liftM fi $ getAsWord8 $ fi slen1
+                       else replicateM 5 $ liftM fi $ getAsWord8 $ fi slen1
               -- slen2: 11 to 20
               s2 <- if recycle scfsi2 then return $ take 5 $ drop 11 prev
-                                else replicateM 5 $ liftM fi $ getAsWord8 $ fi slen2
+                       else replicateM 5 $ liftM fi $ getAsWord8 $ fi slen2
               s3 <- if recycle scfsi3 then return $ take 5 $ drop 16 prev
-                                else replicateM 5 $ liftM fi $ getAsWord8 $ fi slen2
+                       else replicateM 5 $ liftM fi $ getAsWord8 $ fi slen2
                   -- here we might need a padding 0 after s3
                   -- (if we want a list of 22 elements)
-              return $ ((s0 ++ s1 ++ s2 ++ s3 ++ [0]), [])
+              return ((s0 ++ s1 ++ s2 ++ s3 ++ [0]), [[]])
                   where recycle sc = sc && not (null prev)
 
 -- Above parses the scale factors to bits. This functions takes the bits
@@ -220,15 +225,15 @@ decodeGranule prev scfsi (Granule _ _
 --
 -- Preflag is simply a predefined table that may be set to give the
 -- higher scale factors a larger range than 4 bits.
-mp3UnpackScaleFactors :: ([Int], [[Int]]) -> Int -> Bool -> Scales
+mp3UnpackScaleFactors :: ([Int], [[Int]]) -> Bool -> Bool -> Scales
 mp3UnpackScaleFactors (large, small) preflag scalefacbit =
-    let large'  = if preflag == 0 then large
-                                  else zipWith (+) large tablePretab
+    let large'  = if not preflag  then large
+                          else zipWith (+) large tablePretab
         large'' = map floatFunc large'
         small'  = map (map floatFunc) small
-    in Scales large'' small'
+    in  trace ("preflag: " ++ show (fromEnum preflag) ++ " scalefacbit " ++ show (fromEnum scalefacbit)) $ Scales large'' small'
     where
-        floatFunc = mp3FloatRep3 (if scalefacbit then 1 else 0)
+        floatFunc = mp3FloatRep3 (fromEnum scalefacbit)
 
 -- Two different floating point representations can be used for the scale
 -- factors. (See discussion at mp3FloatRep1).

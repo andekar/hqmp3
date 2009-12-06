@@ -206,7 +206,7 @@ mp3HybridFilterBank bf bt (MP3HybridState simdct ssynthesis) input =
 
 -- [Sample] = IMDCT output from previous granule, used for overlapping.
 -- MP3SynthState = State for the synthesis filterbank.
-data MP3HybridState = MP3HybridState [Sample] MP3SynthState
+data MP3HybridState = MP3HybridState [Sample] MP3SynthState deriving Show
 
 emptyMP3HybridState :: MP3HybridState
 emptyMP3HybridState = MP3HybridState (replicate 576 0.0) 
