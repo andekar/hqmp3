@@ -33,6 +33,7 @@ test f = do
 --     mapM_ print dc
     forM_ dc $ \dchan -> do
         let (left,right) = dchan
+        PCM.writeSamplerate out 44100 -- 44100 -- we need to write this all the time...
         PCM.writeSamples out left right
         putStrLn "# Oh yeah!"
   where

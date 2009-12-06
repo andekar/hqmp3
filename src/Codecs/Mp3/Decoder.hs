@@ -41,7 +41,7 @@ instance Functor ChannelData where
 
 type DChannel a = SideInfo (ChannelData a)
 
-decodeFrames :: [MP3Header BS.BitString] -> [([Double],[Double])]
+-- decodeFrames :: [MP3Header BS.BitString] -> [([Double],[Double])]
 decodeFrames hs = output
   where
     -- steps in decoding, done in this order
@@ -80,7 +80,8 @@ decodeRest ~(chan:xs) = do
         let bf  = toBlockflag (mixedBlock gran) (blockType gran)
             bt  = blockType gran
             inp = chanData $ mp3Data gran
-        in trace ("BlockFlag: " ++ show bf ++ " bt: " ++ show bt ++ show inp) (mp3HybridFilterBank bf bt state inp)
+        in trace ("bf: " ++ show bf ++ "\n" ++ "bt: " ++ show bt ++"\n" ++ "Data: " ++ show inp)
+           (mp3HybridFilterBank bf bt state inp)
 
 -- Sadly this is needed because of Bjorns structure
 toBlockflag mixedflag blocktype
@@ -101,7 +102,9 @@ emptyMP3DecodeState = MP3DecodeState emptyMP3HybridState emptyMP3HybridState
 mp3Reorder :: DChannel [Double] -> DChannel [Double]
 mp3Reorder sInfo = case sInfo of
     (Single sr a b g0 g1)     -> Single sr a b (reorder sr g0) (reorder sr g1)
-    (Dual sr a b g0 g1 g2 g3) -> Dual sr a b (reorder sr g0) (reorder sr g1)
+    (Dual sr a b g0 g1 g2 g3) -> --trace (trac (reorder sr g0) ++ "\n" ++ trac (reorder sr g1) ++ "\n" ++
+                                --           trac (reorder sr g2) ++ "\n" ++ trac (reorder sr g3)) $
+                                Dual sr a b (reorder sr g0) (reorder sr g1)
                                             (reorder sr g2) (reorder sr g3)
   where reorder sr g
              | mixedBlock g
@@ -120,6 +123,7 @@ mp3Reorder sInfo = case sInfo of
                        reorderList (tableReorder sr) (padWith 576 0.0 ds)
         chData = chanData . mp3Data
         scData = scale . mp3Data
+--         trac = show . chData
 
 -- 'reorderList' takes a list of indices and a list of elements and
 -- reorders the list based on the indices. Example:
@@ -152,7 +156,8 @@ decodeGranules sideInfo = case sideInfo of
            (g1,scale1@(l1,_)) = decodeGranule [] scfsi1 gran1
            (g2,scale2@(l2,_)) = decodeGranule l0 scfsi0 gran2
            (g3,scale3@(l3,_)) = decodeGranule l1 scfsi1 gran3
-       in  dual { gran0' = setChannel scale0 g0 gran0
+       in --trace (strs gran0 ++ "\n" ++ strs gran1 ++ "\n" ++ strs gran2 ++ "\n" ++ strs gran3) $
+           dual { gran0' = setChannel scale0 g0 gran0
                 , gran1' = setChannel scale1 g1 gran1
                 , gran2' = setChannel scale2 g2 gran2
                 , gran3' = setChannel scale3 g3 gran3}
@@ -162,6 +167,7 @@ decodeGranules sideInfo = case sideInfo of
         cpress = preFlag
         sscale = scaleFacScale
         unpack = mp3UnpackScaleFactors
+        strs g = "flag: " ++ show (windowSwitching g) ++ " blocks: " ++ show (blockType g) ++ " mixed: " ++ show (mixedBlock g)
 
 decodeGranule :: [Int] -> [Bool] -> Granule BS.BitString -> ([Int], ([Int],[[Int]]))
 decodeGranule prev scfsi (Granule _ _
