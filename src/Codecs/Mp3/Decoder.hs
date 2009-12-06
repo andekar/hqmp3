@@ -72,15 +72,15 @@ decodeRest ~(chan:xs) = do
             (state2, output2) = step1 g2 state0
             (state3, output3) = step1 g3 state1
         LS.put $ MP3DecodeState state2 state3
-        rest <- {-trace ("\n\nmp3Data " ++ show (output0 ++ output2 ++ output1 ++ output3) ++ "\n\n\n") -}(decodeRest xs)
-        return ((output0 ++ output2, output1 ++ output3) : rest)
+        rest <- (decodeRest xs)
+        return $ ((output0 ++ output2, output1 ++ output3) : rest)
   where
     -- step1 blockFlag -> blockType -> Data -> (State, Output)
     step1 gran state =
         let bf  = toBlockflag (mixedBlock gran) (blockType gran)
             bt  = blockType gran
             inp = chanData $ mp3Data gran
-        in mp3HybridFilterBank bf bt state inp
+        in trace ("BlockFlag: " ++ show bf ++ " bt: " ++ show bt ++ show inp) (mp3HybridFilterBank bf bt state inp)
 
 -- Sadly this is needed because of Bjorns structure
 toBlockflag mixedflag blocktype
@@ -231,7 +231,7 @@ mp3UnpackScaleFactors (large, small) preflag scalefacbit =
                           else zipWith (+) large tablePretab
         large'' = map floatFunc large'
         small'  = map (map floatFunc) small
-    in  trace ("preflag: " ++ show (fromEnum preflag) ++ " scalefacbit " ++ show (fromEnum scalefacbit)) $ Scales large'' small'
+    in Scales large'' small'
     where
         floatFunc = mp3FloatRep3 (fromEnum scalefacbit)
 
@@ -246,7 +246,7 @@ huffDecode [(r0,t0), (r1,t1), (r2,t2)] count1Table = do
     r0res <- liftM concat $ replicateM (r0 `div` 2) $ huffDecodeXY t0
     r1res <- liftM concat $ replicateM (r1 `div` 2) $ huffDecodeXY t1
     r2res <- liftM concat $ replicateM (r2 `div` 2) $ huffDecodeXY t2
-    quadr <- huffDecodeVWXY (getQuadrTree count1Table)
+    quadr <- huffDecodeVWXY (getQuadrTree (not count1Table)) -- why do we need to negate this value?!?!
     return $ r0res ++ r1res ++ r2res ++ quadr
 
 huffDecodeXY :: HuffTable -> BitGet [Int]
@@ -283,12 +283,12 @@ huffDecodeVWXY huff = do
 -- Requantization below
 --
 
+-- seems to be working!
 requantize :: Int ->  DChannel [Int] -> DChannel [Double]
 requantize _ chan = case chan of
     (Single sr a b g1 g2)    -> Single sr a b (f sr g1) (f sr g2)
     (Dual sr a b g1 g2 g3 g4) -> Dual sr a b (f sr g1) (f sr g2) (f sr g3) (f sr g4)
   where f sr = requantizeGran sr
-
 
 requantizeGran :: Int -> Granule (ChannelData [Int]) ->
                   (Granule (ChannelData [Double]))
