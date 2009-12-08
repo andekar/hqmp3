@@ -36,12 +36,23 @@ data ChannelMode = Mono
                  | Stereo 
                  | DualChannel 
                  | JointStereo 
-                 deriving (Eq,Show)
+                 deriving (Eq)
+
+instance Show ChannelMode where
+    show Mono        = "Mono"
+    show Stereo      = "Stereo"
+    show DualChannel = "DualChannel"
+    show JointStereo = "JointStereo"
 
 data BlockFlag = LongBlocks 
                | ShortBlocks 
                | MixedBlocks 
-               deriving (Eq,Show)
+               deriving (Eq)
+
+instance Show BlockFlag where
+    show LongBlocks  = "LongBlocks"
+    show ShortBlocks = "ShortBlocks"
+    show MixedBlocks = "MixedBlocks"
 
 -- 
 -- For decoding.

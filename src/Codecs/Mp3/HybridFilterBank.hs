@@ -27,6 +27,7 @@
 module HybridFilterBank (
     mp3HybridFilterBank
    ,MP3HybridState(..)
+   ,MP3SynthState(..)
    ,emptyMP3HybridState
 ) where
 
@@ -34,6 +35,14 @@ import IMDCT
 import SynthesisFilterBank
 import Tables
 import Types
+
+{-
+mapBlock :: Int -> ([a] -> [b]) -> [a] -> [b]
+mapBlock blocksize func []  = []
+mapBlock blocksize func seq = 
+    let (block, rem) = splitAt blocksize seq
+    in func block ++ mapBlock blocksize func rem
+-}
 
 mapBlock :: Int -> ([a] -> b) -> [a] -> [b]
 mapBlock blocksize func []  = []
@@ -126,7 +135,7 @@ mp3AA :: BlockFlag -> Int -> [Frequency] -> [Frequency]
 mp3AA blockflag blocktype freq
   | blocktype == 2 && blockflag /= MixedBlocks   = freq
   | blocktype == 2 && blockflag == MixedBlocks   = 
-      (take 9 freq) ++ aaHelper (take  18 $ drop 9 freq) ++ (drop  27 freq)
+      (take 9 freq) ++ aaHelper (take  18 (drop 9 freq)) ++ (drop  27 freq)
   | otherwise                                    = 
       (take 9 freq) ++ aaHelper (take 558 (drop 9 freq)) ++ (drop 567 freq)
   where
@@ -190,7 +199,8 @@ padWith n padding xs     = xs ++ replicate (n - length xs) padding
 --
 -- Frequency domain to time domain.
 --
-mp3HybridFilterBank :: BlockFlag -> Int -> MP3HybridState -> [Frequency] -> 
+mp3HybridFilterBank :: BlockFlag -> Int -> 
+                       MP3HybridState -> [Frequency] -> 
                        (MP3HybridState, [Sample])
 mp3HybridFilterBank bf bt (MP3HybridState simdct ssynthesis) input =
     let input'                = padWith 576 0.0 input -- ensure length 576
@@ -211,4 +221,3 @@ data MP3HybridState = MP3HybridState [Sample] MP3SynthState deriving Show
 emptyMP3HybridState :: MP3HybridState
 emptyMP3HybridState = MP3HybridState (replicate 576 0.0) 
                                      (MP3SynthState (replicate 1024 0.0))
-

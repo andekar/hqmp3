@@ -35,7 +35,7 @@ test f = do
         let (left,right) = dchan
         PCM.writeSamplerate out 44100 -- 44100 -- we need to write this all the time...
         PCM.writeSamples out left right
-        putStrLn "# Oh yeah!"
+--         putStrLn "# Oh yeah!"
   where
 --       extract :: ([Double], [Double]) -> (Double)
     extract :: DChannel [Double] -> ([Double],[Double])

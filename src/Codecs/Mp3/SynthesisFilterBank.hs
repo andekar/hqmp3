@@ -35,18 +35,14 @@ import Foreign.Ptr
 import Foreign.Marshal.Array
 import System.IO.Unsafe
 
-{-
 foreign import ccall "c_synth.h synth"
     c_synth :: Ptr CDouble -> 
                Ptr CDouble -> 
                Ptr CDouble -> 
                Ptr CDouble -> 
                IO ()
--}
 
 synthIO :: [CDouble] -> [CDouble] -> IO ([CDouble], [CDouble])
-synthIO state input = return (state,input)
-{-
 synthIO state input
     = withArray state $ \cstate ->
       withArray input $ \cinput ->
@@ -56,12 +52,12 @@ synthIO state input
          state' <- peekArray 1024 cstate'
          output <- peekArray 576 coutput
          return (state', output)
--}
 
 data MP3SynthState = MP3SynthState [Sample] deriving (Show)
 
 type Sample = Double
-mp3SynthesisFilterBank :: MP3SynthState -> [Sample] -> (MP3SynthState, [Sample])
+mp3SynthesisFilterBank :: MP3SynthState -> [Sample] -> 
+                          (MP3SynthState, [Sample])
 mp3SynthesisFilterBank (MP3SynthState state) input =
     let cstate = map realToFrac state
         cinput = map realToFrac input

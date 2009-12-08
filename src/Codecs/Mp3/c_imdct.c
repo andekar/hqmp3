@@ -28,7 +28,7 @@
 
 #include <math.h>
 
-#define PI 3.1415926535897932
+#define PI 3.1415926535897931
 
 void imdct18(double *in, double *out)
 {

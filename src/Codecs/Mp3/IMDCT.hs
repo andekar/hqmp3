@@ -34,22 +34,19 @@ import Foreign.Marshal.Array
 import System.IO.Unsafe
 
 
-{-
 foreign import ccall "c_imdct.h imdct"
     c_imdct :: CInt -> 
                Ptr CDouble -> 
                Ptr CDouble -> 
                IO ()
--}
 
 imdctIO :: Int -> [CDouble] -> IO [CDouble]
-imdctIO points input = return input
-{-
+imdctIO points input
     = withArray   input      $ \cinput ->
       allocaArray (points*2) $ \coutput ->
       do c_imdct (fromIntegral points) cinput coutput
          peekArray (points*2) coutput
--}
+
 
 imdct :: Int -> [Double] -> [Double]
 imdct points input = let cinput  = map realToFrac input
