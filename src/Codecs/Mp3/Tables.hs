@@ -25,7 +25,7 @@
 --
 -- TODO: Change all tables to something more suitable with O(1) lookup.
 --
-module Tables (
+module Codecs.Mp3.Tables (
      tableImdctWindow
     ,tableScaleBandBoundary
     ,tableScaleBandIndexLong

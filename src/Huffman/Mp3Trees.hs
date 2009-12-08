@@ -1,6 +1,6 @@
-module Mp3Trees (getTree, getQuadrTree, HuffTable) where
+module Codecs.Mp3.Mp3Trees (getTree, getQuadrTree, HuffTable) where
 
-import Huffman ( HuffTree (..) )
+import Codec.Compression.Huffman.Huffman ( HuffTree (..) )
 
 -- Tree number, linbits
 type HuffTable = (HuffTree (Int,Int), Int)

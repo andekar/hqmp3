@@ -1,14 +1,13 @@
-module MP3Types where
-import BitGet
-import qualified Huffman as Huff
+module Codecs.Mp3.MP3Types where
+import Data.Binary.BitString.BitGet
 import Data.Bits
 import Data.Word
 import Data.Maybe
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString as S
-import ID3
+import Codecs.Mp3.ID3
 import Control.Monad
-import qualified BitString as BITS
+import qualified Data.Binary.BitString.BitString as BITS
 
 type MP3Data a    = (MP3Header a, MP3Header a)
 data MP3Mode    = Stereo | JointStereo | DualChannel | Mono deriving (Show,Eq)

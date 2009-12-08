@@ -24,17 +24,17 @@
 --    distribution.
 --
 
-module HybridFilterBank (
+module Codecs.Mp3.HybridFilterBank (
     mp3HybridFilterBank
    ,MP3HybridState(..)
    ,MP3SynthState(..)
    ,emptyMP3HybridState
 ) where
 
-import IMDCT
-import SynthesisFilterBank
-import Tables
-import Types
+import Codecs.Mp3.IMDCT
+import Codecs.Mp3.SynthesisFilterBank
+import Codecs.Mp3.Tables
+import Codecs.Mp3.Types
 
 {-
 mapBlock :: Int -> ([a] -> [b]) -> [a] -> [b]

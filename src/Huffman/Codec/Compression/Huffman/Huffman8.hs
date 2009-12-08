@@ -29,7 +29,7 @@ import qualified Data.ByteString.Char8 as Bc
 import qualified Data.ByteString.Lazy as L
 import Data.PriorityQueue
 
-import Data.Binary.BitGet
+import Data.Binary.BitString.BitGet
 
 type HuffArray = Array Word8 (Word8,Word8)
 type STHuff s  = STArray s Word8 (Word8,Word8)

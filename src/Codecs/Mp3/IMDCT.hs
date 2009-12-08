@@ -24,7 +24,7 @@
 --    3. This notice may not be removed or altered from any source
 --    distribution.
 --
-module IMDCT (
+module Codecs.Mp3.IMDCT (
     imdct
 ) where
 

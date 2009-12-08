@@ -1,6 +1,6 @@
 {-# OPTIONS -w #-}
 -- Comments in this file is partly taken from http://www.id3.org/id3v2.3.0
-module ID3 ( -- functions
+module Codecs.Mp3.ID3 ( -- functions
              skipId3
            , getId3v1
            , getId3v2_2
@@ -24,7 +24,7 @@ import Data.Maybe
 -- TODO make this module run with (only) Strict.Get
 
 import qualified Data.Binary.Strict.BitGet as G
-import qualified BitGet as BG
+import qualified Data.Binary.BitString.BitGet as BG
 import Data.Binary.Get
 
 -- | A list of not supported frames

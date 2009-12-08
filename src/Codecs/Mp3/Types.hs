@@ -22,7 +22,7 @@
 --    distribution.
 --
 
-module Types where
+module Codecs.Mp3.Types where
 
 -- 
 -- Simple types.

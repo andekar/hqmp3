@@ -15,7 +15,7 @@ import Data.Word
 import Data.PriorityQueue
 import Control.Monad
 import Control.Monad.ST
-import Data.Binary.BitGet
+import Data.Binary.BitString.BitGet
 import Data.Int
 
 -- Can probably be speeded up (TODO)

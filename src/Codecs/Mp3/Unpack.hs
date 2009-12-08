@@ -1,24 +1,23 @@
 {-# OPTIONS -w #-}
 
-module Unpack (unpackMp3) where
+module Codecs.Mp3.Unpack (unpackMp3) where
 
-import BitGet
-import qualified Huffman as Huff
+import Data.Binary.BitString.BitGet
 import Data.Bits
 import Data.Word
 import Data.Maybe
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString as S
-import ID3
+import Codecs.Mp3.ID3
 import Debug.Trace
 import Control.Monad
 import Control.Monad.Maybe
 import Control.Monad.Trans
 import Control.Monad.Identity
-import MP3Types
-import qualified BitString as BS
+import Codecs.Mp3.MP3Types
+import qualified Data.Binary.BitString.BitString as BS
 import Data.Array
-import Tables hiding (tableScaleBandBoundary)
+import Codecs.Mp3.Tables hiding (tableScaleBandBoundary)
 
 unpackMp3 :: L.ByteString -> [MP3Header BS.BitString]
 unpackMp3 file = runBitGet first $ BS.convert file

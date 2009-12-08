@@ -1,19 +1,19 @@
 {-# OPTIONS -w #-}
 module Main (test) where
-import BitGet
-import qualified Huffman as Huff
+import Data.Binary.BitString.BitGet
+import qualified Codec.Compression.Huffman.Huffman as Huff
 -- import Data.Binary.Strict.BitGet
 import Data.Bits
 import Data.Word
 import Data.Maybe
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString as S
-import ID3
+import Codecs.Mp3.ID3
 import Debug.Trace
 import Control.Monad
-import Decoder
-import MP3Types
-import Unpack
+import Codecs.Mp3.Decoder
+import Codecs.Mp3.MP3Types
+import Codecs.Mp3.Unpack
 import System.Environment
 
 import qualified PCMWriter as PCM

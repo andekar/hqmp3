@@ -25,7 +25,7 @@
 --    distribution.
 --
 
-module SynthesisFilterBank (
+module Codecs.Mp3.SynthesisFilterBank (
      MP3SynthState(..)
     ,mp3SynthesisFilterBank
 ) where

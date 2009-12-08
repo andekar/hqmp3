@@ -1,30 +1,30 @@
 {-# OPTIONS -w #-}
 
-module Decoder (decodeFrames, DChannel,  ChannelData(..), Scales(..)) where
+module Codecs.Mp3.Decoder (decodeFrames, DChannel,  ChannelData(..), Scales(..)) where
 
-import BitGet
-import qualified Huffman as Huff
-import qualified BitString as BS
+import Data.Binary.BitString.BitGet
+import qualified Codec.Compression.Huffman.Huffman as Huff
+import qualified Data.Binary.BitString.BitString as BS
 import Data.Bits
 import Data.Word
 import Data.Maybe
 import Data.Int
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString as S
-import ID3
+import Codecs.Mp3.ID3
 import Control.Monad
 import Control.Arrow
-import Unpack
-import Mp3Trees
+import Codecs.Mp3.Unpack
+import Codecs.Mp3.Mp3Trees
 import Debug.Trace
 import qualified Control.Monad.State.Lazy as LS
 
 import Data.Array.Unboxed
-import MP3Types
+import Codecs.Mp3.MP3Types
 
-import HybridFilterBank
-import Tables hiding (tableScaleBandIndexLong,tableScaleBandIndexShort, tableReorder)
-import Types
+import Codecs.Mp3.HybridFilterBank
+import Codecs.Mp3.Tables hiding (tableScaleBandIndexLong,tableScaleBandIndexShort, tableReorder)
+import Codecs.Mp3.Types
 
 data Scales
     = Scales { long :: [Double]
@@ -50,43 +50,41 @@ decodeFrames hs = output
     reordered   = map mp3Reorder requantized
 
     -- here sadly we need a foldl or even better, a State Monad!
-    output =  (decodeRest emptyMP3DecodeState reordered)-- emptyMP3DecodeState
+    output =  LS.evalState (decodeRest reordered) emptyMP3DecodeState
     -- variables needed
     freqs  = map (sampleRate . sideInfo) hs
 
 -- Does the "step1" as in bjorns decoder :(
 -- Note that we skip stereoIS and StereoMS
-decodeRest :: MP3DecodeState -> [DChannel [Double]] -> [([Double],[Double])]
-decodeRest _ []  = []
-decodeRest prevState''@(MP3DecodeState s1 s2) (chan:xs) = 
---   prevState <- LS.get
+decodeRest :: [DChannel [Double]] -> LS.State MP3DecodeState [([Double],[Double])]
+decodeRest []  = return []
+decodeRest (chan:xs) = do
+  prevState <- LS.get
   case chan of
---     (Single _ _ _ g0 g1) -> 
---         let (state0, output0) = step1 0 g0 (decodeState0 prevState)
---             (state1, output1) = step1 1 g1 state0
---             state = MP3DecodeState state1 state1
--- --         LS.put $ MP3DecodeState state1 state1
--- --         rest <- decodeRest state xs
---         in ((output0 ++ output1, output0 ++ output1):(decodeRest state xs)) -- this is really NASTY code!!!!!!!!!
-    (Dual _ _ _ g0 g1 g2 g3) -> 
-        let prevState = if (newState s1 && newState s2) then prevState'' else emptyMP3DecodeState
-            (state0, output0) = step1 0 g0 (decodeState0 prevState)
+    (Single _ _ _ g0 g1) -> do 
+        let (state0, output0) = step1 0 g0 (decodeState0 prevState)
+            (state1, output1) = step1 1 g1 state0
+            state = MP3DecodeState state1 state1
+        LS.put $ MP3DecodeState state1 state1
+        rest <- decodeRest xs
+        return ((output0 ++ output1, output0 ++ output1):rest) -- this is really NASTY code!!!!!!!!!
+    (Dual _ _ _ g0 g1 g2 g3) -> do
+        let (state0, output0) = step1 0 g0 (decodeState0 prevState)
             (state1, output1) = step1 1 g1 (decodeState1 prevState)
-            (state2, output2) = step1 2 g2 (pState state0)
-            (state3, output3) = step1 3 g3 (pState state1)
+            (state2, output2) = step1 2 g2 state0
+            (state3, output3) = step1 3 g3 state1
             state =  MP3DecodeState state2 state3
---         LS.put $! MP3DecodeState state2 state3
---         rest <- (decodeRest state xs)
-        in state `seq` output0 `seq` output1 `seq` output2 `seq` output3 `seq` ((output0 ++ output2, output1 ++ output3) : (decodeRest state xs))
+        LS.put $ MP3DecodeState state2 state3
+        rest <- decodeRest xs
+        return $ state `seq` output0 `seq` output1 `seq` output2 `seq` output3 `seq` ((output0 ++ output2, output1 ++ output3) : rest )
   where
-    pState prevState'@(s1) = if (newState s1) then prevState' else emptyMP3HybridState
     -- step1 blockFlag -> blockType -> Data -> (State, Output)
     step1 num gran state =
         let bf  = toBlockflag (mixedBlock gran) (blockType gran)
             bt  = blockType gran
             inp = chanData $ mp3Data gran
-        in state `seq` bf `seq` bt `seq` inp `seq` (trace ("Gran " ++ show num ++ "\nbf: " ++ show bf ++ "\nbt: " ++ show bt ++ "\n" ++ show inp ++ "\n" ++ show state)
-           (mp3HybridFilterBank bf bt state inp))
+        in state `seq` bf `seq` bt `seq` inp `seq`
+           (mp3HybridFilterBank bf bt state inp)
     newState (MP3HybridState [] _ ) = False
     newState (MP3HybridState _ (MP3SynthState [])) = False
     newState r = True

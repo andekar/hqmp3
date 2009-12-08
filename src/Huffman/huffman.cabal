@@ -19,9 +19,9 @@ Cabal-version:   >= 1.2
 -- Extra-source-files: README
 
 Library
- Build-depends:   base, bytestring, binary-strict
+ Build-depends:   base, bytestring, binary-strict, bitstring, priority-queue, containers, array
  Exposed-modules: Codec.Compression.Huffman.Huffman
-                  Codec.Compression.Huffman.Huffman8
+--                   Codec.Compression.Huffman.Huffman8
 
 -- Other-modules: 
                   
