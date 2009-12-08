@@ -1,6 +1,9 @@
 {-# OPTIONS -w #-}
 
-module Codecs.Mp3.Decoder (decodeFrames, DChannel,  ChannelData(..), Scales(..)) where
+module Codecs.Mp3.Decoder (decodeFrames
+                          , DChannel
+                          , ChannelData(..)
+                          , Scales(..)) where
 
 import Data.Binary.BitString.BitGet
 import qualified Codec.Compression.Huffman.Huffman as Huff
@@ -23,7 +26,7 @@ import Data.Array.Unboxed
 import Codecs.Mp3.MP3Types
 
 import Codecs.Mp3.HybridFilterBank
-import Codecs.Mp3.Tables hiding (tableScaleBandIndexLong,tableScaleBandIndexShort, tableReorder)
+import Codecs.Mp3.Tables
 import Codecs.Mp3.Types
 
 data Scales
@@ -49,14 +52,14 @@ decodeFrames hs = output
     requantized = zipWith requantize freqs unpacked
     reordered   = map mp3Reorder requantized
 
-    -- here sadly we need a foldl or even better, a State Monad!
     output =  LS.evalState (decodeRest reordered) emptyMP3DecodeState
     -- variables needed
     freqs  = map (sampleRate . sideInfo) hs
 
 -- Does the "step1" as in bjorns decoder :(
 -- Note that we skip stereoIS and StereoMS
-decodeRest :: [DChannel [Double]] -> LS.State MP3DecodeState [([Double],[Double])]
+decodeRest :: [DChannel [Double]]
+        -> LS.State MP3DecodeState [([Double],[Double])]
 decodeRest []  = return []
 decodeRest (chan:xs) = do
   prevState <- LS.get
@@ -67,7 +70,7 @@ decodeRest (chan:xs) = do
             state = MP3DecodeState state1 state1
         LS.put $ MP3DecodeState state1 state1
         rest <- decodeRest xs
-        return ((output0 ++ output1, output0 ++ output1):rest) -- this is really NASTY code!!!!!!!!!
+        return ((output0 ++ output1, output0 ++ output1):rest)
     (Dual _ _ _ g0 g1 g2 g3) -> do
         let (state0, output0) = step1 0 g0 (decodeState0 prevState)
             (state1, output1) = step1 1 g1 (decodeState1 prevState)
@@ -76,9 +79,8 @@ decodeRest (chan:xs) = do
             state =  MP3DecodeState state2 state3
         LS.put $ MP3DecodeState state2 state3
         rest <- decodeRest xs
-        return $ state `seq` output0 `seq` output1 `seq` output2 `seq` output3 `seq` ((output0 ++ output2, output1 ++ output3) : rest )
+        return ((output0 ++ output2, output1 ++ output3) : rest )
   where
-    -- step1 blockFlag -> blockType -> Data -> (State, Output)
     step1 num gran state =
         let bf  = toBlockflag (mixedBlock gran) (blockType gran)
             bt  = blockType gran
@@ -108,9 +110,7 @@ emptyMP3DecodeState = MP3DecodeState emptyMP3HybridState emptyMP3HybridState
 mp3Reorder :: DChannel [Double] -> DChannel [Double]
 mp3Reorder sInfo = case sInfo of
     (Single sr a b g0 g1)     -> Single sr a b (reorder sr g0) (reorder sr g1)
-    (Dual sr a b g0 g1 g2 g3) -> --trace (trac (reorder sr g0) ++ "\n" ++ trac (reorder sr g1) ++ "\n" ++
-                                --           trac (reorder sr g2) ++ "\n" ++ trac (reorder sr g3)) $
-                                Dual sr a b (reorder sr g0) (reorder sr g1)
+    (Dual sr a b g0 g1 g2 g3) -> Dual sr a b (reorder sr g0) (reorder sr g1)
                                             (reorder sr g2) (reorder sr g3)
   where reorder sr g
              | mixedBlock g
@@ -129,7 +129,6 @@ mp3Reorder sInfo = case sInfo of
                        reorderList (tableReorder sr) (padWith 576 0.0 ds)
         chData = chanData . mp3Data
         scData = scale . mp3Data
---         trac = show . chData
 
 -- 'reorderList' takes a list of indices and a list of elements and
 -- reorders the list based on the indices. Example:
@@ -153,8 +152,8 @@ decodeGranules sideInfo = case sideInfo of
     single@(Single _ _ scfsi gran0 gran1) -> 
        let (g0,scale0@(l,s)) = decodeGranule [] scfsi gran0
            (g1,scale1) = decodeGranule l scfsi gran1
-       in single { gran0 = setChannel scale0 g0 gran0
-                 , gran1 = setChannel scale1 g1 gran1}
+       in  single { gran0 = setChannel scale0 g0 gran0
+                  , gran1 = setChannel scale1 g1 gran1}
 
     dual@(Dual _ _ scfsi gran0 gran1 gran2 gran3) ->
        let (scfsi0,scfsi1) = splitAt 4 scfsi
@@ -162,8 +161,7 @@ decodeGranules sideInfo = case sideInfo of
            (g1,scale1@(l1,_)) = decodeGranule [] scfsi1 gran1
            (g2,scale2@(l2,_)) = decodeGranule l0 scfsi0 gran2
            (g3,scale3@(l3,_)) = decodeGranule l1 scfsi1 gran3
-       in --trace (strs gran0 ++ "\n" ++ strs gran1 ++ "\n" ++ strs gran2 ++ "\n" ++ strs gran3) $
-           dual { gran0' = setChannel scale0 g0 gran0
+       in  dual { gran0' = setChannel scale0 g0 gran0
                 , gran1' = setChannel scale1 g1 gran1
                 , gran2' = setChannel scale2 g2 gran2
                 , gran3' = setChannel scale3 g3 gran3}
@@ -173,16 +171,15 @@ decodeGranules sideInfo = case sideInfo of
         cpress = preFlag
         sscale = scaleFacScale
         unpack = mp3UnpackScaleFactors
-        strs g = "flag: " ++ show (windowSwitching g) ++ " blocks: " ++ show (blockType g) ++ " mixed: " ++ show (mixedBlock g)
 
-decodeGranule :: [Int] -> [Bool] -> Granule BS.BitString -> ([Int], ([Int],[[Int]]))
+decodeGranule :: [Int] -> [Bool] -> Granule BS.BitString
+                  -> ([Int], ([Int],[[Int]]))
 decodeGranule prev scfsi (Granule _ _
                           scaleFacCompress window blockType blockFlag ts_0 ts_1
                           ts_2 _ _ _ preFlag scaleFacScale count1TableSelect
                           r0 r1 r2 mp3Data)
     = flip runBitGet mp3Data $ do (l,s)   <- pScaleFactors prev
                                   huffData' <- huffData
---                                   let (l',s') = mp3UnpackScaleFactors l s scaleFacCompress scaleFacScale
                                   return (huffData', (l,s))
     where
       t0 = getTree ts_0 -- tableSelect
@@ -214,7 +211,8 @@ decodeGranule prev scfsi (Granule _ _
               -- slen2: 6 to 11
               scaleFacS0 <- replicateM 6 $ replicateM 3 $ getAsWord8 $ fi slen1
               scaleFacS1 <- replicateM 6 $ replicateM 3 $ getAsWord8 $ fi slen2
-              return$ ([], map (map fi) (padWith 22 [0,0,0] $ scaleFacS0 ++ scaleFacS1))
+              return$ ([], map (map fi)
+                       (padWith 22 [0,0,0] $ scaleFacS0 ++ scaleFacS1))
           | otherwise = do
               -- slen1: 0 to 10
               s0 <- if recycle scfsi0 then return $ take 6 prev
@@ -299,7 +297,8 @@ huffDecodeVWXY huff = do
 requantize :: Int ->  DChannel [Int] -> DChannel [Double]
 requantize _ chan = case chan of
     (Single sr a b g1 g2)    -> Single sr a b (f sr g1) (f sr g2)
-    (Dual sr a b g1 g2 g3 g4) -> Dual sr a b (f sr g1) (f sr g2) (f sr g3) (f sr g4)
+    (Dual sr a b g1 g2 g3 g4) -> 
+               Dual sr a b (f sr g1) (f sr g2) (f sr g3) (f sr g4)
   where f sr = requantizeGran sr
 
 requantizeGran :: Int -> Granule (ChannelData [Int]) ->
@@ -331,7 +330,6 @@ requantizeGran freq gran
                 let localgain   = longScales !! sfb
                     dsample     = fi sample :: Double
                 in gain * localgain * dsample **^ (4/3)
--- trace ("Gain: " ++ show gain ++ " LocalGain: " ++ show localgain ++ " dsample: " ++ show dsample) $ gain * localgain * dsample **^ (4/3)
 
             procShort :: Int -> (Int,Int) -> Double
             procShort sample (sfb, win) =
@@ -341,11 +339,10 @@ requantizeGran freq gran
                                             2 -> subgain3
                     dsample   = fi sample
                 in gain * localgain * blockgain * dsample **^ (4/3)
--- trace ("Gain: " ++ show gain ++ " LocalGain: " ++ show localgain ++ " blockGain: " ++ show blockgain ++ " dsample: " ++ show dsample) $ gain * localgain * blockgain * dsample **^ (4/3)
                                     
             -- Frequency index (0-575) to scale factor band index (0-21).
             longbands = tableScaleBandIndexLong freq
-            -- Frequency index to scale factor band index and window index (0-2).
+           -- Frequency index to scale factor band index and window index (0-2).
             shortbands = tableScaleBandIndexShort freq
 
 -- b **^ e == sign(b) * abs(b)**e

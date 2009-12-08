@@ -27,15 +27,11 @@
 --
 module Codecs.Mp3.Tables (
      tableImdctWindow
-    ,tableScaleBandBoundary
-    ,tableScaleBandIndexLong
-    ,tableScaleBandIndexShort
     ,tableSlen
-    ,tableReorder
     ,tableReorder2 -- See below.
     ,tablePretab
-    ,tableHuffman
-    ,tableHuffmanQuad
+
+
 ) where
 
 --
