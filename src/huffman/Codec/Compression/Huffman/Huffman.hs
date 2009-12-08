@@ -1,8 +1,6 @@
 -- Copyright (c) Tobias Olausson 2009
 -- Copyright (c) Anders Karlsson 2009
 
-{-# OPTIONS -Wall #-}
-
 module Codec.Compression.Huffman.Huffman ( analyze
                , HuffTree (..)
                , create
@@ -27,8 +25,8 @@ analyze = M.toList . B.foldr f M.empty
     f :: Word8 -> M.Map Word8 Int -> M.Map Word8 Int
     f w = M.insertWith (+) w 1
 
--- | The Huffmantree is an usual tree in haskell
-data Eq a => HuffTree a =
+-- | The Huffmantree is a usual tree in haskell
+data HuffTree a =
       Leaf !a 
     | Node !(HuffTree a) !(HuffTree a)
   deriving (Show, Read)
@@ -42,8 +40,8 @@ create xs = runST $ do
 createTree :: Eq a => PriorityQueue (ST s) (Int, HuffTree a)
               -> (ST s (HuffTree a))
 createTree p = do
-    (Just x1) <- dequeue p -- The queue will allways have at least 1 element 
-    x         <- dequeue p -- or we are in big troubles elsewhere!!!
+    Just x1 <- dequeue p -- The queue will allways have at least 1 element 
+    x       <- dequeue p -- or we are in big troubles elsewhere!!!
     case x of
         Nothing -> return $ snd x1 -- If the list only contains one element
         Just x2 -> do              -- we are finished and can return.
@@ -54,16 +52,8 @@ createTree p = do
     merge :: Eq a => (Int, HuffTree a) -> (Int, HuffTree a) -> (Int, HuffTree a)
     merge (i, x1) (i', x2) = (i + i', Node x1 x2)
 
--- | Decodes a list of Words, using a Huffman tree
--- 
--- xs is the list of words
--- t is the huffman tree
--- the other tree is also a huffman tree, recursed on
--- i is the current bit in the current byte, sort of 
--- j is how many padding bits this stream has
---
--- Please do not change this code, checks are not checked
-
+-- The Huffman decoder.
+-- Might be a target for optimization
 decode :: Eq a => HuffTree a -> (a -> BitGet a) -> Int64 -> BitGet (Maybe a)
 decode t f p = decode' t
   where

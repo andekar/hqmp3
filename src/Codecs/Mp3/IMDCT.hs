@@ -33,7 +33,6 @@ import Foreign.Ptr
 import Foreign.Marshal.Array
 import System.IO.Unsafe
 
-
 foreign import ccall "c_imdct.h imdct"
     c_imdct :: CInt -> 
                Ptr CDouble -> 
