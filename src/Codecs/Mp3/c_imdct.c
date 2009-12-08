@@ -30,8 +30,7 @@
 
 #define PI 3.1415926535897931
 
-void imdct18(double *in, double *out)
-{
+void imdct18(double *in, double *out) {
     int k, n;
     double sum;
     static double lookup[36][18];
@@ -39,10 +38,11 @@ void imdct18(double *in, double *out)
 
     if (lookup_init == 0) {
         
-        for (n = 0; n < 36; n++)
-            for (k = 0; k < 18; k++)
+        for (n = 0; n < 36; n++) {
+            for (k = 0; k < 18; k++) {
                 lookup[n][k] = cos((PI/18) * (n + 0.5 + 18/2.0) * (k + 0.5));
-
+            }
+        }
         lookup_init = 1;
     }
 
@@ -57,8 +57,7 @@ void imdct18(double *in, double *out)
     }
 }
 
-void imdct(int points, double *in, double *out)
-{
+void imdct(int points, double *in, double *out) {
     int k, n;
     double sum;
 
@@ -69,8 +68,9 @@ void imdct(int points, double *in, double *out)
 
     for (n = 0; n < points*2; n++) {
         sum = 0.0;
-        for (k = 0; k < points; k++) 
+        for (k = 0; k < points; k++) {
             sum += in[k] * cos((PI/points) * (n + 0.5 + points/2.0) * (k + 0.5));
+        }
         out[n] = sum;
     }
 }
