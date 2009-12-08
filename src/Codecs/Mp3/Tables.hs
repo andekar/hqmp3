@@ -34,6 +34,10 @@ module Codecs.Mp3.Tables (
 
 ) where
 
+-- Prepare for the future (skynet etc...)
+import Data.Array
+import Data.Array.Unboxed
+
 --
 -- tableImdctWindow
 --
