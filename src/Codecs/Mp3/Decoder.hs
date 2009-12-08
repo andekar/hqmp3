@@ -65,28 +65,27 @@ decodeRest (chan:xs) = do
   prevState <- LS.get
   case chan of
     (Single _ _ _ g0 g1) -> do 
-        let (state0, output0) = step1 0 g0 (decodeState0 prevState)
-            (state1, output1) = step1 1 g1 state0
+        let (state0, output0) = step1 g0 (decodeState0 prevState)
+            (state1, output1) = step1 g1 state0
             state = MP3DecodeState state1 state1
         LS.put $ MP3DecodeState state1 state1
         rest <- decodeRest xs
         return ((output0 ++ output1, output0 ++ output1):rest)
     (Dual _ _ _ g0 g1 g2 g3) -> do
-        let (state0, output0) = step1 0 g0 (decodeState0 prevState)
-            (state1, output1) = step1 1 g1 (decodeState1 prevState)
-            (state2, output2) = step1 2 g2 state0
-            (state3, output3) = step1 3 g3 state1
+        let (state0, output0) = step1 g0 (decodeState0 prevState)
+            (state1, output1) = step1 g1 (decodeState1 prevState)
+            (state2, output2) = step1 g2 state0
+            (state3, output3) = step1 g3 state1
             state =  MP3DecodeState state2 state3
         LS.put $ MP3DecodeState state2 state3
         rest <- decodeRest xs
         return ((output0 ++ output2, output1 ++ output3) : rest )
   where
-    step1 num gran state =
+    step1 gran state =
         let bf  = toBlockflag (mixedBlock gran) (blockType gran)
             bt  = blockType gran
             inp = chanData $ mp3Data gran
-        in state `seq` bf `seq` bt `seq` inp `seq`
-           (mp3HybridFilterBank bf bt state inp)
+        in (mp3HybridFilterBank bf bt state inp)
 
 -- Sadly this is needed because of Bjorns structure
 toBlockflag mixedflag blocktype
