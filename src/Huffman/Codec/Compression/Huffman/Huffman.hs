@@ -3,7 +3,7 @@
 
 {-# OPTIONS -Wall #-}
 
-module Huffman ( analyze
+module Codec.Compression.Huffman.Huffman ( analyze
                , HuffTree (..)
                , create
                , createTree
@@ -15,7 +15,7 @@ import Data.Word
 import Data.PriorityQueue
 import Control.Monad
 import Control.Monad.ST
-import BitGet
+import Data.Binary.BitGet
 import Data.Int
 
 -- Can probably be speeded up (TODO)

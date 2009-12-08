@@ -4,7 +4,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# OPTIONS -Wall #-}
 
-module Huffman8 ( encode
+module Codec.Compression.Huffman.Huffman8 ( encode
                 , mkTree
                 , tree2arr
                 , writeTree
@@ -23,13 +23,13 @@ import Data.Array.ST
 import Control.Monad.ST (ST, runST)
 import Control.Monad (forM_)
 import Data.Bits
-import qualified Huffman as Huff
+import qualified Codec.Compression.Huffman.Huffman as Huff
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as Bc
 import qualified Data.ByteString.Lazy as L
 import Data.PriorityQueue
 
-import BitGet
+import Data.Binary.BitGet
 
 type HuffArray = Array Word8 (Word8,Word8)
 type STHuff s  = STArray s Word8 (Word8,Word8)

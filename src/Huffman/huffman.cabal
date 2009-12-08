@@ -1,0 +1,29 @@
+Name:            huffmandecoder
+Version:         0.0.1
+Synopsis:        An huffman decoder
+Description:
+    This is part of an school project
+
+Copyright:       Anders Karlsson, Tobias Olausson, 2009
+Author:          Anders Karlsson & Tobias Olausson
+Maintainer:      andekar@student.chalmers.se, olaussot@student.chalmers.se
+Homepage:        todo
+License:         OtherLicense
+License-file:    LICENSE
+
+Category:        decoder
+Stability:       experimental
+Build-type:      Simple
+Cabal-version:   >= 1.2
+
+-- Extra-source-files: README
+
+Library
+ Build-depends:   base, bytestring, binary-strict
+ Exposed-modules: Codec.Compression.Huffman.Huffman
+                  Codec.Compression.Huffman.Huffman8
+
+-- Other-modules: 
+                  
+ hs-source-dirs:  .
+ ghc-options:     -O2
