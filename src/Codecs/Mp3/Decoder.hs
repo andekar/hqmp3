@@ -8,10 +8,6 @@ module Codecs.Mp3.Decoder (decodeFrames
 import Data.Binary.BitString.BitGet
 import qualified Codec.Compression.Huffman.Huffman as Huff
 import qualified Data.Binary.BitString.BitString as BS
-import Data.Bits
-import Data.Word
-import Data.Maybe
-import Data.Int
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString as S
 import Codecs.Mp3.ID3
@@ -19,12 +15,9 @@ import Control.Monad
 import Control.Arrow
 import Codecs.Mp3.Unpack
 import Codecs.Mp3.Mp3Trees
-import Debug.Trace
 import qualified Control.Monad.State.Lazy as LS
-
 import Data.Array.Unboxed
 import Codecs.Mp3.MP3Types
-
 import Codecs.Mp3.HybridFilterBank
 import Codecs.Mp3.Tables
 import Codecs.Mp3.Types
@@ -100,7 +93,6 @@ data MP3DecodeState = MP3DecodeState {
 
 emptyMP3DecodeState :: MP3DecodeState
 emptyMP3DecodeState = MP3DecodeState emptyMP3HybridState emptyMP3HybridState
-
 
 -- Okee
 mp3Reorder :: DChannel [Double] -> DChannel [Double]
