@@ -2,22 +2,25 @@
 
 module Codecs.Mp3.Unpack (unpackMp3) where
 
-import Data.Binary.BitString.BitGet
-import Data.Bits
-import Data.Word
-import Data.Maybe
-import qualified Data.ByteString.Lazy as L
-import qualified Data.ByteString as S
-import Codecs.Mp3.ID3
-import Debug.Trace
+-- Monads and such
 import Control.Monad
 import Control.Monad.Maybe
 import Control.Monad.Trans
 import Control.Monad.Identity
-import Codecs.Mp3.MP3Types
+import Data.Binary.BitString.BitGet
+-- Bit-/ByteStrings
 import qualified Data.Binary.BitString.BitString as BS
+import qualified Data.ByteString.Lazy as L
+import qualified Data.ByteString as S
+-- General handy stuff
+import Data.Bits
+import Data.Word
+import Data.Maybe
 import Data.Array
+-- MP3 stuff
 import Codecs.Mp3.Tables
+import Codecs.Mp3.MP3Types
+import Codecs.Mp3.ID3
 
 unpackMp3 :: L.ByteString -> [MP3Header BS.BitString]
 unpackMp3 file = runBitGet first $ BS.convert file
@@ -243,37 +246,3 @@ chopData side bits = case side of
         forGranule g = do info <- getBits $ fi $ mp3Data g
                           return $ g {mp3Data = info}
 
--- some copied stuff from Bjorn!!
---
--- tableScaleBandBound{Long,Short}, tableScaleBandBoundary
---
--- These few tables represent the boundaries, in the 576 frequency 
--- regions, of the scale factor bands. These bands approximate the
--- critical bands of the human auditory system, and are used to
--- determine scaling. This scaling controls the quantization noise.
---
-tableScaleBandBoundLong :: Int -> [Int]
-tableScaleBandBoundLong 44100 = [  0,   4,   8,  12,  16,  20,  24,  30,
-                                  36,  44,  52,  62,  74,  90, 110, 134, 
-                                 162, 196, 238, 288, 342, 418, 576] 
-tableScaleBandBoundLong 48000 = [  0,   4,   8,  12,  16,  20,  24,  30, 
-                                  36,  42,  50,  60,  72,  88, 106, 128, 
-                                 156, 190, 230, 276, 330, 384, 576] 
-tableScaleBandBoundLong 32000 = [  0,   4,   8,  12,  16,  20,  24,  30,
-                                  36,  44,  54,  66,  82, 102, 126, 156, 
-                                 194, 240, 296, 364, 448, 550, 576]
-tableScaleBandBoundLong _     = error "Wrong SR for Table."
-
-
-tableScaleBandBoundShort :: Int -> [Int]
-tableScaleBandBoundShort 44100 = [  0,   4,   8,  12,  16,  22,  30,  40, 
-                                   52,  66,  84, 106, 136, 192] 
-tableScaleBandBoundShort 48000 = [  0,   4,   8,  12,  16,  22,  28,  38, 
-                                   50,  64,  80, 100, 126, 192] 
-tableScaleBandBoundShort 32000 = [  0,   4,   8,  12,  16,  22,  30,  42, 
-                                   58,  78, 104, 138, 180, 192]
-tableScaleBandBoundShort _     = error "Wrong SR for Table."
-
--- We only need to export the long boundaries for unpacking (Unpack.hs).
-tableScaleBandBoundary :: Int -> Int -> Int
-tableScaleBandBoundary sfreq index = tableScaleBandBoundLong sfreq !! index
