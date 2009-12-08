@@ -87,9 +87,6 @@ decodeRest (chan:xs) = do
             inp = chanData $ mp3Data gran
         in state `seq` bf `seq` bt `seq` inp `seq`
            (mp3HybridFilterBank bf bt state inp)
-    newState (MP3HybridState [] _ ) = False
-    newState (MP3HybridState _ (MP3SynthState [])) = False
-    newState r = True
 
 -- Sadly this is needed because of Bjorns structure
 toBlockflag mixedflag blocktype
