@@ -1,6 +1,7 @@
-module Tests where
+module Data.Binary.BitString.Tests where
 
-import BitString
+import Data.Binary.BitString.BitString
+
 import Prelude hiding (null,head,tail,take,drop,concat,splitAt, length)
 import Data.Word
 import Control.Monad (liftM)

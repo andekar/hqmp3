@@ -1,6 +1,7 @@
-module BitGet where
+module Data.Binary.BitString.BitGet where
 
-import BitString as BS
+import Data.Binary.BitString.BitString as BS
+
 import Control.Monad
 import Data.Int
 import Data.Word
@@ -13,7 +14,6 @@ data FileStatus = EOF | BOF -- End of file and beginning of file
     deriving (Eq, Show)
 
 newtype BitGetT m a = BitGetT { unGet :: BitString -> m (a, BitString) }
-
 type BitGet = BitGetT Identity
 
 instance (Monad m) => Functor (BitGetT m) where

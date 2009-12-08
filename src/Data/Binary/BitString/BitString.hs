@@ -1,4 +1,4 @@
-module BitString where
+module Data.Binary.BitString.BitString where
 
 -- (c) Anders Karlsson
 -- (c) Tobias Olausson
@@ -190,6 +190,7 @@ atLeast (Chunk (LI.Chunk sb lb) f b rest) i
     sblen = (fi $ S.length sb) * 8 - fi (f+b)
 
 -- Functions below are not exported, but only used internally
+-- Some of these are taken from Binary.Strict.BitGet
 
 -- this function will under no circumstances be exported out of this module!!!
 atLeastBS :: L.ByteString -> Int64 -> Bool
