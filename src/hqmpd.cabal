@@ -1,0 +1,49 @@
+Name:            hqmpd
+Version:         0.0.1
+Synopsis:        A fast mp3 decoder (to be)
+Description:
+    This is an mp3 decoder done as a 
+Copyright:       Anders Karlsson & Tobias Olausson, 2009
+Author:          Anders Karlsson & Tobias Olausson
+Maintainer:      andekar@student.chalmers.se,olaussot@student.chalmers.se
+Homepage:        todo
+License:         OtherLicense
+License-file:    LICENSE
+
+Category:        Codec
+Stability:       experimental
+Build-type:      Simple
+Cabal-version:   >= 1.2
+
+Extra-source-files: Codecs/Mp3/c_synth.h,
+                    Codecs/Mp3/c_imdct.h
+
+Executable hqmp3
+   build-depends:   base
+                  , bytestring
+                  , mtl
+                  , binary-strict
+                  , haskell98
+                  , array
+                  , bitstring
+                  , binary
+                  , MaybeT
+                  , huffmandecoder
+   Main-Is:         Test.hs
+--    hs-source-dirs:  example, .
+   Other-Modules:   Codecs.Mp3.Decoder
+                    Codecs.Mp3.Types,
+                    Codecs.Mp3.SynthesisFilterBank,
+                    Codecs.Mp3.Tables,
+                    Codecs.Mp3.Unpack,
+                    Codecs.Mp3.IMDCT,
+                    Codecs.Mp3.HybridFilterBank,
+                    Codecs.Mp3.Mp3Trees,
+                    Codecs.Mp3.ID3                    
+                    PCMWriter
+   c-sources:       Codecs/Mp3/c_synth.c,
+                    Codecs/Mp3/c_imdct.c
+   cc-options:      -O2
+   ghc-options:     -O2
+
+
