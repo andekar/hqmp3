@@ -13,6 +13,7 @@ import qualified Data.ByteString as S
 import Codecs.Mp3.ID3
 import Control.Monad
 import Control.Parallel
+import Control.Parallel.Strategies
 import Control.Arrow
 import Codecs.Mp3.Unpack
 import Codecs.Mp3.Mp3Trees
@@ -38,8 +39,8 @@ instance Functor ChannelData where
 
 type DChannel a = SideInfo (ChannelData a)
 
-decodeFrames :: [MP3Header BS.BitString] -> [([Double],[Double])]
-decodeFrames = output . map (decodeAll . sideInfo)
+decodeFrames :: [SideInfo BS.BitString] -> [([Double],[Double])]
+decodeFrames = output . map decodeAll
   where output =  flip LS.evalState emptyMP3DecodeState . decodeRest
 
 decodeAll (Dual r s t g0 g1) = let (Single _ _ _ g0') = single g0
@@ -96,8 +97,8 @@ emptyMP3DecodeState = MP3DecodeState emptyMP3HybridState emptyMP3HybridState
 
 -- Okee
 mp3Reorder :: DChannel [Double] -> DChannel [Double]
-mp3Reorder (Single sr a b (g0, g1)) = Single sr a b ((reorder sr g0), (reorder sr g1))
-  where reorder sr g
+mp3Reorder (Single sr a b (g0, g1)) = Single sr a b ((reorder g0), (reorder g1))
+  where reorder g
              | mixedBlock g
              = g {mp3Data = ChannelData  (scData g) $
                   take 46 (chData g) ++
@@ -110,7 +111,7 @@ mp3Reorder (Single sr a b (g0, g1)) = Single sr a b ((reorder sr g0), (reorder s
         -- We want the output list to be as long as the input list to 
         -- correctly handle IS Stereo decoding, but the unsafe reorderList 
         -- requires the input to be as long as the index list.
-        freq' sr ds  = take (length ds) $ 
+        freq' sr ds  = take (length ds) $
                        reorderList (tableReorder sr) (padWith 576 0.0 ds)
         chData = chanData . mp3Data
         scData = scale . mp3Data

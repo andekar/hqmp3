@@ -3,6 +3,7 @@ import Data.Binary.BitString.BitGet
 import Data.Bits
 import Data.Word
 import Data.Maybe
+import Control.Parallel.Strategies
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString as S
 import Codecs.Mp3.ID3
@@ -36,6 +37,10 @@ data SideInfo a
              , gran0  :: (Granule a, Granule a) -- this is g0 and g2
              , gran1  :: (Granule a, Granule a) -- this is g1 and g3
              } deriving Show
+
+instance NFData (SideInfo a) where
+    rnf info = info `seq` ()
+    
 
 -- Granule is computed for each specific channel
 data Granule a = Granule {
