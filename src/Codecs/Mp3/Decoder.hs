@@ -113,7 +113,6 @@ mp3Reorder sInfo = case sInfo of
         -- We want the output list to be as long as the input list to 
         -- correctly handle IS Stereo decoding, but the unsafe reorderList 
         -- requires the input to be as long as the index list.
---         freq' :: UArray Int Int -> [Int] -> [Int]
         freq' sr ds  = take (length ds) $ 
                        reorderList (tableReorder sr) (padWith 576 0.0 ds)
         chData = chanData . mp3Data
@@ -331,7 +330,7 @@ requantizeGran freq gran
                                     
             -- Frequency index (0-575) to scale factor band index (0-21).
             longbands = tableScaleBandIndexLong freq
-           -- Frequency index to scale factor band index and window index (0-2).
+            -- Frequency index to scale factor band index and window index (0-2).
             shortbands = tableScaleBandIndexShort freq
 
 -- b **^ e == sign(b) * abs(b)**e

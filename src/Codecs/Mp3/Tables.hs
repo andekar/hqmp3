@@ -88,7 +88,7 @@ tableSlen = [(0,0), (0,1), (0,2), (0,3), (3,0), (1,1), (1,2), (1,3),
 -- This table does only one reordering. If we do this, we have to
 -- imdct 6 [f!!0,f!!3,f!!6,f!!9,f!!12,f!!15] (see Decoder.hs)
 --
-tableReorder2 :: Int -> UArray Int Int
+tableReorder2 :: Int -> [Int]
 tableReorder2 sr = case sr of
     44100 -> tab1
     48000 -> tab2
@@ -101,9 +101,8 @@ tableReorder2 sr = case sr of
 -- 
 -- The scale factor bandwidth for the first band in a short 192-granule is 4,
 -- so the first 12 samples are the first 4 samples, interleaved.
-tab1 :: UArray Int Int
-tab1 = listArray (0,575)
-        [0, 4, 8, 1, 5, 9, 2, 6, 10, 3, 7, 11, 12, 16, 20, 13,
+tab1 :: [Int]
+tab1 = [0, 4, 8, 1, 5, 9, 2, 6, 10, 3, 7, 11, 12, 16, 20, 13,
         17, 21, 14, 18, 22, 15, 19, 23, 24, 28, 32, 25, 29, 33, 26,
         30, 34, 27, 31, 35, 36, 40, 44, 37, 41, 45, 38, 42, 46, 39,
         43, 47, 48, 54, 60, 49, 55, 61, 50, 56, 62, 51, 57, 63, 52,
@@ -145,9 +144,8 @@ tab1 = listArray (0,575)
         457, 513, 569, 458, 514, 570, 459, 515, 571, 460, 516, 572, 461, 517,
         573, 462, 518, 574, 463, 519, 575]
 
-tab2 :: UArray Int Int
-tab2 = listArray (0,575)
-        [0, 4, 8, 1, 5, 9, 2, 6, 10, 3, 7, 11, 12, 16, 20, 13, 17, 21, 14, 18,
+tab2 :: [Int]
+tab2 = [0, 4, 8, 1, 5, 9, 2, 6, 10, 3, 7, 11, 12, 16, 20, 13, 17, 21, 14, 18,
         22, 15, 19, 23, 24, 28, 32, 25, 29, 33, 26, 30, 34, 27, 31, 35, 36, 40,
         44, 37, 41, 45, 38, 42, 46, 39, 43, 47, 48, 54, 60, 49, 55, 61, 50, 56,
         62, 51, 57, 63, 52, 58, 64, 53, 59, 65, 66, 72, 78, 67, 73, 79, 68, 74,
@@ -188,9 +186,8 @@ tab2 = listArray (0,575)
         503, 569, 438, 504, 570, 439, 505, 571, 440, 506, 572, 441, 507, 573,
         442, 508, 574, 443, 509, 575]
 
-tab3 :: UArray Int Int
-tab3 =  listArray (0,575) 
-        [0, 4, 8, 1, 5, 9, 2, 6, 10, 3, 7, 11, 12, 16, 20, 13, 17, 21, 14, 18,
+tab3 :: [Int]
+tab3 = [0, 4, 8, 1, 5, 9, 2, 6, 10, 3, 7, 11, 12, 16, 20, 13, 17, 21, 14, 18,
         22, 15, 19, 23, 24, 28, 32, 25, 29, 33, 26, 30, 34, 27, 31, 35, 36, 40,
         44, 37, 41, 45, 38, 42, 46, 39, 43, 47, 48, 54, 60, 49, 55, 61, 50, 56,
         62, 51, 57, 63, 52, 58, 64, 53, 59, 65, 66, 74, 82, 67, 75, 83, 68, 76,
@@ -242,32 +239,32 @@ tab3 =  listArray (0,575)
 -- critical bands of the human auditory system, and are used to
 -- determine scaling. This scaling controls the quantization noise.
 --
-tableScaleBandBoundLong :: Int -> UArray Int Int
+tableScaleBandBoundLong :: Int -> [Int]
 tableScaleBandBoundLong sr = case sr of
-    44100 -> listArray (0,23) [0,4,8,12,16,20,24,30,36,44,52,62,74,90,110,134, 
-                               162, 196, 238, 288, 342, 418, 576] 
-    48000 -> listArray (0,23) [0,4,8,12,16,20,24,30,36,42,50,60,72,88,106,128, 
-                               156, 190, 230, 276, 330, 384, 576] 
-    32000 -> listArray (0,23) [0,4,8,12,16,20,24,30,36,44,54,66,82,102,126,156,
-                               194, 240, 296, 364, 448, 550, 576]
+    44100 -> [0,4,8,12,16,20,24,30,36,44,52,62,74,90,110,134,
+              162, 196, 238, 288, 342, 418, 576] 
+    48000 -> [0,4,8,12,16,20,24,30,36,42,50,60,72,88,106,128, 
+              156, 190, 230, 276, 330, 384, 576] 
+    32000 -> [0,4,8,12,16,20,24,30,36,44,54,66,82,102,126,156,
+              194, 240, 296, 364, 448, 550, 576]
     _     -> error "Wrong samplerate for table"
 
-tableScaleBandBoundShort :: Int -> UArray Int Int
+tableScaleBandBoundShort :: Int -> [Int]
 tableScaleBandBoundShort sr = case sr of
-    44100 -> listArray (0,13) [0,4,8,12,16,22,30,40,52,66,84,106,136,192] 
-    48000 -> listArray (0,13) [0,4,8,12,16,22,28,38,50,64,80,100,126,192] 
-    32000 -> listArray (0,13) [0,4,8,12,16,22,30,42,58,78,104,138,180,192]
+    44100 -> [0,4,8,12,16,22,30,40,52,66,84,106,136,192] 
+    48000 -> [0,4,8,12,16,22,28,38,50,64,80,100,126,192] 
+    32000 -> [0,4,8,12,16,22,30,42,58,78,104,138,180,192]
     _     -> error "Wrong SR for Table."
 
 -- We only need to export the long boundaries for unpacking (Unpack.hs).
 tableScaleBandBoundary :: Int -> Int -> Int
-tableScaleBandBoundary sfreq index = tableScaleBandBoundLong sfreq ! index
+tableScaleBandBoundary sfreq index = tableScaleBandBoundLong sfreq !! index
 
 
 -- Tables for reordering below
 
-tableReorder :: Int -> UArray Int Int
-tableReorder 44100 = listArray (0,575)
+tableReorder :: Int -> [Int]
+tableReorder 44100 =
     [ 0, 1,   2,   3,  12,  13,   4,   5,   6,   7,  16,  17,   8,   9,  10,
     11,  20,  21, 14,  15,  24,  25,  26,  27,  18,  19,  28,  29,  30,  31,
     22,  23,  32,  33,  34,  35, 36,  37,  38,  39,  48,  49,  40,  41,  42,
@@ -309,7 +306,7 @@ tableReorder 44100 = listArray (0,575)
     570, 571, 572, 573, 574, 575] 
 
 
-tableReorder 48000 = listArray (0,575)
+tableReorder 48000 =
   [ 0,   1,   2,   3,  12,  13,   4,   5,   6,   7,  16,  17,   8,   9,  10,
     11,  20,  21, 14,  15,  24,  25,  26,  27,  18,  19,  28,  29,  30,  31,
     22,  23,  32,  33,  34,  35, 36,  37,  38,  39,  48,  49,  40,  41,  42,
@@ -350,7 +347,7 @@ tableReorder 48000 = listArray (0,575)
     567, 568, 569, 438, 439, 440, 441, 442, 443, 504, 505, 506, 507, 508, 509,
     570, 571, 572, 573, 574, 575]
 
-tableReorder 32000 = listArray (0,575)
+tableReorder 32000 =
     [ 0, 1,   2,   3,  12,  13,   4,   5,   6,   7,  16,  17,   8,   9,  10,
     11,  20,  21, 14,  15,  24,  25,  26,  27,  18,  19,  28,  29,  30,  31,
     22,  23,  32,  33,  34,  35, 36,  37,  38,  39,  48,  49,  40,  41,  42,
