@@ -32,15 +32,12 @@
 
 void imdct18(double *in, double *out) {
     static double lookup[36][18];
-    static int lookup_init = 0;
-
-    if(lookup_init == 0) {
-        for(int n = 0; n < 36; n++) {
-            for(int k = 0; k < 18; k++) {
-                lookup[n][k] = cos((PI/18) * (n + 0.5 + 18/2.0) * (k + 0.5));
-            }
+    
+    /* Lookup initilization */
+    for(int n = 0; n < 36; n++) {
+        for(int k = 0; k < 18; k++) {
+            lookup[n][k] = cos((PI/18) * (n + 0.5 + 18/2.0) * (k + 0.5));
         }
-        lookup_init = 1;
     }
 
     for(int n = 0; n < 36; n++) {
