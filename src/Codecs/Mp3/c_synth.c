@@ -145,56 +145,55 @@ static double synth_window[512] = {
 void synth(double state[1024], double samples[576],
            double newstate[1024], double output[576])
 {
-    int s, i, j;
-    double S[32], U[512], sum;
+    double S[32], U[512];
     static double lookup[64][32];
     static int lookup_init = 0;
 
-    if (lookup_init == 0) {
-        for (i = 0; i < 64; i++) {
-            for (j = 0; j < 32; j++) {
+    if(lookup_init == 0) {
+        for(int i = 0; i < 64; i++) {
+            for(int j = 0; j < 32; j++) {
                 lookup[i][j] = cos((16.0 + i) * (2.0*j + 1) * (PI/64.0));
             }
         }
         lookup_init = 1;
     }
 
-    for (i = 0; i < 1024; i++) {
+    for(int i = 0; i < 1024; i++) {
         newstate[i] = state[i];
     }
 
-    for (s = 0; s < 18; s++) {
-        for (i = 0; i < 32; i++) {
+    for(int s = 0; s < 18; s++) {
+        for(int i = 0; i < 32; i++) {
             S[i] = samples[i*18 + s];
         }
 
         /* V.. */
-        for (i = 1023; i > 63; i--) {
+        for(int i = 1023; i > 63; i--) {
             newstate[i] = newstate[i - 64];
         }
 
-        for (i = 0; i < 64; i++) {
-            sum = 0.0;
-            for (j = 0; j < 32; j++) {
+        for(int i = 0; i < 64; i++) {
+            double sum = 0.0;
+            for(int j = 0; j < 32; j++) {
                 sum += S[j] * lookup[i][j];
             }
             newstate[i] = sum;
         }
 
-        for (i = 0; i < 8; i++) {
-            for (j = 0; j < 32; j++) {
+        for(int i = 0; i < 8; i++) {
+            for(int j = 0; j < 32; j++) {
                 U[i*64 + j] = newstate[i*128 + j];
                 U[i*64 + j + 32] = newstate[i*128 + j + 96];
             }
         }
 
-        for (i = 0; i < 512; i++) {
+        for(int i = 0; i < 512; i++) {
             U[i] *= synth_window[i];
         }
 
-        for (i = 0; i < 32; i++) {
-            sum = 0.0;
-            for (j = 0; j < 16; j++) {
+        for(int i = 0; i < 32; i++) {
+            double sum = 0.0;
+            for(int j = 0; j < 16; j++) {
                 sum += U[j*32 + i];
             }
             output[32*s + i] = sum;

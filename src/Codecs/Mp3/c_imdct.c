@@ -28,27 +28,24 @@
 
 #include <math.h>
 
-#define PI 3.1415926535897931
+#define PI 3.1415926535897932
 
 void imdct18(double *in, double *out) {
-    int k, n;
-    double sum;
     static double lookup[36][18];
     static int lookup_init = 0;
 
-    if (lookup_init == 0) {
-        
-        for (n = 0; n < 36; n++) {
-            for (k = 0; k < 18; k++) {
+    if(lookup_init == 0) {
+        for(int n = 0; n < 36; n++) {
+            for(int k = 0; k < 18; k++) {
                 lookup[n][k] = cos((PI/18) * (n + 0.5 + 18/2.0) * (k + 0.5));
             }
         }
         lookup_init = 1;
     }
 
-    for (n = 0; n < 36; n++) {
-        sum = 0.0;
-        for (k = 0; k < 18; k+=3) {
+    for(int n = 0; n < 36; n++) {
+        double sum = 0.0;
+        for(int k = 0; k < 18; k+=3) {
             sum += in[k+0] * lookup[n][k+0];
             sum += in[k+1] * lookup[n][k+1];
             sum += in[k+2] * lookup[n][k+2];
@@ -58,18 +55,18 @@ void imdct18(double *in, double *out) {
 }
 
 void imdct(int points, double *in, double *out) {
-    int k, n;
-    double sum;
-
-    if (points == 18) {
+    if(points == 18) {
         imdct18(in, out);
         return;
     }
 
-    for (n = 0; n < points*2; n++) {
-        sum = 0.0;
-        for (k = 0; k < points; k++) {
-            sum += in[k] * cos((PI/points) * (n + 0.5 + points/2.0) * (k + 0.5));
+    for(int n = 0; n < points*2; n++) {
+        double sum = 0.0;
+        for(int k = 0; k < points; k++) {
+            sum += in[k]
+                 * cos((PI/points) 
+                 * (n + 0.5 + points/2.0)
+                 * (k + 0.5));
         }
         out[n] = sum;
     }
