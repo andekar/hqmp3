@@ -28,25 +28,14 @@ data SideInfo a
     = Single { sampleRate  :: !Int
              , dataPointer :: !Int -- 9 bits
              , scales      :: [Bool]
-             , gran0       :: Granule a
-             , gran1       :: Granule a
+             , gran        :: (Granule a, Granule a)
              }
     | Dual   { sampleRate  :: !Int
              , dataPointer :: !Int -- 9 bits
              , scales' :: [Bool]
-             , gran0'  :: Granule a
-             , gran1'  :: Granule a
-             , gran2'  :: Granule a
-             , gran3'  :: Granule a
+             , gran0  :: (Granule a, Granule a) -- this is g0 and g2
+             , gran1  :: (Granule a, Granule a) -- this is g1 and g3
              } deriving Show
-
-instance Functor SideInfo where
-    fmap f side = case side of
-        (Single _ _ _ g0 g1) -> side {gran0 = fmap f g0, gran1 = fmap f g1}
-        (Dual _ _ _ g0 g1 g2 g3) -> side { gran0' = fmap f g0
-                                       , gran1' = fmap f g1
-                                       , gran2' = fmap f g2
-                                       , gran3' = fmap f g3}
 
 -- Granule is computed for each specific channel
 data Granule a = Granule {

@@ -40,8 +40,8 @@ test f = do
 --       extract :: ([Double], [Double]) -> (Double)
     extract :: DChannel [Double] -> ([Double],[Double])
     extract chan = case chan of
-        Single _ _ _ g0 g1 -> (fromChanData $ mp3Data g0, fromChanData $ mp3Data g1)
-        Dual _ _ _ g0 g1 g2 g3 -> 
+        Single _ _ _ (g0, g1) -> (fromChanData $ mp3Data g0, fromChanData $ mp3Data g1)
+        Dual _ _ _ (g0, g2) (g1, g3) -> 
             ( (fromChanData $ mp3Data g0) ++ (fromChanData $ mp3Data g2), 
               (fromChanData $ mp3Data g1) ++ (fromChanData $ mp3Data g3) )
 

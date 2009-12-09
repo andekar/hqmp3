@@ -161,14 +161,14 @@ readSideInfo mode freq = do
     skipPrivate
     scaleFactors <- getScaleFactors
     case mode of
-        Mono -> do g1 <- getGranule
-                   g2 <- getGranule
-                   return $ Single freq (dataptr * 8) scaleFactors g1 g2
-        Stereo -> do g1 <- getGranule
+        Mono -> do g0 <- getGranule
+                   g1 <- getGranule
+                   return $ Single freq (dataptr * 8) scaleFactors (g0, g1)
+        Stereo -> do g0 <- getGranule
+                     g1 <- getGranule
                      g2 <- getGranule
                      g3 <- getGranule
-                     g4 <- getGranule
-                     return $ Dual freq (dataptr * 8) scaleFactors g1 g2 g3 g4
+                     return $ Dual freq (dataptr * 8) scaleFactors (g0, g2) (g1, g3)
   where
     skipPrivate = case mode of
         Mono -> skip 5
@@ -232,16 +232,16 @@ mp3FloatRep2 n = 2.0 ** (0.25 * (fromIntegral (-n * 8)))
 
 chopData ::  SideInfo Int -> BS.BitString -> SideInfo BS.BitString
 chopData side bits = case side of
-    (Single sr p s g1 g2) -> flip runBitGet bits $ do
-                         g1' <- forGranule g1
-                         g2' <- forGranule g2
-                         return $ Single sr p s g1' g2'
-    (Dual sr p s g1 g2 g3 g4) -> flip runBitGet bits $ do
+    (Single sr p s (g1,g2)) -> flip runBitGet bits $ do
+                         g0' <- forGranule g1
+                         g1' <- forGranule g2
+                         return $ Single sr p s (g0', g1')
+    (Dual sr p s (g0, g2) (g1, g3)) -> flip runBitGet bits $ do
+                         g0' <- forGranule g0
                          g1' <- forGranule g1
                          g2' <- forGranule g2
                          g3' <- forGranule g3
-                         g4' <- forGranule g4
-                         return $ Dual sr p s g1' g2' g3' g4'
+                         return $ Dual sr p s (g0', g2') (g1', g3')
   where forGranule :: Granule Int -> BitGet (Granule BS.BitString)
         forGranule g = do info <- getBits $ fi $ mp3Data g
                           return $ g {mp3Data = info}
