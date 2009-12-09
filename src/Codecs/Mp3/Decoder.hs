@@ -39,19 +39,20 @@ instance Functor ChannelData where
 type DChannel a = SideInfo (ChannelData a)
 
 decodeFrames :: [MP3Header BS.BitString] -> [([Double],[Double])]
-decodeFrames hs = output
-  where
-    -- steps in decoding, done in this order
-    unpacked    = map (decodeGranules . sideInfo) hs
-    requantized = zipWith requantize freqs unpacked
-    reordered   = map mp3Reorder requantized
+decodeFrames = output . map (decodeAll . sideInfo)
+  where output =  flip LS.evalState emptyMP3DecodeState . decodeRest
 
-    output =  LS.evalState (decodeRest reordered) emptyMP3DecodeState
-    -- variables needed
-    freqs  = map (sampleRate . sideInfo) hs
+decodeAll (Dual r s t g0 g1) = let (Single _ _ _ g0') = single g0
+                                   (Single _ _ _ g1') = single g1
+                               in  g0' `par` g1' `par` (Dual r s t g0' g1')
+    where single = func . Single r s t
+decodeAll s  = func s
+
+func = mp3Reorder . requantize . decodeGranules
 
 -- Does the "step1" as in bjorns decoder :(
 -- Note that we skip stereoIS and StereoMS
+-- this should be changed later so that we can use par here too
 decodeRest :: [DChannel [Double]]
         -> LS.State MP3DecodeState [([Double],[Double])]
 decodeRest []  = return []
@@ -95,14 +96,7 @@ emptyMP3DecodeState = MP3DecodeState emptyMP3HybridState emptyMP3HybridState
 
 -- Okee
 mp3Reorder :: DChannel [Double] -> DChannel [Double]
-mp3Reorder sInfo = case sInfo of
-    (Single sr a b (g0, g1))     -> Single sr a b ((reorder sr g0), (reorder sr g1))
-    (Dual sr a b (g0, g2) (g1, g3)) -> let r' = reorder sr
-                                           g0' = r' g0
-                                           g1' = r' g1
-                                           g2' = r' g2
-                                           g3' = r' g3
-                                 in Dual sr a b (g0', g2') (g1', g3')
+mp3Reorder (Single sr a b (g0, g1)) = Single sr a b ((reorder sr g0), (reorder sr g1))
   where reorder sr g
              | mixedBlock g
              = g {mp3Data = ChannelData  (scData g) $
@@ -139,21 +133,10 @@ tableScaleLength = listArray (0,15)
 -- This function does huffman decoding, and extracts the 
 -- scale factor stuff as described in p.18 in ISO-11172-3
 decodeGranules :: SideInfo BS.BitString -> DChannel [Int]
-decodeGranules sideInfo = case sideInfo of
-    single@(Single _ _ scfsi (gran0, gran1)) -> 
-       let (g0,scale0@(l,s)) = decodeGranule [] scfsi gran0
-           (g1,scale1) = decodeGranule l scfsi gran1
-       in  single { gran = (setChannel scale0 g0 gran0, setChannel scale1 g1 gran1)}
-
-    dual@(Dual _ _ scfsi (gran0, gran2) (gran1, gran3)) ->
-       let (scfsi0,scfsi1) = splitAt 4 scfsi
-           (g0,scale0@(l0,_)) = decodeGranule [] scfsi0 gran0
-           (g1,scale1@(l1,_)) = decodeGranule [] scfsi1 gran1
-           (g2,scale2@(l2,_)) = decodeGranule l0 scfsi0 gran2
-           (g3,scale3@(l3,_)) = decodeGranule l1 scfsi1 gran3
-       in  dual { gran0 = (setChannel scale0 g0 gran0, setChannel scale2 g2 gran2)
-                , gran1 = (setChannel scale1 g1 gran1, setChannel scale3 g3 gran3)
-                }
+decodeGranules single@(Single _ _ scfsi (gran0, gran1))
+    = let (g0,scale0@(l,s)) = decodeGranule [] scfsi gran0
+          (g1,scale1) = decodeGranule l scfsi gran1
+      in  single { gran = (setChannel scale0 g0 gran0, setChannel scale1 g1 gran1)}
 
   where setChannel s g gr = gr {mp3Data = (ChannelData (scales s g gr) g)}
         scales s g gr = unpack s (cpress gr) (sscale gr)
@@ -283,11 +266,9 @@ huffDecodeVWXY huff = do
 --
 
 -- seems to be working!
-requantize :: Int ->  DChannel [Int] -> DChannel [Double]
-requantize _ chan = case chan of
-    (Single sr a b (g1, g2))    -> Single sr a b ((f sr g1), (f sr g2))
-    (Dual sr a b (g0, g2) (g1, g3)) -> 
-               Dual sr a b ((f sr g0), (f sr g2)) ((f sr g1), (f sr g3))
+requantize :: DChannel [Int] -> DChannel [Double]
+requantize chan@(Single sr a b (g1, g2))
+    = Single sr a b ((f sr g1), (f sr g2))
   where f sr = requantizeGran sr
 
 requantizeGran :: Int -> Granule (ChannelData [Int]) ->
