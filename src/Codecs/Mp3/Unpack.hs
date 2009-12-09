@@ -6,16 +6,12 @@ module Codecs.Mp3.Unpack (unpackMp3) where
 import Control.Monad
 import Control.Monad.Maybe
 import Control.Monad.Trans
-import Control.Monad.Identity
 import Data.Binary.BitString.BitGet
 -- Bit-/ByteStrings
 import qualified Data.Binary.BitString.BitString as BS
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString as S
 -- General handy stuff
-import Data.Bits
-import Data.Word
-import Data.Maybe
 import Data.Array
 -- MP3 stuff
 import Codecs.Mp3.Tables
@@ -125,7 +121,7 @@ getModeExt = do
 
 data MP3H a b = Error | Corr (MP3Header a, MP3Header b) | Last (MP3Header a)
 
-readFrameData :: MP3Header Int -> BitGetT Identity (MP3H BS.BitString Int)
+readFrameData :: MP3Header Int -> BitGet (MP3H BS.BitString Int)
 readFrameData h1@(MP3Header mode _ fsize hsize sin) = do
     skipId3
     lhs <- getBits $ fi $ dataPointer sin
