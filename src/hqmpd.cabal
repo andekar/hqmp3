@@ -44,7 +44,7 @@ Executable hqmp3
                     PCMWriter
    c-sources:       Codecs/Mp3/c_synth.c,
                     Codecs/Mp3/c_imdct.c
-   cc-options:      -O2
+   cc-options:      -O2 -std=c99
    ghc-options:     -O2 -prof -threaded
 
 
