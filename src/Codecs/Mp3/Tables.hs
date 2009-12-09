@@ -25,12 +25,15 @@
 --
 -- TODO: Change all tables to something more suitable with O(1) lookup.
 --
-module Codecs.Mp3.Tables (
-     tableImdctWindow
-    ,tableSlen
-    ,tableReorder2 -- See below.
-    ,tablePretab
-    ,tableScaleBandBoundary
+module Codecs.Mp3.Tables 
+    ( tableImdctWindow
+    , tableSlen
+    , tableReorder2 -- See below.
+    , tableReorder
+    , tableScaleBandBoundLong
+    , tableScaleBandBoundShort
+    , tablePretab
+    , tableScaleBandBoundary
 ) where
 
 import Data.Array.Unboxed

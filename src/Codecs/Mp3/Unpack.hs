@@ -23,7 +23,7 @@ import Codecs.Mp3.MP3Types
 import Codecs.Mp3.ID3
 
 unpackMp3 :: L.ByteString -> [MP3Header BS.BitString]
-unpackMp3 file = runBitGet first $ BS.convert file
+unpackMp3 = runBitGet first . BS.convert
     where first = do
                skipId3
                init <- lookAhead $ runMaybeT readHeader

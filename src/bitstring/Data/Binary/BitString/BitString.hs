@@ -7,6 +7,8 @@ module Data.Binary.BitString.BitString where
 -- BitGet library. This version uses lazy bytestrings.
 -- All numeric arguments are in bits, not in bytes.
 
+-- Todo Inline where needed if needed?!?
+
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Lazy.Internal as LI
 import qualified Data.ByteString as S
@@ -51,6 +53,7 @@ convertWords ws = Chunk (L.pack ws) 0 0 Empty
 -- Lazily reads a file into a BitString
 readFile :: FilePath -> IO BitString
 readFile = liftM convert . L.readFile
+{-# INLINE readFile #-}
 
 -- Concat a list of BitStrings
 concat :: [BitString] -> BitString

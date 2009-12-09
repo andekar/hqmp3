@@ -113,6 +113,7 @@ mp3Reorder sInfo = case sInfo of
         -- We want the output list to be as long as the input list to 
         -- correctly handle IS Stereo decoding, but the unsafe reorderList 
         -- requires the input to be as long as the index list.
+--         freq' :: UArray Int Int -> [Int] -> [Int]
         freq' sr ds  = take (length ds) $ 
                        reorderList (tableReorder sr) (padWith 576 0.0 ds)
         chData = chanData . mp3Data
@@ -363,3 +364,5 @@ consecutiveDiff xs = zipWith (-) (tail xs) xs
 
 padWith :: Int -> a -> [a] -> [a]
 padWith n pad xs = xs ++ replicate (n - length xs) pad
+
+-- padWith :: UArray a a -> 
