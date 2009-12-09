@@ -143,19 +143,14 @@ static double synth_window[512] = {
 };
 
 void synth(double state[1024], double samples[576],
-           double newstate[1024], double output[576])
-{
+           double newstate[1024], double output[576]) {
     double S[32], U[512];
     static double lookup[64][32];
-    static int lookup_init = 0;
 
-    if(lookup_init == 0) {
-        for(int i = 0; i < 64; i++) {
-            for(int j = 0; j < 32; j++) {
-                lookup[i][j] = cos((16.0 + i) * (2.0*j + 1) * (PI/64.0));
-            }
+    for(int i = 0; i < 64; i++) {
+        for(int j = 0; j < 32; j++) {
+            lookup[i][j] = cos((16.0 + i) * (2.0*j + 1) * (PI/64.0));
         }
-        lookup_init = 1;
     }
 
     for(int i = 0; i < 1024; i++) {

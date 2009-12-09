@@ -36,11 +36,7 @@ import Foreign.Marshal.Array
 import System.IO.Unsafe
 
 foreign import ccall "c_synth.h synth"
-    c_synth :: Ptr CDouble -> 
-               Ptr CDouble -> 
-               Ptr CDouble -> 
-               Ptr CDouble -> 
-               IO ()
+    c_synth :: Ptr CDouble -> Ptr CDouble -> Ptr CDouble -> Ptr CDouble -> IO ()
 
 synthIO :: [CDouble] -> [CDouble] -> IO ([CDouble], [CDouble])
 synthIO state input
