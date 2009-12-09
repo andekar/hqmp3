@@ -46,7 +46,7 @@ decodeFrames = output . map decodeAll
 decodeAll (Dual sr p scfsi g0 g1) = let (l,r) = splitAt 4 scfsi
                                         (Single _ _ _ g0') = single l g0
                                         (Single _ _ _ g1') = single r g1
-                                    in  g0' `par` g1' `par` (Dual sr p scfsi g0' g1')
+                                    in  g0' `par` g1' `par` (Dual sr p [] g0' g1')
     where single sc = func . Single sr p sc
 decodeAll s  = func s
 
@@ -230,7 +230,7 @@ huffDecode [(r0,t0), (r1,t1), (r2,t2)] count1Table = do
     r0res <- liftM concat $ replicateM (r0 `div` 2) $ huffDecodeXY t0
     r1res <- liftM concat $ replicateM (r1 `div` 2) $ huffDecodeXY t1
     r2res <- liftM concat $ replicateM (r2 `div` 2) $ huffDecodeXY t2
-    quadr <- huffDecodeVWXY (getQuadrTree (not count1Table)) -- why do we need to negate this value?!?!
+    quadr <- huffDecodeVWXY (getQuadrTree count1Table)
     return $ r0res ++ r1res ++ r2res ++ quadr
 
 huffDecodeXY :: HuffTable -> BitGet [Int]

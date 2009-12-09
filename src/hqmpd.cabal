@@ -45,6 +45,4 @@ Executable hqmp3
    c-sources:       Codecs/Mp3/c_synth.c,
                     Codecs/Mp3/c_imdct.c
    cc-options:      -O2 -std=c99
-   ghc-options:     -O2 -prof -threaded
-
-
+   ghc-options:     -O2 -prof -threaded -auto-all

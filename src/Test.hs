@@ -11,6 +11,7 @@ import qualified Data.ByteString as S
 import Codecs.Mp3.ID3
 import Debug.Trace
 import Control.Monad
+import Control.Parallel
 import Codecs.Mp3.Decoder
 import Codecs.Mp3.MP3Types
 import Codecs.Mp3.Unpack
@@ -30,6 +31,8 @@ test f = do
     PCM.writeHeader out
     let fs = unpackMp3 file
         dc = decodeFrames fs
+        f = fs `par` dc `par` "we"
+    putStr f
 --     mapM_ print dc
     forM_ dc $ \dchan -> do
         let (left,right) = dchan

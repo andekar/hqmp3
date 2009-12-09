@@ -6,8 +6,8 @@ import Codec.Compression.Huffman.Huffman ( HuffTree (..) )
 type HuffTable = (HuffTree (Int,Int), Int)
 
 getQuadrTree :: Bool -> HuffTree (Int,Int,Int,Int)
-getQuadrTree True  = qTreeA
-getQuadrTree False = qTreeB
+getQuadrTree True  = qTreeB
+getQuadrTree False = qTreeA
 
 -- This function returns the working hufftrees for mp3 decoding
 getTree :: Int -> HuffTable
