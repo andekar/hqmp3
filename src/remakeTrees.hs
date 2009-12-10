@@ -4,30 +4,41 @@ import Control.Monad
 import Data.Array.IArray
 import Tables
 
+
+
 -- Todo we must fix so that stuff get into the correct position
 -- as of now the smallest element would be at position zero
 toArray :: [([Int], (Int,Int))] -> Array Int (Int, (Int,Int))
-toArray xs = let lists = allLists xs
-                 list = listArray (0,(length lists - 1)) (map (\(_,y,z) -> (y,z)) (sorted lists))
+toArray xs = let (lists,l') = allLists xs
+                 l = 2^l' -1
+                 list = listArray (0,l)
+                        (insertEmpty l 0 (sorted lists))
              in list
     where sorted list = sortBy (\(x,_,_) (x',_,_) -> compare x x') (ls list)
           ls :: [([Int],a,b)] -> [(Int,a,b)]
           ls list = map (\(x,y,z) -> (toInt x, y ,z)) list
           toInt :: [Int] -> Int
-          toInt xss  = fst $ foldl (\(a,v) b -> if b==1 then (a+v,v*2) else (a,v*2)) (0,1) (reverse xss)
-                 
-tableHuffR00 :: [([Int], (Int, Int))]
-tableHuffR00 = [([1],(0,0)),
-                ([0,0,1],(0,1)),
-                ([0,1],(1,0)),
-                ([0,0,0],(1,1))]
+          toInt xss  = fst $ foldl (\(a,v) b -> if b==1 then (a+v,v*2) 
+                                    else (a,v*2)) (0,1) (reverse xss)
 
-allLists :: [([Int],(Int,Int))] -> [([Int],Int,(Int,Int))]
-allLists lists@((x,a):xs) = (concat $ map (all longest) lists)
+longest lists = foldl (\x (y,_) -> max x (length y)) 0 lists
+
+insertEmpty :: Int -> Int -> [(Int, Int, (Int,Int))] -> [(Int, (Int,Int))]
+insertEmpty len curr []
+    | curr < len = replicate (len - curr) (0,(0,0))
+    | otherwise = []
+insertEmpty len curr ((x,m,a):xs)
+    | curr < x = replicate (x-curr) (0,(0,0))
+            ++ [(m,a)] ++ insertEmpty len (x+1) xs
+    | x == curr = (m,a):insertEmpty len (curr + 1) xs
+    | otherwise = error "should maybe not happen"
+
+allLists :: [([Int],(Int,Int))] -> ([([Int],Int,(Int,Int))], Int)
+allLists lists@((x,a):xs) = ((concat $ map (all longest) lists), longest)
     where longest = foldl (\x (y,_) -> max x (length y)) 0 lists
-          all n (x,a)
-              | n == length x = [(x,0,a)]
-              | otherwise = (map (\vals -> (x++vals, rest, a)) (perm rest))
+          all n (x, a)
+              | n == length x = [(x, 0, a)]
+              | otherwise = (map (\vals -> (x ++ vals, length x, a)) (perm rest))
              where rest = n - length x
 
 allCom :: Int -> [Int] -> [[Int]]
