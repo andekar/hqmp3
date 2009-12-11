@@ -11,16 +11,22 @@ type HuffEither = Either (Int,Int) (Array Int (Int,(Int,Int)))
 toArray xs 
   = let (good,bad) = filterLength xs mean
         lowhigh   = map (first (splitAt mean)) bad
-        grouped   = groupBy (\a b -> (fst . fst) a == (fst . fst) b) lowhigh
+        grouped   = groupBy (\a b -> (fst . fst) a == (fst . fst) b) (sortForGroups lowhigh)
         grouped'  = map (\as -> (fst $ fst $ head as, map (\((a,b),c) -> (b,c)) as)) grouped
         grouped'' = map (second (Right . toArray' (0,0))) grouped'
         allLists  = grouped'' ++ map (second Left) good
-    in grouped -- allLists -- toArray' (Left (0,0)) allLists
+    in toArray' (Left (0,0)) allLists
 
   where
     mean = (sum $ map (length . fst) xs) `div` (length xs)
-    filterLength xs l = partition (\a -> length (fst a) < l) xs
+    filterLength xs l = partition (\a -> length (fst a) <= l) xs
 
+-- lookup :: Array Int (Int, HuffEither) -> [Int] -> Int -> (Int,HuffEither)
+lookup arr i split = let (l,r) = splitAt split i
+                         res = case (arr ! toInt l) of
+                                   (i,Right rr) -> rr ! toInt r
+                                   (a, Left a') -> (a, a')
+                     in res
 
 -- Todo we must fix so that stuff get into the correct position
 -- as of now the smallest element would be at position zero
@@ -33,16 +39,20 @@ toArray' zval xs = let (lists,l') = allLists xs
     where sorted list = sortBy (\(x,_,_) (x',_,_) -> compare x x') (ls list)
           ls :: [([Int],a,b)] -> [(Int,a,b)]
           ls list = map (\(x,y,z) -> (toInt x, y ,z)) list
-          toInt :: [Int] -> Int
-          toInt xss  = fst $ foldl (\(a,v) b -> if b==1 then (a+v,v*2) 
-                                    else (a,v*2)) (0,1) (reverse xss)
+toInt :: [Int] -> Int
+toInt xss  = fst $ foldl (\(a,v) b -> if b==1 then (a+v,v*2) 
+                          else (a,v*2)) (0,1) (reverse xss)
+
+sortForGroups :: Ord a => [((a,b),c)] -> [((a,b), c)]
+sortForGroups xs = sortBy sorts xs
+    where sorts ((a,b),c) ((a',b'),c') = compare a a'
 
 longest lists = foldl (\x (y,_) -> max x (length y)) 0 lists
 
 insertEmpty :: Int -> Int -> a -> [(Int, Int, a)] -> [(Int, a)]
-insertEmpty len curr zval []
-    | curr < len = replicate (len - curr) (0,zval)
-    | otherwise = []
+insertEmpty len curr zval [] = repeat (0, zval)
+--     | curr < len = replicate (len - curr) (0,zval)
+--     | otherwise = []
 insertEmpty len curr zval ((x,m,a):xs)
     | curr < x = replicate (x-curr) (0,zval)
             ++ [(m,a)] ++ insertEmpty len (x+1) zval xs
