@@ -193,6 +193,10 @@ synth_window = listArray (0,511)
 -- As usual, the type one believes to be correct turns out to be completely
 -- wrong when working with mutable arrays.
 
+--
+-- One may want to write these as zips instead
+--
+
 -- h_synth :: UArray Int Double -> UArray Int Double -> ST s ([Double],[Double])
 h_synth state samples = do
     newState <- ST.newArray (0,1023) 0.0
@@ -220,4 +224,4 @@ h_synth state samples = do
   where
     initValue :: Int -> Int -> Double
     initValue i j = cos $ (16+fi i) * (2*fi j + 1) * (pi / 64)
-            
+

@@ -347,5 +347,3 @@ consecutiveDiff xs = zipWith (-) (tail xs) xs
 
 padWith :: Int -> a -> [a] -> [a]
 padWith n pad xs = xs ++ replicate (n - length xs) pad
-
--- padWith :: UArray a a -> 

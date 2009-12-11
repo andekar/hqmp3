@@ -5,18 +5,29 @@ import Control.Arrow
 import Data.Array.IArray
 import Tables
 
---
--- TODO: Each table needs to be coupled with the length of the code word used.
---       or, one could do log $ snd $ bounds arr
+import Control.Monad
+
+-- 
+-- TODO: In some cases we do not want to split, for example in the short tables,
+--       where the code words are short anyway. NOTE: What will be the type of
+--       that?
 --
 
 -- a may be (Int,Int) or (Int,Int,Int,Int)
 type HuffTable a = Array Int (Int, a)
-type HuffArray a = HuffTable (Either a (HuffTable a))
+-- (CodeWordLength, Array)
+type HuffArray a = (Int,HuffTable (Either a (HuffTable a)))
 
 -- The type of huffman tables as used by Bjorn 
 -- a may be (Int,Int) or (Int,Int,Int,Int)
 type BjrnTable a = [([Int], a)]
+
+-- Lookup a value in the huffarray
+-- How do we know how long to look in the array?
+lookupHuff :: HuffArray a -> Int -> a
+lookupHuff (cw,arr) i = case arr ! i of
+    Left a     -> a
+    Right arr' -> arr
 
 -- The "main" function
 toArray :: BjrnTable a -> HuffArray a
@@ -27,17 +38,10 @@ toArray xs
         grouped'  = map (\as -> (fst $ fst $ head as, map (\((a,b),c) -> (b,c)) as)) grouped
         grouped'' = map (second (Right . toArray')) grouped'
         allLists  = grouped'' ++ map (second Left) good
-    in toArray' allLists
+    in (mean, toArray' allLists)
   where
     mean = (sum $ map (length . fst) xs) `div` (length xs)
     filterLength xs l = partition (\a -> length (fst a) <= l) xs
-
--- Testing testing...
-lookup arr i split = let (l,r) = splitAt split i
-                         res = case (arr ! toInt l) of
-                                   (i,Right rr) -> rr ! toInt r
-                                   (a, Left a') -> (a, a')
-                     in res
 
 -- Creates an array of size 2^n where n is the length of the longest code word
 toArray' :: BjrnTable a -> HuffTable a
@@ -51,9 +55,8 @@ toArray' xs = let xs'   = concatMap (\(a,b) -> map (\(a',l) -> (l,(a',b))) $ all
 
 -- Get all lists of length n that starts with xs
 allLists :: Int -> [Int] -> [(Int,[Int])]
-allLists i xs
-    | i <= j    = [(j,xs)]
-    | otherwise = zipWith (\x p -> (j,x++p)) (replicate pl xs) ps
+allLists i xs | i <= j    = [(j,xs)]
+              | otherwise = zipWith (\x p -> (j,x++p)) (replicate pl xs) ps
   where
     ps = perm (i-j)
     pl = length ps
@@ -68,8 +71,6 @@ sortForGroups :: Ord a => [((a,b),c)] -> [((a,b), c)]
 sortForGroups xs = sortBy sorts xs
     where sorts ((a,b),c) ((a',b'),c') = compare a a'
 
--- 2^n lists of length n
+-- 2^n lists of length n, lol @ code
 perm :: Int -> [[Int]]
-perm 0 = []
-perm 1 = [[0],[1]]
-perm x = (map (1:) $ perm (x-1)) ++ (map (0:) $ perm (x-1))
+perm x = replicateM x [0,1]
