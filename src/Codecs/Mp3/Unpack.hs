@@ -182,11 +182,11 @@ readSideInfo mode freq = do
         Mono -> do g0 <- getGranule
                    g1 <- getGranule
                    return $ Single freq (dataptr * 8) scaleFactors (g0, g1)
-        Stereo -> do g0 <- getGranule
-                     g1 <- getGranule
-                     g2 <- getGranule
-                     g3 <- getGranule
-                     return $ Dual freq (dataptr * 8) scaleFactors (g0, g2) (g1, g3)
+        _    -> do g0 <- getGranule
+                   g1 <- getGranule
+                   g2 <- getGranule
+                   g3 <- getGranule
+                   return $ Dual freq (dataptr * 8) scaleFactors (g0, g2) (g1, g3)
   where
     skipPrivate = case mode of
         Mono -> skip 5
