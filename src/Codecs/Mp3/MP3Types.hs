@@ -28,14 +28,14 @@ data MP3Header a
 data SideInfo a
     = Single { sampleRate  :: !Int
              , dataPointer :: !Int -- 9 bits
-             , scales      :: [Bool]
-             , gran        :: (Granule a, Granule a)
+             , scales      :: ![Bool]
+             , gran        :: !(Granule a, Granule a)
              }
     | Dual   { sampleRate  :: !Int
              , dataPointer :: !Int -- 9 bits
-             , scales' :: [Bool]
-             , gran0  :: (Granule a, Granule a) -- this is g0 and g2
-             , gran1  :: (Granule a, Granule a) -- this is g1 and g3
+             , scales' :: ![Bool]
+             , gran0  :: !(Granule a, Granule a) -- this is g0 and g2
+             , gran1  :: !(Granule a, Granule a) -- this is g1 and g3
              } deriving Show
 
 instance NFData (SideInfo a) where
