@@ -1,44 +1,65 @@
-import Codec.Compression.Huffman.Huffman
+module RemakeTrees where
+
 import Data.List
-import Control.Monad
 import Control.Arrow
 import Data.Array.IArray
 import Tables
 
-type HuffEither = Either (Int,Int) (Array Int (Int,(Int,Int)))
+--
+-- TODO: Each table needs to be coupled with the length of the code word used.
+--       or, one could do log $ snd $ bounds arr
+--
 
--- toArray :: [([Int],(Int,Int))] -> Array Int (Int, HuffEither)
+-- a may be (Int,Int) or (Int,Int,Int,Int)
+type HuffTable a = Array Int (Int, a)
+type HuffArray a = HuffTable (Either a (HuffTable a))
+
+-- The type of huffman tables as used by Bjorn 
+-- a may be (Int,Int) or (Int,Int,Int,Int)
+type BjrnTable a = [([Int], a)]
+
+-- The "main" function
+toArray :: BjrnTable a -> HuffArray a
 toArray xs 
   = let (good,bad) = filterLength xs mean
         lowhigh   = map (first (splitAt mean)) bad
         grouped   = groupBy (\a b -> (fst . fst) a == (fst . fst) b) (sortForGroups lowhigh)
         grouped'  = map (\as -> (fst $ fst $ head as, map (\((a,b),c) -> (b,c)) as)) grouped
-        grouped'' = map (second (Right . toArray' (0,0))) grouped'
+        grouped'' = map (second (Right . toArray')) grouped'
         allLists  = grouped'' ++ map (second Left) good
-    in toArray' (Left (0,0)) allLists
-
+    in toArray' allLists
   where
     mean = (sum $ map (length . fst) xs) `div` (length xs)
     filterLength xs l = partition (\a -> length (fst a) <= l) xs
 
--- lookup :: Array Int (Int, HuffEither) -> [Int] -> Int -> (Int,HuffEither)
+-- Testing testing...
 lookup arr i split = let (l,r) = splitAt split i
                          res = case (arr ! toInt l) of
                                    (i,Right rr) -> rr ! toInt r
                                    (a, Left a') -> (a, a')
                      in res
 
--- Todo we must fix so that stuff get into the correct position
--- as of now the smallest element would be at position zero
-toArray' :: a -> [([Int], a)] -> Array Int (Int, a)
-toArray' zval xs = let (lists,l') = allLists xs
-                       l = 2^l' -1
-                       list = listArray (0,l)
-                              (insertEmpty l 0 zval (sorted lists))
-             in list
-    where sorted list = sortBy (\(x,_,_) (x',_,_) -> compare x x') (ls list)
-          ls :: [([Int],a,b)] -> [(Int,a,b)]
-          ls list = map (\(x,y,z) -> (toInt x, y ,z)) list
+-- Creates an array of size 2^n where n is the length of the longest code word
+toArray' :: BjrnTable a -> HuffTable a
+toArray' xs = let xs'   = concatMap (\(a,b) -> map (\(a',l) -> (l,(a',b))) $ allLists n a) xs
+                  xsInt = map (first toInt) xs'
+              in array (0,n') $ sortBy (\(a,_) (b,_) -> compare a b) xsInt
+  where
+    -- This is the length of the longest code word in the table
+    n = foldl (\a entry -> max a (length $ fst entry)) 0 xs
+    n' = 2^n - 1
+
+-- Get all lists of length n that starts with xs
+allLists :: Int -> [Int] -> [(Int,[Int])]
+allLists i xs
+    | i <= j    = [(j,xs)]
+    | otherwise = zipWith (\x p -> (j,x++p)) (replicate pl xs) ps
+  where
+    ps = perm (i-j)
+    pl = length ps
+    j  = length xs
+
+-- toInt [0,1,0,1] == 5
 toInt :: [Int] -> Int
 toInt xss  = fst $ foldl (\(a,v) b -> if b==1 then (a+v,v*2) 
                           else (a,v*2)) (0,1) (reverse xss)
@@ -47,41 +68,7 @@ sortForGroups :: Ord a => [((a,b),c)] -> [((a,b), c)]
 sortForGroups xs = sortBy sorts xs
     where sorts ((a,b),c) ((a',b'),c') = compare a a'
 
-longest lists = foldl (\x (y,_) -> max x (length y)) 0 lists
-
-insertEmpty :: Int -> Int -> a -> [(Int, Int, a)] -> [(Int, a)]
-insertEmpty len curr zval [] = repeat (0, zval)
---     | curr < len = replicate (len - curr) (0,zval)
---     | otherwise = []
-insertEmpty len curr zval ((x,m,a):xs)
-    | curr < x = replicate (x-curr) (0,zval)
-            ++ [(m,a)] ++ insertEmpty len (x+1) zval xs
-    | x == curr = (m,a):insertEmpty len (curr + 1) zval xs
-    | otherwise = error "should maybe not happen"
-
-allLists :: [([Int],a)] -> ([([Int],Int,a)], Int)
-allLists lists@((x,a):xs) = ((concat $ map (all longest) lists), longest)
-    where longest = foldl (\x (y,_) -> max x (length y)) 0 lists
-          all n (x, a)
-              | n == length x = [(x, 0, a)]
-              | otherwise = (map (\vals -> (x ++ vals, length x, a)) (perm rest))
-             where rest = n - length x
-
-allCom :: Int -> [Int] -> [[Int]]
-allCom long x = map (x ++) (perm long)
-
-permute :: [a] -> [[a]]
-permute str = rotate str len len
-   where len = length str
-
-rotate :: [a] -> Int -> Int -> [[a]]
-rotate _ _ 0 = []
-rotate s 1 _ = [s]
-rotate (ch:chs) len rcnt =
-   map (\x -> ch : x) (rotate chs (len-1) (len-1))
-   ++
-   rotate (chs ++ [ch]) len (rcnt-1)
-
+-- 2^n lists of length n
 perm :: Int -> [[Int]]
 perm 0 = []
 perm 1 = [[0],[1]]
