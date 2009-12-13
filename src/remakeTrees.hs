@@ -3,14 +3,13 @@ module RemakeTrees where
 import Data.List
 import Control.Arrow
 import Data.Array.IArray
-import Tables
+import HuffTables
+import Control.Monad (replicateM)
 
-import Control.Monad
-
--- 
--- TODO: In some cases we do not want to split, for example in the short tables,
---       where the code words are short anyway. NOTE: What will be the type of
---       that?
+--
+-- TODO: LookupHuff: BitGet?
+--       Actual generation of trees
+--       Testing
 --
 
 -- a may be (Int,Int) or (Int,Int,Int,Int)
@@ -22,12 +21,13 @@ type HuffArray a = (Int,HuffTable (Either a (HuffTable a)))
 -- a may be (Int,Int) or (Int,Int,Int,Int)
 type BjrnTable a = [([Int], a)]
 
--- Lookup a value in the huffarray
--- How do we know how long to look in the array?
-lookupHuff :: HuffArray a -> Int -> a
+-- Lookup an index in the array, get back value + bits to skip
+-- Might want to make this in the BitGet monad instead?
+lookupHuff :: HuffArray a -> Int -> (Int,a)
 lookupHuff (cw,arr) i = case arr ! i of
-    Left a     -> a
-    Right arr' -> arr
+    (l,Left a)    -> (l,a)
+    (l,Right arr) -> let (l',a) = arr ! 0
+                     in (l+l',a)
 
 -- The "main" function
 toArray :: BjrnTable a -> HuffArray a
