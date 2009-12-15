@@ -1,13 +1,16 @@
 module Codecs.Mp3.HuffArrays where
 
 import Data.Array
-import Control.Monad
+import Control.Monad (liftM)
 import Data.Binary.BitString.BitGet
 
--- BigTable / SmallTable
-type MP3Huffman a = Either (HuffTable a) (HuffArray a)
-type HuffTable a  = (Int,Array Int (Int, a))
-type HuffArray a  = (Int,HuffTable (Either a (HuffTable a)))
+-- SmallTable / Deep Table
+type MP3Huffman a = Either (HuffArray a) (HuffDeep a)
+
+type HuffArray a = (Int, Array Int (Int, a))  -- plain lookup
+type HuffDeep a  = (Int,                      -- code word length
+                    Array Int (Either (Int,a) -- we may find values
+                              (HuffArray a))) -- and we may find arrays
 
 -- Table# -> (linbits,table)
 getTree :: Int -> (Int,MP3Huffman (Int,Int))
@@ -18,6 +21,7 @@ getTree x = case x of
     -- 4 not used
     5  -> (0,table5)
     6  -> (0,table6)
+{-
     7  -> (0,table7)
     8  -> (0,table8)
     9  -> (0,table9)
@@ -43,16 +47,19 @@ getTree x = case x of
     29 -> (9,table24)
     30 -> (11,table24)
     31 -> (13,table24)
+-}
 
 -- Lookup a value in the huffman array
 lookupHuff :: MP3Huffman a -> BitGet (Int,a)
 lookupHuff huff = case huff of
-    Left (cw,tab) -> do
+    Left  (cw,arr) -> liftM (arr !) (f cw)
+    Right (cw,arr) -> do
         i <- f cw
-        case tab ! i of
-            (l,Left a)           -> return (l,a)
-            (l,Right (cw',arr')) -> liftM (arr' !) (f cw')
-    Right (cw,arr) -> f cw
+        case arr ! i of
+            Left a           -> return a
+            Right (cw',arr') -> do
+                (l,a) <- liftM (arr' !) (f cw')
+                return (cw+l,a) -- total read: cw + l
   where
     f w | w <= 8  = liftM fromIntegral (getAsWord8 $ fromIntegral w)
         | w <= 16 = liftM fromIntegral (getAsWord16 $ fromIntegral w)
