@@ -61,19 +61,18 @@ createTreesXY = array (1, 31)
 createTreesVWXY :: (MP3Huffman (Int,Int,Int,Int), MP3Huffman (Int,Int,Int,Int))
 createTreesVWXY = (Left $ toArray' tableHuffRqa , Left $ toArray' tableHuffRqb)
 
-
 -- The "main" function, for transforming trees to arrays
 toArray :: BjrnTable a -> HuffArray a
 toArray xs 
-  = let (good,bad) = filterLength xs mean
-        lowhigh   = map (first (splitAt mean)) bad
+  = let (good,bad) = filterLength xs 8
+        lowhigh   = map (first (splitAt 8)) bad
         grouped   = groupBy (\a b -> (fst . fst) a == (fst . fst) b) (sortForGroups lowhigh)
         grouped'  = map (\as -> (fst $ fst $ head as, map (\((a,b),c) -> (b,c)) as)) grouped
         grouped'' = map (second (Right . toArray')) grouped'
         allLists  = grouped'' ++ map (second Left) good
-    in (mean, toArray' allLists)
+    in (8, toArray' allLists)
   where
-    mean = (sum $ map (length . fst) xs) `div` (length xs)
+--     mean = (sum $ map (length . fst) xs) `div` (length xs)
     filterLength xs l = partition (\a -> length (fst a) <= l) xs
 
 -- Creates an array of size 2^n where n is the length of the longest code word
