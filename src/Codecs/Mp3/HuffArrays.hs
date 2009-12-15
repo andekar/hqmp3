@@ -4,9 +4,12 @@ import Data.Array
 import Control.Monad
 import Data.Binary.BitString.BitGet
 
+-- BigTable / SmallTable
 type MP3Huffman a = Either (HuffTable a) (HuffArray a)
-type HuffTable a = Array Int (Int, a)
-type HuffArray a = (Int,HuffTable (Either a (HuffTable a)))
+-- Value is (#bits, a)
+type HuffTable a  = Array Int (Int, a)
+-- CodeWordLength, HuffTable
+type HuffArray a  = (Int,HuffTable (Either a (HuffTable a)))
 
 -- Table# -> (linbits,table)
 getTree :: Int -> (Int,MP3Huffman (Int,Int))
@@ -44,16 +47,19 @@ getTree x = case x of
     31 -> (13,table24)
 
 -- Lookup a value in the huffman array
--- This is sort of unsafe...
-lookupHuff :: HuffArray a -> BitGet (Maybe (Int,a))
-lookupHuff (cw,arr)= do
+lookupHuff :: MP3Huffman a -> BitGet (Int,a)
+lookupHuff huff = case huff of
+    Right (cw,arr) -> do
         i <- f cw
         case arr ! i of
-            (l,Left a)     -> return $ Just (l,a)
-            (l,Right arr') -> liftM (Just . (arr' !)) (f l)
+            (l,Left a)     -> return (l,a)
+            (l,Right arr') -> liftM (arr' !) (f (cwlen arr'))
+    Left arr -> f (cwlen arr)
   where
     f w | w <= 8  = liftM fromIntegral (getAsWord8 $ fromIntegral w)
         | w <= 16 = liftM fromIntegral (getAsWord16 $ fromIntegral w)
+    -- 2^n is the number of elements
+    cwlen arr = round $ logBase 2 $ snd $ bounds arr
 
 -- XY Tables below...
 table1 = Left (array (0,7) [(0,(3,(1,1))),(1,(3,(0,1))),(2,(2,(1,0))),(3,(2,(1,0))),(4,(1,(0,0))),(5,(1,(0,0))),(6,(1,(0,0))),(7,(1,(0,0)))])
