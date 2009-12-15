@@ -4,46 +4,18 @@ import Data.List
 import Control.Arrow
 import Data.Array.IArray
 import HuffTables
+import HuffArrays
 import Control.Monad (replicateM,liftM)
 import Data.Binary.BitString.BitGet
 
--- We do not want to split every Array, since not all tables are big
-type MP3Huffman a = Either (HuffTable a) (HuffArray a)
--- a may be (Int,Int) or (Int,Int,Int,Int)
-type HuffTable a = Array Int (Int, a)
--- (CodeWordLength, Array)
-type HuffArray a = (Int,HuffTable (Either a (HuffTable a)))
 -- The type of huffman tables as used by Bjorn 
 -- a may be (Int,Int) or (Int,Int,Int,Int)
 type BjrnTable a = [([Int], a)]
 
--- Will output all huff-arrays for all trees, not coupled with linbits though.
--- Somebody please kill bjorn for his extremely stupid numbering system,
--- comments represent the number as used in ISO-11172-3
-createTreesXY :: [MP3Huffman (Int,Int)]
-createTreesXY = 
-    [ Left $ toArray' tableHuffR00 -- table 1
-    , Left $ toArray' tableHuffR01 -- table 2
-    , Left $ toArray' tableHuffR02 -- table 3
-    , Left $ toArray' tableHuffR03 -- table 5
-    , Left $ toArray' tableHuffR04 -- table 6
-    , Left $ toArray' tableHuffR05 -- table 7
-    , Right $ toArray tableHuffR06 -- table 8
-    , Left $ toArray' tableHuffR07 -- table 9
-    , Right $ toArray tableHuffR08 -- table 10
-    , Right $ toArray tableHuffR09 -- table 11
-    , Right $ toArray tableHuffR10 -- table 12
-    , Right $ toArray tableHuffR11 -- table 13
-    , Right $ toArray tableHuffR12 -- table 15
-    , Right $ toArray tableHuffR13 -- table 16
-    , Right $ toArray tableHuffR14 -- table 24
-    ]
-
--- The quadruple tables
-createTreesVWXY :: [MP3Huffman (Int,Int,Int,Int)]
-createTreesVWXY = 
-    [ Left $ toArray' tableHuffRqa
-    , Left $ toArray' tableHuffRqb]
+-- Table# -> (linbits,table)
+getTree :: Int -> (Int,MP3Huffman (Int,Int))
+getTree x | x == 4 || x == 14 = error "Bad Huffman Tables"
+          | otherwise = treesxy ! x
 
 -- Lookup a value in the huffman array
 -- Second argument is length of the bitstream.
@@ -60,6 +32,64 @@ lookupHuff (cw,arr) length
   where
     f w | w <= 8  = liftM fromIntegral (getAsWord8 $ fromIntegral w)
         | w <= 16 = liftM fromIntegral (getAsWord16 $ fromIntegral w)
+
+-- Stuff below is kept for historical reasons
+
+main :: IO ()
+main = do
+    putStrLn "module HuffArrays where"
+    putStrLn "import Data.Array"
+    putStrLn "type MP3Huffman a = Either (HuffTable a) (HuffArray a)"
+    putStrLn "type HuffTable a = Array Int (Int, a)"
+    putStrLn "type HuffArray a = (Int,HuffTable (Either a (HuffTable a)))"
+    putStrLn "treesxy :: Array Int (Int,MP3HuffMan (Int,Int))"
+    putStr   "treesxy = "
+    putStrLn $ show createTreesXY
+    putStrLn "treesvwxy = "
+    putStrLn $ show createTreesVWXY
+
+-- Will output all huff-arrays for all trees, coupled with linbits
+-- Somebody please kill bjorn for his extremely stupid numbering system,
+-- comments represent the number as used in ISO-11172-3
+createTreesXY :: Array Int (Int, MP3Huffman (Int,Int))
+createTreesXY = array (1, 31)
+    [ (1,  (0, Left $ toArray' tableHuffR00))  -- table 1
+    , (2,  (0, Left $ toArray' tableHuffR01))  -- table 2
+    , (3,  (0, Left $ toArray' tableHuffR02))  -- table 3
+    , (4,  (0, Left $ toArray' tableHuffR02))  -- table 4 is not used
+    , (5,  (0, Left $ toArray' tableHuffR03))  -- table 5
+    , (6,  (0, Left $ toArray' tableHuffR04))  -- table 6
+    , (7,  (0, Left $ toArray' tableHuffR05))  -- table 7
+    , (8,  (0, Right $ toArray tableHuffR06))  -- table 8
+    , (9,  (0, Left $ toArray' tableHuffR07))  -- table 9
+    , (10, (0, Right $ toArray tableHuffR08))  -- table 10
+    , (11, (0, Right $ toArray tableHuffR09))  -- table 11
+    , (12, (0, Right $ toArray tableHuffR10))  -- table 12
+    , (13, (0, Right $ toArray tableHuffR11))  -- table 13
+    , (14, (0, Right $ toArray tableHuffR11))  -- table 14 is not used
+    , (15, (0, Right $ toArray tableHuffR12))  -- table 15
+    , (16, (1, Right $ toArray tableHuffR13))  -- table 16
+    , (17, (2, Right $ toArray tableHuffR13))  -- table 17
+    , (18, (3, Right $ toArray tableHuffR13))  -- table 18
+    , (19, (4, Right $ toArray tableHuffR13))  -- table 19
+    , (20, (6, Right $ toArray tableHuffR13))  -- table 20
+    , (21, (8, Right $ toArray tableHuffR13))  -- table 21
+    , (22, (10, Right $ toArray tableHuffR13)) -- table 22
+    , (23, (13, Right $ toArray tableHuffR13)) -- table 23
+    , (24, (4, Right $ toArray tableHuffR14))  -- table 24
+    , (25, (5, Right $ toArray tableHuffR14))  -- table 25
+    , (26, (6, Right $ toArray tableHuffR14))  -- table 26
+    , (27, (7, Right $ toArray tableHuffR14))  -- table 27
+    , (28, (8, Right $ toArray tableHuffR14))  -- table 28
+    , (29, (9, Right $ toArray tableHuffR14))  -- table 29
+    , (30, (11, Right $ toArray tableHuffR14)) -- table 30
+    , (31, (13, Right $ toArray tableHuffR14)) -- table 31
+    ]
+
+-- The quadruple tables
+createTreesVWXY :: (MP3Huffman (Int,Int,Int,Int), MP3Huffman (Int,Int,Int,Int))
+createTreesVWXY = (Left $ toArray' tableHuffRqa , Left $ toArray' tableHuffRqb)
+
 
 -- The "main" function, for transforming trees to arrays
 toArray :: BjrnTable a -> HuffArray a
