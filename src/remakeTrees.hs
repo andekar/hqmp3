@@ -1,4 +1,4 @@
-module RemakeTrees where
+module Main {- RemakeTrees -} where
 
 import Data.List
 import Control.Arrow
@@ -13,11 +13,6 @@ type BjrnTable a = [([Int], a)]
 
 main :: IO ()
 main = do
-    putStrLn "module HuffArrays where"
-    putStrLn "import Data.Array"
-    putStrLn "type MP3Huffman a = Either (HuffTable a) (HuffArray a)"
-    putStrLn "type HuffTable a = Array Int (Int, a)"
-    putStrLn "type HuffArray a = (Int,HuffTable (Either a (HuffTable a)))"
     putStrLn "treesxy :: Array Int (Int,MP3HuffMan (Int,Int))"
     putStr   "treesxy = "
     putStrLn $ show createTreesXY
@@ -35,9 +30,9 @@ createTreesXY = array (1, 31)
     , (4,  (0, Left $ toArray' tableHuffR02))  -- table 4 is not used
     , (5,  (0, Left $ toArray' tableHuffR03))  -- table 5
     , (6,  (0, Left $ toArray' tableHuffR04))  -- table 6
-    , (7,  (0, Left $ toArray' tableHuffR05))  -- table 7
+    , (7,  (0, Right $ toArray tableHuffR05))  -- table 7
     , (8,  (0, Right $ toArray tableHuffR06))  -- table 8
-    , (9,  (0, Left $ toArray' tableHuffR07))  -- table 9
+    , (9,  (0, Right $ toArray tableHuffR07))  -- table 9
     , (10, (0, Right $ toArray tableHuffR08))  -- table 10
     , (11, (0, Right $ toArray tableHuffR09))  -- table 11
     , (12, (0, Right $ toArray tableHuffR10))  -- table 12
