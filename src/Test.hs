@@ -1,7 +1,7 @@
 {-# OPTIONS -w #-}
 module Main (test) where
 import Data.Binary.BitString.BitGet
-import qualified Codec.Compression.Huffman.Huffman as Huff
+-- import qualified Codec.Compression.Huffman.Huffman as Huff
 -- import Data.Binary.Strict.BitGet
 import Data.Bits
 import Data.Word

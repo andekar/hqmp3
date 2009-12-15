@@ -22,13 +22,11 @@ Executable hqmp3
    build-depends:   base
                   , bytestring
                   , mtl
-                  , binary-strict
                   , haskell98
                   , array
                   , bitstring
                   , binary
                   , MaybeT
-                  , huffmandecoder
                   , parallel
    Main-Is:         Test.hs
 --    hs-source-dirs:  example, .
@@ -39,7 +37,6 @@ Executable hqmp3
                     Codecs.Mp3.Unpack,
                     Codecs.Mp3.IMDCT,
                     Codecs.Mp3.HybridFilterBank,
-                    Codecs.Mp3.Mp3Trees,
                     Codecs.Mp3.ID3                    
                     PCMWriter
    c-sources:       Codecs/Mp3/c_synth.c,

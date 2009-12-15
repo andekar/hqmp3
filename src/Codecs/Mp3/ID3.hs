@@ -23,7 +23,7 @@ import Data.Maybe
 
 -- TODO make this module run with (only) Strict.Get
 
-import qualified Data.Binary.Strict.BitGet as G
+-- import qualified Data.Binary.Strict.BitGet as G
 import qualified Data.Binary.BitString.BitGet as BG
 import Data.Binary.Get
 

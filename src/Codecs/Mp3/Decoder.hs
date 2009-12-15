@@ -6,7 +6,7 @@ module Codecs.Mp3.Decoder (decodeFrames
                           , Scales(..)) where
 
 import Data.Binary.BitString.BitGet
-import qualified Codec.Compression.Huffman.Huffman as Huff
+-- import qualified Codec.Compression.Huffman.Huffman as Huff
 import qualified Data.Binary.BitString.BitString as BS
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString as S
@@ -16,10 +16,11 @@ import Control.Parallel
 import Control.Parallel.Strategies
 import Control.Arrow
 import Codecs.Mp3.Unpack
-import Codecs.Mp3.Mp3Trees
+-- import Codecs.Mp3.Mp3Trees
 import qualified Control.Monad.State.Lazy as LS
 import Data.Array.Unboxed
 import Codecs.Mp3.MP3Types
+import Codecs.Mp3.HuffArrays
 import Codecs.Mp3.HybridFilterBank
 import Codecs.Mp3.Tables
 import Codecs.Mp3.Types
