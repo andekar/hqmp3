@@ -25,10 +25,7 @@
 --
 -- TODO: Change all tables to something more suitable with O(1) lookup.
 --
-module HuffTables (
-     tableHuffman
-    ,tableHuffmanQuad
-) where
+module HuffTables where
 
 -- 
 -- tableHuffmanQuad, tableHuffman
