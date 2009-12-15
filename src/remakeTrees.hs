@@ -6,34 +6,10 @@ import Data.Array.IArray
 import HuffTables
 import HuffArrays
 import Control.Monad (replicateM,liftM)
-import Data.Binary.BitString.BitGet
 
 -- The type of huffman tables as used by Bjorn 
 -- a may be (Int,Int) or (Int,Int,Int,Int)
 type BjrnTable a = [([Int], a)]
-
--- Table# -> (linbits,table)
-getTree :: Int -> (Int,MP3Huffman (Int,Int))
-getTree x | x == 4 || x == 14 = error "Bad Huffman Tables"
-          | otherwise = treesxy ! x
-
--- Lookup a value in the huffman array
--- Second argument is length of the bitstream.
-lookupHuff :: HuffArray a -> Int -> BitGet (Maybe (Int,a))
-lookupHuff (cw,arr) length 
-    | cw <= length = do
-        i <- f cw
-        case arr ! i of
-            (l,Left a)     -> return $ Just (l,a)
-            (l,Right arr') | l+cw <= length -> liftM (Just . (arr' !)) (f l)
-                           | otherwise      -> return Nothing
-    | otherwise = return Nothing
-    
-  where
-    f w | w <= 8  = liftM fromIntegral (getAsWord8 $ fromIntegral w)
-        | w <= 16 = liftM fromIntegral (getAsWord16 $ fromIntegral w)
-
--- Stuff below is kept for historical reasons
 
 main :: IO ()
 main = do
