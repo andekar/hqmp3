@@ -1,4 +1,4 @@
-module HuffArrays where
+module Codecs.Mp3.HuffArrays where
 
 import Data.Array
 import Control.Monad
