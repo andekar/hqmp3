@@ -14,16 +14,13 @@ getTree x | x == 4 || x == 14 = error "Bad Huffman Tables"
           | otherwise = treesxy ! x
 
 -- Lookup a value in the huffman array
--- Second argument is length of the bitstream.
-lookupHuff :: HuffArray a -> Int -> BitGet (Maybe (Int,a))
-lookupHuff (cw,arr) length 
-    | cw <= length = do
+-- This is sort of unsafe...
+lookupHuff :: HuffArray a -> BitGet (Maybe (Int,a))
+lookupHuff (cw,arr)= do
         i <- f cw
         case arr ! i of
             (l,Left a)     -> return $ Just (l,a)
-            (l,Right arr') | l+cw <= length -> liftM (Just . (arr' !)) (f l)
-                           | otherwise      -> return Nothing
-    | otherwise = return Nothing
+            (l,Right arr') -> liftM (Just . (arr' !)) (f l)
   where
     f w | w <= 8  = liftM fromIntegral (getAsWord8 $ fromIntegral w)
         | w <= 16 = liftM fromIntegral (getAsWord16 $ fromIntegral w)
