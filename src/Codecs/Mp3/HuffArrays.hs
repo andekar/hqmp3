@@ -47,12 +47,12 @@ getTree x = case x of
 -- Lookup a value in the huffman array
 lookupHuff :: MP3Huffman a -> BitGet (Int,a)
 lookupHuff huff = case huff of
-    Right (cw,arr) -> do
+    Left (cw,tab) -> do
         i <- f cw
-        case arr ! i of
-            (l,Left a)     -> return (l,a)
-            (l,Right arr') -> liftM (arr' !) (f (cwlen arr'))
-    Left (cw,arr) -> f cw
+        case tab ! i of
+            (l,Left a)           -> return (l,a)
+            (l,Right (cw',arr')) -> liftM (arr' !) (f cw')
+    Right (cw,arr) -> f cw
   where
     f w | w <= 8  = liftM fromIntegral (getAsWord8 $ fromIntegral w)
         | w <= 16 = liftM fromIntegral (getAsWord16 $ fromIntegral w)
