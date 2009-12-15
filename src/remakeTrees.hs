@@ -4,7 +4,7 @@ import Data.List
 import Control.Arrow
 import Data.Array.IArray
 import HuffTables
-import HuffArrays
+import Codecs.Mp3.HuffArrays
 import Control.Monad (replicateM,liftM)
 
 -- The type of huffman tables as used by Bjorn 
@@ -18,42 +18,26 @@ main = do
     putStrLn "-- VWXY Tables below... "
     mapM_ (putStrLn . show) createTreesVWXY
 
--- Will output all huff-arrays for all trees, coupled with linbits
+-- Will output all huff-arrays for all trees, NOT coupled with linbits
 -- Somebody please kill bjorn for his extremely stupid numbering system,
 -- comments represent the number as used in ISO-11172-3
-createTreesXY :: [(Int, MP3Huffman (Int,Int))]
+createTreesXY :: [MP3Huffman (Int,Int)]
 createTreesXY =
-    [ (0, Left $ toArray' tableHuffR00)  -- table 1
-    , (0, Left $ toArray' tableHuffR01)  -- table 2
-    , (0, Left $ toArray' tableHuffR02)  -- table 3
-    , (0, Left $ toArray' tableHuffR02)  -- table 4 is not used
-    , (0, Left $ toArray' tableHuffR03)  -- table 5
-    , (0, Left $ toArray' tableHuffR04)  -- table 6
-    , (0, Right $ toArray tableHuffR05)  -- table 7
-    , (0, Right $ toArray tableHuffR06)  -- table 8
-    , (0, Right $ toArray tableHuffR07)  -- table 9
-    , (0, Right $ toArray tableHuffR08)  -- table 10
-    , (0, Right $ toArray tableHuffR09)  -- table 11
-    , (0, Right $ toArray tableHuffR10)  -- table 12
-    , (0, Right $ toArray tableHuffR11)  -- table 13
-    , (0, Right $ toArray tableHuffR11)  -- table 14 is not used
-    , (0, Right $ toArray tableHuffR12)  -- table 15
-    , (1, Right $ toArray tableHuffR13)  -- table 16
-    , (2, Right $ toArray tableHuffR13)  -- table 17
-    , (3, Right $ toArray tableHuffR13)  -- table 18
-    , (4, Right $ toArray tableHuffR13)  -- table 19
-    , (6, Right $ toArray tableHuffR13)  -- table 20
-    , (8, Right $ toArray tableHuffR13)  -- table 21
-    , (10, Right $ toArray tableHuffR13) -- table 22
-    , (13, Right $ toArray tableHuffR13) -- table 23
-    , (4, Right $ toArray tableHuffR14)  -- table 24
-    , (5, Right $ toArray tableHuffR14)  -- table 25
-    , (6, Right $ toArray tableHuffR14)  -- table 26
-    , (7, Right $ toArray tableHuffR14)  -- table 27
-    , (8, Right $ toArray tableHuffR14)  -- table 28
-    , (9, Right $ toArray tableHuffR14)  -- table 29
-    , (11, Right $ toArray tableHuffR14) -- table 30
-    , (13, Right $ toArray tableHuffR14) -- table 31
+    [ Left $ toArray' tableHuffR00  -- table 1
+    , Left $ toArray' tableHuffR01  -- table 2
+    , Left $ toArray' tableHuffR02  -- table 3
+    , Left $ toArray' tableHuffR03  -- table 5
+    , Left $ toArray' tableHuffR04  -- table 6
+    , Right $ toArray tableHuffR05  -- table 7
+    , Right $ toArray tableHuffR06  -- table 8
+    , Right $ toArray tableHuffR07  -- table 9
+    , Right $ toArray tableHuffR08  -- table 10
+    , Right $ toArray tableHuffR09  -- table 11
+    , Right $ toArray tableHuffR10  -- table 12
+    , Right $ toArray tableHuffR11  -- table 13
+    , Right $ toArray tableHuffR12  -- table 15
+    , Right $ toArray tableHuffR13  -- table 16
+    , Right $ toArray tableHuffR14  -- table 24
     ]
 
 -- The quadruple tables
@@ -78,7 +62,7 @@ toArray xs
 toArray' :: BjrnTable a -> HuffTable a
 toArray' xs = let xs'   = concatMap (\(a,b) -> map (\(a',l) -> (l,(a',b))) $ allLists n a) xs
                   xsInt = map (first toInt) xs'
-              in array (0,n') $ sortBy (\(a,_) (b,_) -> compare a b) xsInt
+              in (n,array (0,n') $ sortBy (\(a,_) (b,_) -> compare a b) xsInt)
   where
     -- This is the length of the longest code word in the table
     n = foldl (\a entry -> max a (length $ fst entry)) 0 xs
