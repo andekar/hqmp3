@@ -52,6 +52,9 @@ fracToPCM x
     | otherwise       = fi y
     where
         y = round $ (x * 32767.0)
+{-# SPECIALIZE fracToPCM :: Double -> PCMSample #-}
+{-# SPECIALIZE fracToPCM :: Float -> PCMSample #-}
+{-# INLINE fracToPCM #-}
 
 class AudioSampleRepr a where
     toPcmRepr   :: a -> PCMSample
@@ -127,4 +130,6 @@ writeSamples handle ch0 ch1 =
             do hWrite16 handle (toPcmRepr ch0sample)
                hWrite16 handle (toPcmRepr ch1sample)
 
-
+{-# SPECIALIZE writeSamples :: Handle -> [Double] -> [Double] -> IO () #-}
+{-# SPECIALIZE writeSamples :: Handle -> [Float] -> [Float] -> IO () #-}
+{-# INLINE writeSamples #-}
