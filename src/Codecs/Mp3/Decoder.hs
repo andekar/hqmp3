@@ -254,7 +254,8 @@ huffDecodeVWXY huff len = do
     w' <- setSign w
     x' <- setSign x
     y' <- setSign y
-    rest <- if len - (fi i) > 0 then huffDecodeVWXY huff (len- (fi i)) else return []
+    let len' = len - (fi i)
+    rest <- if len' > 0 then huffDecodeVWXY huff len' else return []
     return $ v' : w' : x' : y' : rest
   where setSign 0 = return 0
         setSign c = liftM (\s -> if s then negate c else c) getBit

@@ -47,14 +47,14 @@ createTreesVWXY = [Left $ toArray' tableHuffRqa , Left $ toArray' tableHuffRqb]
 toArray :: BjrnTable a -> HuffDeep a
 --toArray :: BjrnTable a -> [(Int,Either (Int,a) (HuffArray a))]
 toArray xs
-  = let (good,bad) = filterLength xs 8
-        lowhigh   = map (first (splitAt 8)) bad
+  = let (good,bad) = filterLength xs 10
+        lowhigh   = map (first (splitAt 10)) bad
         grouped   = groupBy (\a b -> (fst . fst) a == (fst . fst) b) (sortForGroups lowhigh)
         grouped'  = map (\as -> (fst $ fst $ head as, map (\((a,b),c) -> (b,c)) as)) grouped
         innerArrs = map (\(num,val) -> (toInt num , Right $ toArray' val)) grouped'
-        good'     = concatMap (\(a,b) -> map (\(a',l) -> (l,(a',b))) $ allLists 8 a) good
+        good'     = concatMap (\(a,b) -> map (\(a',l) -> (l,(a',b))) $ allLists 10 a) good
         plainArrs = map (\(num,val) -> (toInt num , Left val)) good'
-    in (8, array (0,255) $ innerArrs ++ plainArrs)
+    in (10, array (0,1023) $ innerArrs ++ plainArrs)
   where
     filterLength xs l = partition (\a -> length (fst a) <= l) xs
     
