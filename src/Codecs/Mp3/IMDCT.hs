@@ -33,12 +33,6 @@ import Foreign.Ptr
 import Foreign.Marshal.Array
 import System.IO.Unsafe
 
--- For the Haskell version of IMDCT
-import qualified Data.Array.ST as ST
-import Control.Monad
-import Control.Monad.ST
-import Data.Array.Unboxed
-
 fi :: (Floating b, Integral a) => a -> b
 fi = fromIntegral
 
@@ -63,42 +57,30 @@ imdct points input = let cinput  = map realToFrac input
 -- translated in a naive way.
 --
 
--- This has a horribly long type irl, it has about one million type
--- variables which we don't bother typing in here...
-h_imdct18 inArr outArr = do
-    -- Lookup initilization
-    lookupArr <- ST.newArray (0,17) 0 >>= \m -> ST.newArray (0,35) m
-    forM_ [0..35] $ \n -> do
-        forM_ [0..17] $ \k -> do
-            innerArr <- ST.readArray lookupArr n
-            ST.writeArray innerArr k $ initValue (fi n) (fi k)
-    
-    -- Here goes the actual calculations
-    forM_ [0..35] $ \n -> do
-        innerArr <- ST.readArray lookupArr n
-        s <- forM [0,3..15] $ \k -> do
-            v1 <- ST.readArray innerArr k
-            v2 <- ST.readArray innerArr (k+1)
-            v3 <- ST.readArray innerArr (k+2)
-            let s0 = (inArr ! k)     + v1
-                s1 = (inArr ! (k+1)) + v2
-                s2 = (inArr ! (k+2)) + v3
-            return $ s0 + s1 + s2
-        ST.writeArray outArr n (sum s)
-    return ()
+h_imdct18 :: [Double] -> [Double]
+h_imdct18 xs = zipWith process xs lookup
   where
-    initValue :: Double -> Double -> Double
-    initValue n k = cos $ (pi / 18) * (n + 0.5 + 18/2.0) * (k + 0.5)
+    process :: Double -> [Double] -> Double
+    process k lkp = sum [ k * l | l <- lkp ]
 
--- h_imdct :: Int -> UArray Int Double -> STUArray s Int Double -> ST s ()
-h_imdct 18 inArr outArr     = h_imdct18 inArr outArr
-h_imdct points inArr outArr = do
-    let p = fi points
-    forM_ [0..(points*2 - 1)] $ \n -> do
-        s <- forM [0..(points-1)] $ \k -> 
-            return $ (inArr ! k) 
-                   * (cos $ (pi / p)
-                          * (fi n + 0.5 + p/2.0)
-                          * (fi k + 0.5))
-        ST.writeArray outArr n (sum s)
-    return ()
+    lookup :: [[Double]]
+    lookup = [[ cos ( pi18 * (fi n + 9.5) * (fi k + 2.5))
+             | k <- [0..17]] | n <- [0..35] ]
+    pi18 = pi / 18.0
+
+-- This one is the one described by wikipedia, maybe one
+-- should stick with the one described by the C code?
+h_imdct :: Int -> [Double] -> [Double]
+h_imdct 18 xs = h_imdct18 xs
+h_imdct x xs  = map (imdct_one bigN xs) [1..2*bigN]
+  where
+    bigN = length xs
+    imdct_one :: Int -> [Double] -> Int -> Double
+    imdct_one bigN xs n = invN * sum [ 
+            sum [ x * cos (piN * (fi n + 0.5 + nhalf) * (fi k + 0.5))
+                | k <- [0..bigN-1] ] 
+                | x <- xs ]
+      where
+        invN  = 1 / (fi bigN)
+        piN   = pi / (fi bigN)
+        nhalf = (fi bigN) / 2
