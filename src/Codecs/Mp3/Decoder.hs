@@ -25,15 +25,11 @@ import Codecs.Mp3.HybridFilterBank
 import Codecs.Mp3.Tables
 import Codecs.Mp3.Types
 
-data Scales
-    = Scales { long :: [Double]
-             , short :: [[Double]] }
-    deriving Show
+data Scales = Scales { long :: [Double]
+                     , short :: [[Double]] } deriving Show
 
-data ChannelData a
-    = ChannelData { scale :: Scales
-                  , chanData :: a }
-    deriving Show
+data ChannelData a = ChannelData { scale :: Scales
+                                 , chanData :: a } deriving Show
 
 instance Functor ChannelData where
     f `fmap` ChannelData sc a = ChannelData sc (f a)
@@ -231,7 +227,8 @@ huffDecode [(r0,t0), (r1,t1), (r2,t2)] count1Table = do
     r0res <- liftM concat $ replicateM (r0 `div` 2) $ huffDecodeXY t0
     r1res <- liftM concat $ replicateM (r1 `div` 2) $ huffDecodeXY t1
     r2res <- liftM concat $ replicateM (r2 `div` 2) $ huffDecodeXY t2
-    quadr <- huffDecodeVWXY (getQuadrTable count1Table)
+    len <- liftM fi getLength
+    quadr <- huffDecodeVWXY (getQuadrTable count1Table) len
     return $ r0res ++ r1res ++ r2res ++ quadr
 
 huffDecodeXY :: (Int, MP3Huffman (Int,Int)) -> BitGet [Int]
@@ -249,16 +246,15 @@ huffDecodeXY (linbits, huff) = do
             | c > 0 = liftM (\s -> if s then negate c else c) getBit
             | otherwise = return c
 
-huffDecodeVWXY :: MP3Huffman (Int,Int,Int,Int) -> BitGet [Int]
-huffDecodeVWXY huff = do
+huffDecodeVWXY :: MP3Huffman (Int,Int,Int,Int) -> Int -> BitGet [Int]
+huffDecodeVWXY huff len = do
     (i,(v,w,x,y)) <- lookAhead $ lookupHuff huff
     skip $ fi i
     v' <- setSign v
     w' <- setSign w
     x' <- setSign x
     y' <- setSign y
-    rem <- getLength
-    rest <- if rem > 0 then huffDecodeVWXY huff else return []
+    rest <- if len - (fi i) > 0 then huffDecodeVWXY huff (len- (fi i)) else return []
     return $ v' : w' : x' : y' : rest
   where setSign 0 = return 0
         setSign c = liftM (\s -> if s then negate c else c) getBit
