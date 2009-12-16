@@ -42,13 +42,16 @@ import Control.Monad.State
 
 type PCMSample = Word16
 
+fi :: (Integral a, Num b) => a -> b
+fi = fromIntegral
+
 fracToPCM :: RealFrac a => a -> PCMSample
 fracToPCM x
-    | y <= (-32767)   = fromIntegral (-32767)
-    | y >= 32767      = fromIntegral 32767
-    | otherwise       = fromIntegral y
+    | y <= (-32767)   = fi (-32767)
+    | y >= 32767      = fi 32767
+    | otherwise       = fi y
     where
-        y = round (x * 32767.0)
+        y = round $ (x * 32767.0)
 
 class AudioSampleRepr a where
     toPcmRepr   :: a -> PCMSample
