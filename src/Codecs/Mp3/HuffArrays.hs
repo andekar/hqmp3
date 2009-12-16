@@ -65,7 +65,7 @@ lookupHuff huff = case huff of
 
 -- Get the quadruple tables
 getQuadrTable :: Bool -> MP3Huffman (Int,Int,Int,Int)
-getQuadrTable True  = Left (6,quadrTable2)
+getQuadrTable True  = Left (4,quadrTable2)
 getQuadrTable False = Left (6,quadrTable1)
 
 -- VWXY Tables below... 

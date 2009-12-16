@@ -238,13 +238,13 @@ huffDecodeXY :: (Int, MP3Huffman (Int,Int)) -> BitGet [Int]
 huffDecodeXY (linbits, huff) = do
     (i,(x,y)) <- lookAhead $ lookupHuff huff
     skip $ fi i
-    x' <- linsign x linbits
-    y' <- linsign y linbits
+    x' <- linsign x
+    y' <- linsign y
     return $ x' : [y']
-  where linsign :: Int -> Int -> BitGet Int
-        linsign c l
-            | c == 15 && l > 0 = do
-                res  <- liftM (+15) $ getInt (fi l)
+  where linsign :: Int -> BitGet Int
+        linsign c
+            | c == 15 && linbits > 0 = do
+                res  <- liftM (+15) $ getInt (fi linbits)
                 liftM (\s -> if s then negate res else res) getBit
             | c > 0 = liftM (\s -> if s then negate c else c) getBit
             | otherwise = return c
@@ -325,9 +325,6 @@ b **^ e = let sign = if b < 0 then -1 else 1
 infixr 8 **^
 
 -- Code taken from bjorn...
--- TODO: These will have to be altered to deal with arrays instead...
---       One might want to alter the arrays, in which case we want to have
---           mutable arrays in the ST monad instead
 
 tableScaleBandIndexLong :: Int -> [Int]
 tableScaleBandIndexLong = indexify . consecutiveDiff . tableScaleBandBoundLong
