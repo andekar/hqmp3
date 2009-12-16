@@ -21,7 +21,7 @@ main = do
 
 -- Comments represent the number as used in ISO-11172-3
 -- The first five (1-6) are shallow, whereas the other are deep
--- All tables with longest codeword <= 11 are not cut.
+-- All tables with longest codeword <= 10 are not cut.
 createTreesXY :: [MP3Huffman (Int,Int)]
 createTreesXY =
     [ Left $ toArray' tableHuffR00  -- table 1
@@ -30,11 +30,11 @@ createTreesXY =
     , Left $ toArray' tableHuffR03  -- table 5
     , Left $ toArray' tableHuffR04  -- table 6
     , Left $ toArray' tableHuffR05  -- table 7
-    , Left $ toArray' tableHuffR06  -- table 8
+    , Right $ toArray tableHuffR06 8 -- table 8
     , Left $ toArray' tableHuffR07  -- table 9
-    , Left $ toArray' tableHuffR08  -- table 10
-    , Left $ toArray' tableHuffR09  -- table 11
-    , Left $ toArray' tableHuffR10  -- table 12
+    , Right $ toArray tableHuffR08 8 -- table 10
+    , Right $ toArray tableHuffR09 8 -- table 11
+    , Left $ toArray' tableHuffR10   -- table 12
     , Right $ toArray tableHuffR11 10 -- table 13
     , Right $ toArray tableHuffR12 8  -- table 15
     , Right $ toArray tableHuffR13 9  -- table 16
