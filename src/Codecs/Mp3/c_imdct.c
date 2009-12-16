@@ -32,34 +32,36 @@
 
 void imdct18(double *in, double *out) {
     static double lookup[36][18];
-    
+    int n, k;
+
     /* Lookup initilization */
-    for(int n = 0; n < 36; n++) {
-        for(int k = 0; k < 18; k++) {
-            lookup[n][k] = cos((PI/18) * (n + 0.5 + 18/2.0) * (k + 0.5));
+    for(n = 0; n < 36; n++) {
+        for(k = 0; k < 18; k++) {
+            lookup[n][k] = cos((PI/18) * (n + 9.5) * (k + 0.5));
         }
     }
-
-    for(int n = 0; n < 36; n++) {
+  
+    /* Actual output calculation */
+    for(n = 0; n < 36; n++) {
         double sum = 0.0;
-        for(int k = 0; k < 18; k+=3) {
-            sum += in[k+0] * lookup[n][k+0];
-            sum += in[k+1] * lookup[n][k+1];
-            sum += in[k+2] * lookup[n][k+2];
+        for(k = 0; k < 18; k++) {
+            sum += in[k] * lookup[n][k];
         }
         out[n] = sum;
     }
 }
 
 void imdct(int points, double *in, double *out) {
+    int n, k;
+    
     if(points == 18) {
         imdct18(in, out);
         return;
     }
 
-    for(int n = 0; n < points*2; n++) {
+    for(n = 0; n < points*2; n++) {
         double sum = 0.0;
-        for(int k = 0; k < points; k++) {
+        for(k = 0; k < points; k++) {
             sum += in[k]
                  * cos((PI/points) 
                  * (n + 0.5 + points/2.0)

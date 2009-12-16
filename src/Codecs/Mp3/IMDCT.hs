@@ -24,18 +24,23 @@
 --    3. This notice may not be removed or altered from any source
 --    distribution.
 --
-module Codecs.Mp3.IMDCT (
-    imdct
-) where
 
+module Codecs.Mp3.IMDCT (imdct) where
+
+{-
 import Foreign.C.Types
 import Foreign.Ptr
 import Foreign.Marshal.Array
 import System.IO.Unsafe
+-}
 
 fi :: (Floating b, Integral a) => a -> b
 fi = fromIntegral
 
+{-
+ - The C calls are kept here for historical reasons, and in case
+ - somethings goes very bad...
+ -
 foreign import ccall "c_imdct.h imdct"
     c_imdct :: CInt -> Ptr CDouble -> Ptr CDouble -> IO ()
 
@@ -52,35 +57,27 @@ imdct points input = let cinput  = map realToFrac input
                          output  = map realToFrac coutput
                      in output
 
+-}
+
 --
 -- Below are Haskell versions of the functions in c_imdct.c
--- translated in a naive way.
 --
 
-h_imdct18 :: [Double] -> [Double]
-h_imdct18 xs = zipWith process xs lookup
+-- Straightforward translation from the C code, elegant!
+imdct18 :: [Double] -> [Double]
+imdct18 xs = zipWith (\k -> sum . map (k*)) xs lookupIMDCT
   where
-    process :: Double -> [Double] -> Double
-    process k lkp = sum [ k * l | l <- lkp ]
+    -- 36x18 matrix
+    lookupIMDCT :: [[Double]]
+    lookupIMDCT = [[ cos $ (pi / 18.0) * (fi n + 9.5) * (fi k + 0.5)
+                  | k <- [0..17]] | n <- [0..35]]
 
-    lookup :: [[Double]]
-    lookup = [[ cos ( pi18 * (fi n + 9.5) * (fi k + 2.5))
-             | k <- [0..17]] | n <- [0..35] ]
-    pi18 = pi / 18.0
-
--- This one is the one described by wikipedia, maybe one
--- should stick with the one described by the C code?
-h_imdct :: Int -> [Double] -> [Double]
-h_imdct 18 xs = h_imdct18 xs
-h_imdct x xs  = map (imdct_one bigN xs) [1..2*bigN]
+-- Straightforward translation from the C code.
+imdct :: Int -> [Double] -> [Double]
+imdct 18 xs  = imdct18 xs
+imdct pts xs = map (\n -> sum $ zipWith (subone n) xs [0..pts-1]) [0..2*pts-1]
   where
-    bigN = length xs
-    imdct_one :: Int -> [Double] -> Int -> Double
-    imdct_one bigN xs n = invN * sum [ 
-            sum [ x * cos (piN * (fi n + 0.5 + nhalf) * (fi k + 0.5))
-                | k <- [0..bigN-1] ] 
-                | x <- xs ]
-      where
-        invN  = 1 / (fi bigN)
-        piN   = pi / (fi bigN)
-        nhalf = (fi bigN) / 2
+    subone :: Int -> Double -> Int -> Double
+    subone n y k = y * (cos $ pipts * (fi n + 0.5 + nhalf) * (fi k + 0.5))
+    pipts        = pi / (fi pts)
+    nhalf        = (fi pts) / 2.0
