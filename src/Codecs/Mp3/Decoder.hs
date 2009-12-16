@@ -217,8 +217,8 @@ mp3UnpackScaleFactors (large, small) preflag scalefacbit =
         large'' = map floatFunc large'
         small'  = map (map floatFunc) small
     in Scales large'' small'
-    where
-        floatFunc = mp3FloatRep3 (fromEnum scalefacbit)
+  where
+    floatFunc = mp3FloatRep3 (fromEnum scalefacbit)
 
 -- Two different floating point representations can be used for the scale
 -- factors. (See discussion at mp3FloatRep1).
@@ -226,17 +226,18 @@ mp3FloatRep3 :: Int -> Int -> Double
 mp3FloatRep3 0 n = 2.0 ** ((-0.5) * (fi n))
 mp3FloatRep3 1 n = 2.0 ** ((-1)   * (fi n))
 
-huffDecode :: [(Int, HuffTable)] -> Bool -> BitGet [Int]
+huffDecode :: [(Int, (Int, MP3Huffman (Int,Int)))] -> Bool -> BitGet [Int]
 huffDecode [(r0,t0), (r1,t1), (r2,t2)] count1Table = do
     r0res <- liftM concat $ replicateM (r0 `div` 2) $ huffDecodeXY t0
     r1res <- liftM concat $ replicateM (r1 `div` 2) $ huffDecodeXY t1
     r2res <- liftM concat $ replicateM (r2 `div` 2) $ huffDecodeXY t2
-    quadr <- huffDecodeVWXY (getQuadrTree count1Table)
+    quadr <- huffDecodeVWXY (getQuadrTable count1Table)
     return $ r0res ++ r1res ++ r2res ++ quadr
 
-huffDecodeXY :: HuffTable -> BitGet [Int]
-huffDecodeXY (huff, linbits) = do
-    Just (x,y) <- Huff.decode huff return 0
+huffDecodeXY :: (Int, MP3Huffman (Int,Int)) -> BitGet [Int]
+huffDecodeXY (linbits, huff) = do
+    (i,(x,y)) <- lookAhead $ lookupHuff huff
+    skip $ fi i
     x' <- linsign x linbits
     y' <- linsign y linbits
     return $ x' : [y']
@@ -248,19 +249,17 @@ huffDecodeXY (huff, linbits) = do
             | c > 0 = liftM (\s -> if s then negate c else c) getBit
             | otherwise = return c
 
-huffDecodeVWXY :: Huff.HuffTree (Int,Int,Int,Int) -> BitGet [Int]
+huffDecodeVWXY :: MP3Huffman (Int,Int,Int,Int) -> BitGet [Int]
 huffDecodeVWXY huff = do
-    ret <- Huff.decode huff return 0
-    case ret of
-        (Just (v,w,x,y)) -> do
-            v' <- setSign v
-            w' <- setSign w
-            x' <- setSign x
-            y' <- setSign y
-            rem <- getLength
-            rest <- if rem > 0 then huffDecodeVWXY huff else return []
-            return $ v' : w' : x' : y' : rest
-        Nothing -> return []
+    (i,(v,w,x,y)) <- lookAhead $ lookupHuff huff
+    skip $ fi i
+    v' <- setSign v
+    w' <- setSign w
+    x' <- setSign x
+    y' <- setSign y
+    rem <- getLength
+    rest <- if rem > 0 then huffDecodeVWXY huff else return []
+    return $ v' : w' : x' : y' : rest
   where setSign 0 = return 0
         setSign c = liftM (\s -> if s then negate c else c) getBit
 

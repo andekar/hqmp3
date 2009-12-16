@@ -11,6 +11,7 @@ import Control.Monad (replicateM,liftM)
 -- a may be (Int,Int) or (Int,Int,Int,Int)
 type BjrnTable a = [([Int], a)]
 
+-- Typical usage: ./remakeTrees >> HuffArrays.hs
 main :: IO ()
 main = do
     putStrLn "-- XY Tables below..."
@@ -18,9 +19,8 @@ main = do
     putStrLn "-- VWXY Tables below... "
     mapM_ (putStrLn . show) createTreesVWXY
 
--- Will output all huff-arrays for all trees, NOT coupled with linbits
--- Somebody please kill bjorn for his extremely stupid numbering system,
--- comments represent the number as used in ISO-11172-3
+-- Comments represent the number as used in ISO-11172-3
+-- The first five (1-6) are shallow, whereas the other are deep
 createTreesXY :: [MP3Huffman (Int,Int)]
 createTreesXY =
     [ Left $ toArray' tableHuffR00  -- table 1
@@ -44,15 +44,25 @@ createTreesXY =
 createTreesVWXY :: [MP3Huffman (Int,Int,Int,Int)]
 createTreesVWXY = [Left $ toArray' tableHuffRqa , Left $ toArray' tableHuffRqb]
 
-toArray = undefined
-{-
--- The "main" function, for transforming trees to arrays
 toArray :: BjrnTable a -> HuffDeep a
-toArray xs 
+--toArray :: BjrnTable a -> [(Int,Either (Int,a) (HuffArray a))]
+toArray xs
   = let (good,bad) = filterLength xs 8
         lowhigh   = map (first (splitAt 8)) bad
         grouped   = groupBy (\a b -> (fst . fst) a == (fst . fst) b) (sortForGroups lowhigh)
         grouped'  = map (\as -> (fst $ fst $ head as, map (\((a,b),c) -> (b,c)) as)) grouped
+        innerArrs = map (\(num,val) -> (toInt num , Right $ toArray' val)) grouped'
+        good'     = concatMap (\(a,b) -> map (\(a',l) -> (l,(a',b))) $ allLists 8 a) good
+        plainArrs = map (\(num,val) -> (toInt num , Left val)) good'
+    in (8, array (0,255) $ innerArrs ++ plainArrs)
+  where
+    filterLength xs l = partition (\a -> length (fst a) < l) xs
+    
+
+{-
+-- The "main" function, for transforming trees to arrays
+toArray :: BjrnTable a -> HuffDeep a
+toArray xs 
         grouped'' = map (second (Right . toArray')) grouped'
         allLists  = grouped'' ++ map (second Left) good
     in (8, toArray' allLists)
@@ -62,6 +72,7 @@ toArray xs
 -}
 
 -- Creates an array of size 2^n where n is the length of the longest code word
+-- TODO: Give variables better names in the concatMap
 toArray' :: BjrnTable a -> HuffArray a
 toArray' xs = let xs'   = concatMap (\(a,b) -> map (\(a',l) -> (l,(a',b))) $ allLists n a) xs
                   xsInt = map (first toInt) xs'
