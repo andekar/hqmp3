@@ -15,9 +15,9 @@ type BjrnTable a = [([Int], a)]
 main :: IO ()
 main = do
     putStrLn "-- XY Tables below..."
-    mapM_ output (zip [1..3,5..16,24] createTreesXY)
+    mapM_ output (zip ([1..3] ++ [5..13] ++ [15,16,24]) createTreesXY)
   where
-    output (num, tree) = putStrLn "tree"++(show num)++ " = " ++ (show tree)
+    output (num, tree) = putStrLn $ "tree"++(show num)++ " = " ++ (show tree)
 
 -- Comments represent the number as used in ISO-11172-3
 -- The first five (1-6) are shallow, whereas the other are deep
