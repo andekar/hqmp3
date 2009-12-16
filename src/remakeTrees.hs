@@ -15,9 +15,9 @@ type BjrnTable a = [([Int], a)]
 main :: IO ()
 main = do
     putStrLn "-- XY Tables below..."
-    mapM_ (putStrLn . show) createTreesXY
-    putStrLn "-- VWXY Tables below... "
-    mapM_ (putStrLn . show) createTreesVWXY
+    mapM_ output (zip [1..3,5..16,24] createTreesXY)
+  where
+    output (num, tree) = putStrLn "tree"++(show num)++ " = " ++ (show tree)
 
 -- Comments represent the number as used in ISO-11172-3
 -- The first five (1-6) are shallow, whereas the other are deep
@@ -56,7 +56,7 @@ toArray xs
         plainArrs = map (\(num,val) -> (toInt num , Left val)) good'
     in (8, array (0,255) $ innerArrs ++ plainArrs)
   where
-    filterLength xs l = partition (\a -> length (fst a) < l) xs
+    filterLength xs l = partition (\a -> length (fst a) <= l) xs
     
 
 {-

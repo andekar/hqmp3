@@ -31,12 +31,12 @@ test f = do
     PCM.writeHeader out
     let fs = unpackMp3 file
         dc = decodeFrames fs
-        f = fs `par` dc `par` "we"
+        f = fs `par` dc `par` "wee"
     putStr f
 --     mapM_ print dc
     forM_ dc $ \dchan -> do
         let (left,right) = dchan
-        PCM.writeSamplerate out 44100 -- 44100 -- we need to write this all the time...
+        PCM.writeSamplerate out 44100 -- we need to write this all the time...
         PCM.writeSamples out left right
 --         putStrLn "# Oh yeah!"
   where
