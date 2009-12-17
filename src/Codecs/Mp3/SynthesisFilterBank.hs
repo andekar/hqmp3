@@ -42,36 +42,6 @@ fi = fromIntegral
 type Sample = Double
 data MP3SynthState = MP3SynthState [Sample] deriving (Show)
 
-{-
-foreign import ccall "c_synth.h synth"
-    c_synth :: Ptr CDouble -> Ptr CDouble -> Ptr CDouble -> Ptr CDouble -> IO ()
-
-synthIO :: [CDouble] -> [CDouble] -> IO ([CDouble], [CDouble])
-synthIO state input
-    = withArray state $ \cstate ->
-      withArray input $ \cinput ->
-      allocaArray 1024 $ \cstate' ->
-      allocaArray 576  $ \coutput ->
-      do c_synth cstate cinput cstate' coutput
-         state' <- peekArray 1024 cstate' -- array a -> [a]
-         output <- peekArray 576 coutput  -- array a -> [a]
-         return (state', output)
-
-
-mp3SynthesisFilterBank :: MP3SynthState -> [Sample] -> (MP3SynthState, [Sample])
-mp3SynthesisFilterBank (MP3SynthState state) input =
-    let cstate = map realToFrac state
-        cinput = map realToFrac input
-        (cstate', coutput) = unsafePerformIO (synthIO cstate cinput)
-        state' = map realToFrac cstate'
-        output = map realToFrac coutput
-    in  (MP3SynthState state', output)
--}
-
---
--- Haskell versions of c_synth.c stuff below
---
-
 -- Lets just hope that this turns into an array at compile time
 -- These values have double precision!!!!!
 synth_window :: U.UArray Int Double
@@ -187,8 +157,9 @@ lookupSynth = listArray (0,63) (map innerArrs [0..63])
         val i j = cos $ (16.0 + i) * (2.0*j + 1) * (pi / 64.0)
 
 -- DOES NOT TYPECHECK WHICH IS NICE?!
-mp3SynthesisFilterBank :: MP3SynthState -> [Double] -> (MP3SynthState,[Double])
-mp3SynthesisFilterBank (MP3SynthState oldstate) oldsamples = first MP3SynthState $ runST $ do
+mp3SynthesisFilterBank :: MP3SynthState -> [Sample] -> (MP3SynthState,[Sample])
+mp3SynthesisFilterBank (MP3SynthState oldstate) oldsamples 
+  = first MP3SynthState $ runST $ do
     --initialize new state
     state   <- newListArray (0,1023) oldstate  :: ST s (STUArray s Int Double)
     samples <- newListArray (0,575) oldsamples :: ST s (STUArray s Int Double)
