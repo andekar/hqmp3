@@ -29,7 +29,6 @@ Executable hqmp3
                   , MaybeT
                   , parallel
    Main-Is:         Test.hs
---    hs-source-dirs:  example, .
    Other-Modules:   Codecs.Mp3.Decoder
                     Codecs.Mp3.Types,
                     Codecs.Mp3.SynthesisFilterBank,
@@ -39,7 +38,6 @@ Executable hqmp3
                     Codecs.Mp3.HybridFilterBank,
                     Codecs.Mp3.ID3                    
                     PCMWriter
-   c-sources:       Codecs/Mp3/c_synth.c,
-                    Codecs/Mp3/c_imdct.c
+   c-sources:       Codecs/Mp3/c_synth.c
    cc-options:      -O2 -std=c99
    ghc-options:     -O2 -threaded -funbox-strict-fields
