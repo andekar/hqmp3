@@ -30,29 +30,21 @@ module Codecs.Mp3.SynthesisFilterBank (
     ,mp3SynthesisFilterBank
 ) where
 
-import Foreign.C.Types
-import Foreign.Ptr
-import Foreign.Marshal.Array
-import System.IO.Unsafe
-
--- For the Haskell versions
-import Data.Array.Unboxed
-import qualified Data.Array.ST as ST
+import Data.Array.Unboxed as U
+import Data.Array.ST as ST
 import Control.Monad
 import Control.Monad.ST
-
-foreign import ccall "c_synth.h synth"
-    c_synth :: Ptr CDouble -> Ptr CDouble -> Ptr CDouble -> Ptr CDouble -> IO ()
+import Control.Arrow
 
 fi :: (Floating b, Integral a) => a -> b
 fi = fromIntegral
 
--- AWESOME HASKELL VERSION
--- synthST :: [Double] -> [Double] -> ST s ([Double],[Double])
-synthST state input = do
-    stateArr <- ST.newListArray (0,1023) state :: ST s (ST.STUArray s Int Double)
-    inputArr <- ST.newListArray (0,575) input  :: ST s (ST.STUArray s Int Double)
-    h_synth stateArr inputArr
+type Sample = Double
+data MP3SynthState = MP3SynthState [Sample] deriving (Show)
+
+{-
+foreign import ccall "c_synth.h synth"
+    c_synth :: Ptr CDouble -> Ptr CDouble -> Ptr CDouble -> Ptr CDouble -> IO ()
 
 synthIO :: [CDouble] -> [CDouble] -> IO ([CDouble], [CDouble])
 synthIO state input
@@ -65,8 +57,6 @@ synthIO state input
          output <- peekArray 576 coutput  -- array a -> [a]
          return (state', output)
 
-type Sample = Double
-data MP3SynthState = MP3SynthState [Sample] deriving (Show)
 
 mp3SynthesisFilterBank :: MP3SynthState -> [Sample] -> (MP3SynthState, [Sample])
 mp3SynthesisFilterBank (MP3SynthState state) input =
@@ -76,6 +66,7 @@ mp3SynthesisFilterBank (MP3SynthState state) input =
         state' = map realToFrac cstate'
         output = map realToFrac coutput
     in  (MP3SynthState state', output)
+-}
 
 --
 -- Haskell versions of c_synth.c stuff below
@@ -83,8 +74,8 @@ mp3SynthesisFilterBank (MP3SynthState state) input =
 
 -- Lets just hope that this turns into an array at compile time
 -- These values have double precision!!!!!
-synth_window :: UArray Int Double
-synth_window = listArray (0,511)
+synth_window :: U.UArray Int Double
+synth_window = U.listArray (0,511)
       [ 0.000000000, -0.000015259, -0.000015259, -0.000015259, -0.000015259,
        -0.000015259, -0.000015259, -0.000030518, -0.000030518, -0.000030518,
        -0.000030518, -0.000045776, -0.000045776, -0.000061035, -0.000061035,
@@ -189,39 +180,48 @@ synth_window = listArray (0,511)
         0.000030518,  0.000015259,  0.000015259,  0.000015259,  0.000015259,
         0.000015259,  0.000015259]
 
--- I have a feeling that this code will be very messy...
--- As usual, the type one believes to be correct turns out to be completely
--- wrong when working with mutable arrays.
+-- The lookup matrix used
+lookupSynth :: Array Int (Array Int Double)
+lookupSynth = listArray (0,63) (map innerArrs [0..63])
+  where innerArrs i = listArray (0,31) (map (val i) [0..31])
+        val i j = cos $ (16.0 + i) * (2.0*j + 1) * (pi / 64.0)
 
---
--- One may want to write these as zips instead
---
-
--- h_synth :: UArray Int Double -> UArray Int Double -> ST s ([Double],[Double])
-h_synth state samples = do
-    newState <- ST.newArray (0,1023) 0.0
-    output   <- ST.newArray (0,575) 0.0
-
-    -- Create and initialize the lookup matrix
-    lookupArr <- ST.newArray (0,31) 0 >>= \m -> ST.newArray (0,63) m
-    forM [0..63] $ \i -> do
-        innerArr <- ST.readArray lookupArr i
-        forM [0..31] $ \j -> ST.writeArray innerArr j $ initValue i j
+-- DOES NOT TYPECHECK WHICH IS NICE?!
+mp3SynthesisFilterBank :: MP3SynthState -> [Double] -> (MP3SynthState,[Double])
+mp3SynthesisFilterBank (MP3SynthState oldstate) oldsamples = first MP3SynthState $ runST $ do
+    --initialize new state
+    state   <- newListArray (0,1023) oldstate  :: ST s (STUArray s Int Double)
+    samples <- newListArray (0,575) oldsamples :: ST s (STUArray s Int Double)
+    output  <- newArray_ (0,576)               :: ST s (STUArray s Int Double)
     
-    -- Initialize the new state
-    forM [0..1023] $ \i -> do
-        v <- ST.readArray state i
-        ST.writeArray newState i v
-    
-    -- Start working here
-    
-    -- Unfortunately we have to output the values as lists in order for the 
-    -- rest of the decoder to work properly. One would want it to operate on
-    -- only mutable arrays, however that seems to require a LOT of work...
-    output'   <- ST.getElems output
-    newState' <- ST.getElems newState
-    return (newState',output')
-  where
-    initValue :: Int -> Int -> Double
-    initValue i j = cos $ (16+fi i) * (2*fi j + 1) * (pi / 64)
+    -- then start working
+    forM_ [0..17] $ \s -> do
+        -- calculate S[i] for all i
+        selems <- forM [0..31] $ \i -> readArray samples (18*i + s)
+        sArr   <- newListArray (0,31) selems :: ST s (STUArray s Int Double)
+        
+        -- calculate the new state
+        forM_ [64..1023] $ \i -> readArray state (i-64) >>= writeArray state i
+        forM_ [0..63]    $ \i -> do
+            let ss = map (lookupSynth ! i !) [0..31]
+            sa <- mapM (readArray sArr) [0..31]
+            writeArray state i $ sum $ zipWith (*) ss sa
+        -- done calculating the new state
 
+        -- start calculating output
+        uArr <- newArray_ (0,575) :: ST s (STUArray s Int Double)
+        forM_ [0..7] $ \i -> forM_ [0..31] $ \j -> do
+            readArray state (i*128 + j)      >>= writeArray uArr (i*64+j)
+            readArray state (i*128 + j + 96) >>= writeArray uArr (i*64+j+32)
+        forM_ [0..511] $ \i -> do
+            oldU <- readArray uArr i
+            writeArray uArr i (oldU * synth_window ! i)
+        forM_ [0..31] $ \i -> do
+            ss <- forM [0..15] $ \j -> readArray uArr (j*32 + i)
+            writeArray output (32*s + i) (sum ss)
+        -- done with the output
+
+    -- return results
+    newState <- getElems state
+    out      <- getElems output
+    return (newState,out)

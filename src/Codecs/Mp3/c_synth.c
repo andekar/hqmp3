@@ -165,7 +165,7 @@ void synth(double state[1024], double samples[576],
             S[i] = samples[i*18 + s];
         }
 
-        /* V.. */
+        /* Calculate the new state */
         for(int i = 1023; i > 63; i--) {
             newstate[i] = newstate[i - 64];
         }
@@ -177,10 +177,11 @@ void synth(double state[1024], double samples[576],
             }
             newstate[i] = sum;
         }
-
+        /* Done calculating new state */
+        /* Start calculating output */
         for(int i = 0; i < 8; i++) {
             for(int j = 0; j < 32; j++) {
-                U[i*64 + j] = newstate[i*128 + j];
+                U[i*64 + j]      = newstate[i*128 + j];
                 U[i*64 + j + 32] = newstate[i*128 + j + 96];
             }
         }
@@ -196,6 +197,7 @@ void synth(double state[1024], double samples[576],
             }
             output[32*s + i] = sum;
         }
+        /* Done calculating output */
     }
     return;
 }
