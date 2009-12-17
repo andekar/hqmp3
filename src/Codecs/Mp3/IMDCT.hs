@@ -9,8 +9,8 @@ imdct18 xs = map (\tab -> sum $ zipWith (*) tab xs) lookupIMDCT
   where
     -- 36x18 matrix
     lookupIMDCT :: [[Double]]
-    lookupIMDCT = [[ cos $ (pi / 18.0) * (fi n + 9.5) * (fi k + 0.5)
-                  | k <- [0..17]] | n <- [0..35]]
+    lookupIMDCT = [[ cos $ (pi / 18.0) * n * k
+                  | k <- [0.5, 1.5 .. 17.5]] | n <- [9.5, 10.5 .. 44.5]]
 
 -- Straightforward translation from the C code.
 imdct :: Int -> [Double] -> [Double]
