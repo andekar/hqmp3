@@ -1,16 +1,16 @@
 module Codecs.Mp3.IMDCT (imdct) where
 
-fi :: (Floating b, Integral a) => a -> b
+fi :: Int -> Double
 fi = fromIntegral
 
 -- Straightforward translation from the C code, elegant!
 imdct18 :: [Double] -> [Double]
-imdct18 xs = map (\tab -> sum $ zipWith (*) tab xs) lookupIMDCT
+imdct18 xs = map (\s -> sum (zipWith (*) xs s)) lookupIMDCT
   where
     -- 36x18 matrix
     lookupIMDCT :: [[Double]]
     lookupIMDCT = [[ cos $ (pi / 18.0) * n * k
-                  | k <- [0.5, 1.5 .. 17.5]] | n <- [9.5, 10.5 .. 44.5]]
+                     | k <- [0.5, 1.5 .. 17.5]] | n <- [9.5, 10.5 .. 44.5]]
 
 -- Straightforward translation from the C code.
 imdct :: Int -> [Double] -> [Double]

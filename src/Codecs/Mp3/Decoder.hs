@@ -24,6 +24,7 @@ import Codecs.Mp3.HuffArrays
 import Codecs.Mp3.HybridFilterBank
 import Codecs.Mp3.Tables
 import Codecs.Mp3.Types
+import Data.Array.Unboxed
 
 data Scales = Scales { long :: [Double]
                      , short :: [[Double]] } deriving Show
@@ -63,7 +64,7 @@ decodeRest (chan:xs) = do
             (state1, output1) = step1 g1 state0
         LS.put $ MP3DecodeState state1 state1
         rest <- decodeRest xs
-        return ((output0 ++ output1, output0 ++ output1):rest)
+        return (((elems output0) ++ (elems output1), (elems output0) ++ (elems output1)):rest)
     (Dual _ _ _ (g0, g2) (g1, g3)) -> do
         let s'@(state0, output0) = step1 g0 (decodeState0 prevState)
             s''@(state1, output1) = step1 g1 (decodeState1 prevState)
@@ -71,7 +72,7 @@ decodeRest (chan:xs) = do
             (state3, output3) = step1 g3 state1
         LS.put $ MP3DecodeState state2 state3
         rest <- decodeRest xs
-        return ((output0 ++ output2, output1 ++ output3) : rest )
+        return (((elems output0) ++ (elems output2), (elems output1) ++ (elems output3)) : rest )
   where
     step1 gran state =
         let bf  = toBlockflag (mixedBlock gran) (blockType gran)
@@ -88,7 +89,7 @@ toBlockflag mixedflag blocktype
 data MP3DecodeState = MP3DecodeState {
     decodeState0 :: MP3HybridState,
     decodeState1 :: MP3HybridState
-} deriving Show
+                                     }
 
 emptyMP3DecodeState :: MP3DecodeState
 emptyMP3DecodeState = MP3DecodeState emptyMP3HybridState emptyMP3HybridState

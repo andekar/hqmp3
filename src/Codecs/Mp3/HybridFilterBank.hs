@@ -35,6 +35,7 @@ import Codecs.Mp3.IMDCT
 import Codecs.Mp3.SynthesisFilterBank
 import Codecs.Mp3.Tables
 import Codecs.Mp3.Types
+import Data.Array.Unboxed
 
 mapBlock :: Int -> ([a] -> b) -> [a] -> [b]
 mapBlock blocksize func []  = []
@@ -159,22 +160,22 @@ padWith n padding xs = xs ++ replicate (n - length xs) padding
 --
 mp3HybridFilterBank :: BlockFlag -> Int -> 
                        MP3HybridState -> [Frequency] -> 
-                       (MP3HybridState, [Sample])
+                       (MP3HybridState, UArray Int Double)
 mp3HybridFilterBank bf bt (MP3HybridState simdct ssynthesis) input =
     let input'                = padWith 576 0.0 input -- ensure length 576
         aa                    = mp3AA    bf bt input'
-        (samp, simdct')       = mp3IMDCT bf bt aa simdct
+        (samp, simdct')       = mp3IMDCT bf bt aa (elems simdct)
         samp'                 = mp3FrequencyInvert samp
         (ssynthesis', output) = mp3SynthesisFilterBank ssynthesis samp'
-    in (MP3HybridState simdct' ssynthesis', output)
+    in (MP3HybridState (listArray (0,575) simdct') ssynthesis', output)
 
 -- [Sample] = IMDCT output from previous granule, used for overlapping.
 -- MP3SynthState = State for the synthesis filterbank.
-data MP3HybridState = MP3HybridState [Sample] MP3SynthState
+data MP3HybridState = MP3HybridState (UArray Int Double) MP3SynthState
 
 emptyMP3HybridState :: MP3HybridState
-emptyMP3HybridState 
-    = MP3HybridState (replicate 576 0.0) 
-                     (MP3SynthState (listArray (0,1023) empty) empty) 
+emptyMP3HybridState
+    = MP3HybridState (listArray (0,575) $ replicate 576 0.0)
+                     (MP3SynthState (listArray (0,1023) empty))
   where empty = (replicate 1024 0.0)
 

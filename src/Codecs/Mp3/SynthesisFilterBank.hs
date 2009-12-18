@@ -40,7 +40,7 @@ fi :: (Floating b, Integral a) => a -> b
 fi = fromIntegral
 
 type Sample = Double
-data MP3SynthState = MP3SynthState [Sample] deriving (Show)
+data MP3SynthState = MP3SynthState (UArray Int Double)
 
 -- Lets just hope that this turns into an array at compile time
 -- These values have double precision!!!!!
@@ -150,51 +150,54 @@ synth_window = U.listArray (0,511)
         0.000030518,  0.000015259,  0.000015259,  0.000015259,  0.000015259,
         0.000015259,  0.000015259]
 
+-- will this be calculated at compiletime?
 -- The lookup matrix used, 64x32
 lookupSynth :: Array Int (Array Int Double)
 lookupSynth = listArray (0,63) (map innerArrs [0..63])
   where innerArrs i = listArray (0,31) (map (val i) [0..31])
         val i j = cos $ (16.0 + i) * (2.0*j + 1) * (pi / 64.0)
 
--- Extremely naive and ugly translation from the C code
-mp3SynthesisFilterBank :: MP3SynthState -> [Sample] -> (MP3SynthState,[Sample])
-mp3SynthesisFilterBank (MP3SynthState oldstate) oldsamples 
-  = first MP3SynthState $ runST $ do
-    --initialize new state
-    state   <- newListArray (0,1023) oldstate  :: ST s (STUArray s Int Double)
-    samples <- newListArray (0,575) oldsamples :: ST s (STUArray s Int Double)
-    output  <- newArray (0,575) 0              :: ST s (STUArray s Int Double)
-    
-    -- then start working
-    forM_ [0..17] $ \s -> do
-        -- calculate S[i] for all i
-        selems <- forM [0..31] $ \i -> readArray samples (18*i + s)
-        sArr   <- newListArray (0,31) selems :: ST s (STUArray s Int Double)
-        
-        -- calculate the new state
-        forM_ [1023,1022..64] $ \i -> do
-            j <- readArray state (i-64)
-            writeArray state i j
-        forM_ [0..63]    $ \i -> do
-            let ss = map (lookupSynth ! i !) [0..31]
-            sa <- mapM (readArray sArr) [0..31]
-            writeArray state i $ sum $ zipWith (*) ss sa
-        -- done calculating the new state
+mp3SynthesisFilterBank :: MP3SynthState -> [Sample] -> (MP3SynthState, UArray Int Double)
+mp3SynthesisFilterBank (MP3SynthState oldstate) oldsamples
+  = let samples = listArray (0,575) oldsamples
+        newstates = stateList 0 oldstate samples
+        output    = generateOutput newstates
+    in  (MP3SynthState (last newstates), output)
+  where stateList 18 _ _ = []
+        stateList s state sample = let first = updateState s state sample
+                                   in  first : stateList (s+1) first sample
 
-        -- start calculating output
-        uArr <- newArray_ (0,575) :: ST s (STUArray s Int Double)
-        forM_ [0..7] $ \i -> forM_ [0..31] $ \j -> do
-            readArray state (i*128 + j)      >>= writeArray uArr (i*64+j)
-            readArray state (i*128 + j + 96) >>= writeArray uArr (i*64+j+32)
-        forM_ [0..511] $ \i -> do
-            oldU <- readArray uArr i
-            writeArray uArr i (oldU * synth_window ! i)
-        forM_ [0..31] $ \i -> do
-            ss <- forM [0..15] $ \j -> readArray uArr (j*32 + i)
-            writeArray output (32*s + i) (sum ss)
-        -- done with the output
+updateState ::  Int -> UArray Int Double -> UArray Int Double -> UArray Int Double
+updateState s oldstate samples = runSTUArray $ do
+    newstate <- newArray_ (0,1023)
+    forM_ [1023,1022..64] $ \i -> writeArray newstate i $ oldstate ! (i-64)
+    forM_ [0..63]    $ \i -> do
+        let r = sumZip 0 s 0 (lookupSynth ! i) samples
+        writeArray newstate i r
+    return newstate
+  where sumZip accum s i a1 a2 =
+                let v1 = a1 ! i
+                    v2 = a2 ! (18 * i + s)
+                    i' = i + 1
+                    accum' = accum + v1 * v2
+                in if (i' > 31) then accum'
+                                else sumZip accum' s i' a1 a2
 
-    -- return results
-    newState <- getElems state
-    out      <- getElems output
-    return (newState,out)
+generateOutput :: [UArray Int Double] -> UArray Int Double 
+generateOutput states = runSTUArray $ do
+        output <- newArray_ (0,575) :: ST s (STUArray s Int Double)
+        uArr   <- newArray_ (0,575) :: ST s (STUArray s Int Double)
+        forM_ [0..17] $ \s -> do
+            let state = states !! s
+            forM_ [0..7] $ \i -> forM_ [0..31] $ \j -> do
+                let i' = i * 128 + j
+                    i'' = i * 64 + j
+                writeArray uArr (i'') (state ! i')
+                writeArray uArr (i'' + 32) (state ! (i' + 96))
+            forM_ [0..511] $ \i -> do
+                oldU <- readArray uArr i
+                writeArray uArr i (oldU * synth_window ! i)
+            forM_ [0..31] $ \i -> do
+                ss <- forM [0..15] $ \j -> readArray uArr (j*32 + i)
+                writeArray output (32*s + i) (sum ss)
+        return output
