@@ -150,20 +150,20 @@ synth_window = U.listArray (0,511)
         0.000030518,  0.000015259,  0.000015259,  0.000015259,  0.000015259,
         0.000015259,  0.000015259]
 
--- The lookup matrix used
+-- The lookup matrix used, 64x32
 lookupSynth :: Array Int (Array Int Double)
 lookupSynth = listArray (0,63) (map innerArrs [0..63])
   where innerArrs i = listArray (0,31) (map (val i) [0..31])
         val i j = cos $ (16.0 + i) * (2.0*j + 1) * (pi / 64.0)
 
--- DOES NOT TYPECHECK WHICH IS NICE?!
+-- Extremely naive and ugly translation from the C code
 mp3SynthesisFilterBank :: MP3SynthState -> [Sample] -> (MP3SynthState,[Sample])
 mp3SynthesisFilterBank (MP3SynthState oldstate) oldsamples 
   = first MP3SynthState $ runST $ do
     --initialize new state
     state   <- newListArray (0,1023) oldstate  :: ST s (STUArray s Int Double)
     samples <- newListArray (0,575) oldsamples :: ST s (STUArray s Int Double)
-    output  <- newArray_ (0,576)               :: ST s (STUArray s Int Double)
+    output  <- newArray (0,575) 0              :: ST s (STUArray s Int Double)
     
     -- then start working
     forM_ [0..17] $ \s -> do
@@ -172,7 +172,9 @@ mp3SynthesisFilterBank (MP3SynthState oldstate) oldsamples
         sArr   <- newListArray (0,31) selems :: ST s (STUArray s Int Double)
         
         -- calculate the new state
-        forM_ [64..1023] $ \i -> readArray state (i-64) >>= writeArray state i
+        forM_ [1023,1022..64] $ \i -> 
+            j <- readArray state (i-64)
+            writeArray state i j
         forM_ [0..63]    $ \i -> do
             let ss = map (lookupSynth ! i !) [0..31]
             sa <- mapM (readArray sArr) [0..31]
