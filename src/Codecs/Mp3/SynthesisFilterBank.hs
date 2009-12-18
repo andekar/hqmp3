@@ -172,7 +172,7 @@ mp3SynthesisFilterBank (MP3SynthState oldstate) oldsamples
         sArr   <- newListArray (0,31) selems :: ST s (STUArray s Int Double)
         
         -- calculate the new state
-        forM_ [1023,1022..64] $ \i -> 
+        forM_ [1023,1022..64] $ \i -> do
             j <- readArray state (i-64)
             writeArray state i j
         forM_ [0..63]    $ \i -> do
