@@ -14,6 +14,7 @@ import Control.Monad
 import Control.Monad.ST
 import Control.Arrow
 import Codecs.Mp3.SynthesisTables
+import Data.List
 
 fi :: (Floating b, Integral a) => a -> b
 fi = fromIntegral
@@ -31,42 +32,38 @@ lookupSynth = listArray (0,63) (map innerArrs [0..63])
 mp3SynthesisFilterBank :: MP3SynthState -> [Sample] -> (MP3SynthState, UArray Int Double)
 mp3SynthesisFilterBank (MP3SynthState oldstate) oldsamples
   = let samples = listArray (0,575) oldsamples
-        newstates = stateList 0 oldstate samples
+        newstates = stateList updateVals' oldstate samples
         output    = generateOutput newstates
     in  (MP3SynthState (fst $ last newstates), output)
-  where stateList 18 _ _ = []
-        stateList s state sample = let first = updateState s state sample
-                                   in  (first, s*32) : stateList (s+1) first sample
+  where stateList [] _ _ = []
+        stateList ((x',x):xs) state sample = let first = updateState x state sample
+                                          in  (first, x') : stateList xs first sample
 
-updateState ::  Int -> UArray Int Double -> UArray Int Double -> UArray Int Double
-updateState s oldstate samples = runSTUArray $ do
+updateState ::  [(Int,Int)] -> UArray Int Double -> UArray Int Double -> UArray Int Double
+updateState updateVals oldstate samples = runSTUArray $ do
     newstate <- newArray_ (0,1023)
-    forM_ [1023,1022..64] $ \i -> writeArray newstate i $ oldstate ! (i-64)
+    mapM_ (\(i,j) -> writeArray newstate i $ oldstate ! j) updateList
     forM_ [0..63]    $ \i -> do
-        let r = sumZip updateVals s 0 (lookupSynth ! i) samples
+        let r = sumZip updateVals (lookupSynth ! i) samples
         writeArray newstate i r
     return newstate
-sumZip [] s accum a1 a2 = accum
-sumZip ((x,y):xs) s accum a1 a2 =
-             let v1 = a1 ! y
-                 v2 = a2 ! (x + s)
-                 accum' = accum + v1 * v2
-             in  sumZip xs s accum' a1 a2
+
+sumZip xs a1 a2 = foldl' helper 0 xs
+    where -- helper :: a -> b -> a
+          helper accum (x,y) = let v1 = a1 ! y
+                                   v2 = a2 ! x
+                                   accum' = accum + v1 * v2
+                               in accum'
 
 generateOutput :: [(UArray Int Double, Int)] -> UArray Int Double 
 generateOutput states = runSTUArray $ do
         output <- newArray_ (0,575) :: ST s (STUArray s Int Double)
         uArr   <- newArray_ (0,575) :: ST s (STUArray s Int Double)
         forM_  states $ \(state,s) -> do
---             let state = states !! s
             toFast state uArr outList
             forM_ [0..511] $ \i -> do
                 oldU <- readArray uArr i
                 writeArray uArr i (oldU * synth_window ! i)
---             forM_ [0..31] $ \i -> do
---                 ss <- forM [0..15] $ \j -> readArray uArr (j*32 + i)
---                 writeArray output (32*s + i) (sum ss)
-
             forM_ outList2 $ \(i,i') -> do
                 ss <- forM i $ \j -> readArray uArr j
                 writeArray output (s + i') (sum ss)
