@@ -32,6 +32,7 @@ Executable hqmp3
    Other-Modules:   Codecs.Mp3.Decoder
                     Codecs.Mp3.Types,
                     Codecs.Mp3.SynthesisFilterBank,
+                    Codecs.Mp3.SynthesisTables,
                     Codecs.Mp3.Tables,
                     Codecs.Mp3.Unpack,
                     Codecs.Mp3.IMDCT,
