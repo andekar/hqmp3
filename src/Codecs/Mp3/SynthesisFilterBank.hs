@@ -42,11 +42,9 @@ updateState updateVals oldstate samples = runSTUArray $ do
     return newstate
 
 sumZip xs a1 a2 = foldl' helper 0 xs
-    where -- helper :: a -> b -> a
-          helper accum (x,y) = let v1 = a1 ! y
+    where helper accum (x,y) = let v1 = a1 ! y
                                    v2 = a2 ! x
-                                   accum' = accum + v1 * v2
-                               in accum'
+                               in  accum + v1 * v2
 
 generateOutput :: [(UArray Int Double, Int)] -> UArray Int Double 
 generateOutput states = runSTUArray $ do
