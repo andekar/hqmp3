@@ -6,7 +6,6 @@ module Codecs.Mp3.Decoder (decodeFrames
                           , Scales(..)) where
 
 import Data.Binary.BitString.BitGet
--- import qualified Codec.Compression.Huffman.Huffman as Huff
 import qualified Data.Binary.BitString.BitString as BS
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString as S
@@ -16,7 +15,6 @@ import Control.Parallel
 import Control.Parallel.Strategies
 import Control.Arrow
 import Codecs.Mp3.Unpack
--- import Codecs.Mp3.Mp3Trees
 import qualified Control.Monad.State.Lazy as LS
 import Data.Array.Unboxed
 import Codecs.Mp3.MP3Types
@@ -31,9 +29,6 @@ data Scales = Scales { long :: [Double]
 
 data ChannelData a = ChannelData { scale :: Scales
                                  , chanData :: a } deriving Show
-
-instance Functor ChannelData where
-    f `fmap` ChannelData sc a = ChannelData sc (f a)
 
 type DChannel a = SideInfo (ChannelData a)
 
@@ -134,8 +129,10 @@ tableScaleLength = listArray (0,15)
 decodeGranules :: SideInfo BS.BitString -> DChannel [Int]
 decodeGranules single@(Single _ _ scfsi (gran0, gran1))
     = let (g0,scale0@(l,s)) = decodeGranule [] scfsi gran0
-          (g1,scale1) = decodeGranule l scfsi gran1
-      in  single { gran = (setChannel scale0 g0 gran0, setChannel scale1 g1 gran1)}
+          (g1,scale1)       = decodeGranule l scfsi gran1
+      in single { gran = (setChannel scale0 g0 gran0, 
+                          setChannel scale1 g1 gran1)
+                }
 
   where setChannel s g gr = gr {mp3Data = (ChannelData (scales s g gr) g)}
         scales s g gr = unpack s (cpress gr) (sscale gr)
@@ -224,20 +221,22 @@ mp3FloatRep3 1 n = 2.0 ** ((-1)   * (fi n))
 
 huffDecode :: [(Int, (Int, MP3Huffman (Int,Int)))] -> Bool -> BitGet [Int]
 huffDecode [(r0,t0), (r1,t1), (r2,t2)] count1Table = do
-    r0res <- liftM concat $ replicateM (r0 `div` 2) $ huffDecodeXY t0
-    r1res <- liftM concat $ replicateM (r1 `div` 2) $ huffDecodeXY t1
-    r2res <- liftM concat $ replicateM (r2 `div` 2) $ huffDecodeXY t2
+    r0res <- huffDecodeXY t0 (r0 `div` 2)
+    r1res <- huffDecodeXY t1 (r1 `div` 2)
+    r2res <- huffDecodeXY t2 (r2 `div` 2)
     len <- liftM fi getLength
     quadr <- huffDecodeVWXY (getQuadrTable count1Table) len
     return $ r0res ++ r1res ++ r2res ++ quadr
 
-huffDecodeXY :: (Int, MP3Huffman (Int,Int)) -> BitGet [Int]
-huffDecodeXY (linbits, huff) = do
+huffDecodeXY :: (Int, MP3Huffman (Int,Int)) -> Int -> BitGet [Int]
+huffDecodeXY _ 0               = return []
+huffDecodeXY (linbits, huff) c = do
     (i,(x,y)) <- lookAhead $ lookupHuff huff
     skip $ fi i
     x' <- linsign x
     y' <- linsign y
-    return $ x' : [y']
+    xs <- huffDecodeXY (linbits,huff) (c-1)
+    return $ x' : y' : xs
   where linsign :: Int -> BitGet Int
         linsign c
             | c == 15 && linbits > 0 = do
@@ -266,17 +265,15 @@ huffDecodeVWXY huff len = do
 
 -- seems to be working!
 requantize :: DChannel [Int] -> DChannel [Double]
-requantize chan@(Single sr a b (g1, g2))
-    = Single sr a b ((f sr g1), (f sr g2))
+requantize chan@(Single sr a b (g1, g2)) = Single sr a b ((f sr g1), (f sr g2))
   where f sr = requantizeGran sr
 
 requantizeGran :: Int -> Granule (ChannelData [Int]) ->
                   (Granule (ChannelData [Double]))
-requantizeGran freq gran
-    = gran {mp3Data =  ChannelData scales $ requantizeValues xs}
+requantizeGran freq gran = 
+    gran {mp3Data = ChannelData scales $ requantizeValues xs}
   where
-    (ChannelData scales@(Scales longScales shortScales) xs)
-              = mp3Data gran
+    (ChannelData scales@(Scales longScales shortScales) xs) = mp3Data gran
     requantizeValues :: [Int] -> [Double]
     requantizeValues compressed
         | mixedflag = take 36 long ++ drop 36 short
