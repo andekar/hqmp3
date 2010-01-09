@@ -22,13 +22,6 @@ fi = fromIntegral
 type Sample = Double
 newtype MP3SynthState = MP3SynthState (UArray Int Double)
 
--- will this be calculated at compiletime?
--- The lookup matrix used, 64x32
-lookupSynth :: Array Int (Array Int Double)
-lookupSynth = listArray (0,63) (map innerArrs [0..63])
-  where innerArrs i = listArray (0,31) (map (val i) [0..31])
-        val i j = cos $ (16.0 + i) * (2.0*j + 1) * (pi / 64.0)
-
 mp3SynthesisFilterBank :: MP3SynthState -> [Sample] -> (MP3SynthState, UArray Int Double)
 mp3SynthesisFilterBank (MP3SynthState oldstate) oldsamples
   = let samples = listArray (0,575) oldsamples
@@ -37,7 +30,7 @@ mp3SynthesisFilterBank (MP3SynthState oldstate) oldsamples
     in  (MP3SynthState (fst $ last newstates), output)
   where stateList [] _ _ = []
         stateList ((x',x):xs) state sample = let first = updateState x state sample
-                                          in  (first, x') : stateList xs first sample
+                                             in  first `seq` ((first, x') : stateList xs first sample)
 
 updateState ::  [(Int,Int)] -> UArray Int Double -> UArray Int Double -> UArray Int Double
 updateState updateVals oldstate samples = runSTUArray $ do
@@ -66,7 +59,7 @@ generateOutput states = runSTUArray $ do
                 writeArray uArr i (oldU * synth_window ! i)
             forM_ outList2 $ \(i,i') -> do
                 ss <- forM i $ \j -> readArray uArr j
-                writeArray output (s + i') (sum ss)
+                writeArray output (s + i') (foldl' (+) 0 ss)
         return output
     where toFast state _ [] = return ()
           toFast state arr (x:xs) = toFast' state arr x >> toFast state arr xs
@@ -75,8 +68,3 @@ generateOutput states = runSTUArray $ do
               writeArray arr j (state ! i)
               writeArray arr j' (state ! i')
               toFast' state arr xs
-
-
-              
-          
-
