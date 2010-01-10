@@ -130,8 +130,12 @@ tableScaleLength = listArray (0,15)
 -- scale factor stuff as described in p.18 in ISO-11172-3
 decodeGranules :: SideInfo BS.BitString -> DChannel [Int]
 decodeGranules single@(Single _ _ scfsi (gran0, gran1))
-    = let (g0,scale0@(l,s)) = decodeGranule [] scfsi gran0
-          (g1,scale1)       = decodeGranule l scfsi gran1
+    = let (g0,scale0@(l,s)) = runST $ do (x,y) <- decodeGranule [] scfsi gran0
+                                         x' <- getElems x
+                                         return (x',y)
+          (g1,scale1)       = runST $ do (x,y) <-  decodeGranule l scfsi gran1
+                                         x' <- getElems x
+                                         return (x',y)
       in single { gran = (setChannel scale0 g0 gran0, 
                           setChannel scale1 g1 gran1)
                 }
@@ -143,15 +147,14 @@ decodeGranules single@(Single _ _ scfsi (gran0, gran1))
         unpack = mp3UnpackScaleFactors
 
 decodeGranule :: [Int] -> [Bool] -> Granule BS.BitString
-                  -> ([Int], ([Int],[[Int]]))
+                  -> ST s (STUArray s Int Int, ([Int],[[Int]]))
 decodeGranule prev scfsi (Granule _ _
                           scaleFacCompress window blockType blockFlag ts_0 ts_1
                           ts_2 _ _ _ preFlag scaleFacScale count1TableSelect
                           r0 r1 r2 mp3Data)
-    = flip runBitGet mp3Data $ do (l,s)   <- pScaleFactors prev
-                                  rest <- getRemaining
-                                  let huffData' = huffData rest
-                                  return (huffData', (l,s))
+    = liftM fst $ flip runBitGetT mp3Data $ do (l,s)   <- pScaleFactors prev
+                                               huffData' <- huffData
+                                               return (huffData', (l,s))
     where
       t0 = getTree ts_0 -- tableSelect
       t1 = getTree ts_1
@@ -163,8 +166,7 @@ decodeGranule prev scfsi (Granule _ _
       
       -- will return a list of long scalefactors
       -- a list of lists of short scalefactors
-      -- an int describing how much we read, this might not be needed
-      pScaleFactors :: [Int] -> BitGet ([Int],[[Int]])
+      pScaleFactors :: [Int] -> BitGetT (ST s) ([Int],[[Int]])
       pScaleFactors prev
               -- as defined in page 18 of the mp3 iso standard
           | blockType == 2 && blockFlag && window = do
@@ -195,7 +197,6 @@ decodeGranule prev scfsi (Granule _ _
                        else replicateM 5 $ liftM fi $ getAsWord8 $ fi slen2
               s3 <- if recycle scfsi3 then return $ take 5 $ drop 16 prev
                        else replicateM 5 $ liftM fi $ getAsWord8 $ fi slen2
-                  -- here we might need a padding 0 after s3
                   -- (if we want a list of 22 elements)
               return ((s0 ++ s1 ++ s2 ++ s3 ++ [0]), [[]])
                   where recycle sc = sc && not (null prev)
@@ -222,15 +223,15 @@ mp3FloatRep3 :: Int -> Int -> Double
 mp3FloatRep3 0 n = 2.0 ** ((-0.5) * (fi n))
 mp3FloatRep3 1 n = 2.0 ** ((-1)   * (fi n))
 
-huffDecode :: [(Int, (Int, MP3Huffman (Int,Int)))] -> Bool -> BS.BitString -> [Int]
-huffDecode [(r0,t0), (r1,t1), (r2,t2)] count1Table bs = fst $ runST $ flip runBitGetT bs $ do
+huffDecode :: [(Int, (Int, MP3Huffman (Int,Int)))] -> Bool ->  BitGetT (ST s) (STUArray s Int Int)
+huffDecode [(r0,t0), (r1,t1), (r2,t2)] count1Table = do
     arr <- lift $ newArray (0,575) 0
     i0  <- huffDecodeXY t0 (r0 `div` 2) arr 0
     i1  <- huffDecodeXY t1 (r1 `div` 2) arr i0
     i2  <- huffDecodeXY t2 (r2 `div` 2) arr i1
     len <- liftM fi getLength
     huffDecodeVWXY (getQuadrTable count1Table) len arr i2
-    lift $ getElems arr
+    return arr
 
 huffDecodeXY :: (Int, MP3Huffman (Int,Int)) -> Int -> STUArray s Int Int -> Int -> BitGetT (ST s) Int
 huffDecodeXY _ 0 _ i                 = return i
