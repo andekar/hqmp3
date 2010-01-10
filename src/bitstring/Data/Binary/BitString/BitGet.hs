@@ -40,6 +40,9 @@ runBitGet :: BitGet a -> BitString -> a
 runBitGet g bs = case runIdentity (unGet g bs) of
     (a, _) -> a
 
+runBitGetT :: Monad m => BitGetT m a -> BitString -> m a
+runBitGetT g bs = liftM fst (unGet g bs)
+
 get :: (Monad m) => BitGetT m BitString
 get = BitGetT $ \bs -> return (bs,bs)
 
