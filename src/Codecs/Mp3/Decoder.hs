@@ -16,13 +16,15 @@ import Control.Parallel.Strategies
 import Control.Arrow
 import Codecs.Mp3.Unpack
 import qualified Control.Monad.State.Lazy as LS
-import Data.Array.Unboxed
 import Codecs.Mp3.MP3Types
 import Codecs.Mp3.HuffArrays
 import Codecs.Mp3.HybridFilterBank
 import Codecs.Mp3.Tables
 import Codecs.Mp3.Types
 import Data.Array.Unboxed
+import Control.Monad.ST
+import Data.Array.ST
+import Control.Monad.Trans
 
 data Scales = Scales { long :: [Double]
                      , short :: [[Double]] } deriving Show
@@ -147,7 +149,8 @@ decodeGranule prev scfsi (Granule _ _
                           ts_2 _ _ _ preFlag scaleFacScale count1TableSelect
                           r0 r1 r2 mp3Data)
     = flip runBitGet mp3Data $ do (l,s)   <- pScaleFactors prev
-                                  huffData' <- huffData
+                                  rest <- getRemaining
+                                  let huffData' = huffData rest
                                   return (huffData', (l,s))
     where
       t0 = getTree ts_0 -- tableSelect
@@ -219,25 +222,27 @@ mp3FloatRep3 :: Int -> Int -> Double
 mp3FloatRep3 0 n = 2.0 ** ((-0.5) * (fi n))
 mp3FloatRep3 1 n = 2.0 ** ((-1)   * (fi n))
 
-huffDecode :: [(Int, (Int, MP3Huffman (Int,Int)))] -> Bool -> BitGet [Int]
-huffDecode [(r0,t0), (r1,t1), (r2,t2)] count1Table = do
-    r0res <- huffDecodeXY t0 (r0 `div` 2)
-    r1res <- huffDecodeXY t1 (r1 `div` 2)
-    r2res <- huffDecodeXY t2 (r2 `div` 2)
+huffDecode :: [(Int, (Int, MP3Huffman (Int,Int)))] -> Bool -> BS.BitString -> [Int]
+huffDecode [(r0,t0), (r1,t1), (r2,t2)] count1Table bs = fst $ runST $ flip runBitGetT bs $ do
+    arr <- lift $ newArray (0,575) 0
+    i0  <- huffDecodeXY t0 (r0 `div` 2) arr 0
+    i1  <- huffDecodeXY t1 (r1 `div` 2) arr i0
+    i2  <- huffDecodeXY t2 (r2 `div` 2) arr i1
     len <- liftM fi getLength
-    quadr <- huffDecodeVWXY (getQuadrTable count1Table) len
-    return $ r0res ++ r1res ++ r2res ++ quadr
+    huffDecodeVWXY (getQuadrTable count1Table) len arr i2
+    lift $ getElems arr
 
-huffDecodeXY :: (Int, MP3Huffman (Int,Int)) -> Int -> BitGet [Int]
-huffDecodeXY _ 0               = return []
-huffDecodeXY (linbits, huff) c = do
-    (i,(x,y)) <- lookAhead $ lookupHuff huff
-    skip $ fi i
+huffDecodeXY :: (Int, MP3Huffman (Int,Int)) -> Int -> STUArray s Int Int -> Int -> BitGetT (ST s) Int
+huffDecodeXY _ 0 _ i                 = return i
+huffDecodeXY (linbits, huff) c arr i = do
+    (l,(x,y)) <- lookAhead $ lookupHuff huff
+    skip $ fi l
     x' <- linsign x
     y' <- linsign y
-    xs <- huffDecodeXY (linbits,huff) (c-1)
-    return $ x' : y' : xs
-  where linsign :: Int -> BitGet Int
+    lift $ writeArray arr i x'
+    lift $ writeArray arr (i+1) y'
+    huffDecodeXY (linbits,huff) (c-1) arr (i+2)
+  where linsign :: Int -> BitGetT (ST s) Int
         linsign c
             | c == 15 && linbits > 0 = do
                 res  <- liftM (+15) $ getInt (fi linbits)
@@ -245,17 +250,22 @@ huffDecodeXY (linbits, huff) c = do
             | c > 0 = liftM (\s -> if s then negate c else c) getBit
             | otherwise = return c
 
-huffDecodeVWXY :: MP3Huffman (Int,Int,Int,Int) -> Int -> BitGet [Int]
-huffDecodeVWXY huff len = do
-    (i,(v,w,x,y)) <- lookAhead $ lookupHuff huff
-    skip $ fi i
+huffDecodeVWXY :: MP3Huffman (Int,Int,Int,Int) -> Int -> STUArray s Int Int -> Int -> BitGetT (ST s) ()
+huffDecodeVWXY huff len arr i = do
+    (l,(v,w,x,y)) <- lookAhead $ lookupHuff huff
+    skip $ fi l
     v' <- setSign v
     w' <- setSign w
     x' <- setSign x
     y' <- setSign y
-    let len' = len - (fi i)
-    rest <- if len' > 0 then huffDecodeVWXY huff len' else return []
-    return $ v' : w' : x' : y' : rest
+    if (i < 571) then do
+        lift $ writeArray arr i v'
+        lift $ writeArray arr (i+1) w'
+        lift $ writeArray arr (i+2) x'
+        lift $ writeArray arr (i+3) y'
+        let len' = len - (fi l)
+        if len' > 0 then huffDecodeVWXY huff len' arr (i+4) else return ()
+        else return ()
   where setSign 0 = return 0
         setSign c = liftM (\s -> if s then negate c else c) getBit
 
@@ -270,7 +280,7 @@ requantize chan@(Single sr a b (g1, g2)) = Single sr a b ((f sr g1), (f sr g2))
 
 requantizeGran :: Int -> Granule (ChannelData [Int]) ->
                   (Granule (ChannelData [Double]))
-requantizeGran freq gran = 
+requantizeGran freq gran= 
     gran {mp3Data = ChannelData scales $ requantizeValues xs}
   where
     (ChannelData scales@(Scales longScales shortScales) xs) = mp3Data gran

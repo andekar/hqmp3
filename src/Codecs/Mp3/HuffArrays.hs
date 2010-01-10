@@ -49,7 +49,7 @@ getTree x = case x of
     _  -> error "no such huff table"    
 
 -- Lookup a value in the huffman array
-lookupHuff :: MP3Huffman a -> BitGet (Int,a)
+lookupHuff :: Monad m =>MP3Huffman a -> BitGetT m (Int,a)
 lookupHuff huff = case huff of
     Left  (cw,arr) -> liftM (arr !) (f cw)
     Right (cw,arr) -> do
