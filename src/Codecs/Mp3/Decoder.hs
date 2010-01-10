@@ -152,9 +152,9 @@ decodeGranule prev scfsi (Granule _ _
                           scaleFacCompress window blockType blockFlag ts_0 ts_1
                           ts_2 _ _ _ preFlag scaleFacScale count1TableSelect
                           r0 r1 r2 mp3Data)
-    = liftM fst $ flip runBitGetT mp3Data $ do (l,s)   <- pScaleFactors prev
-                                               huffData' <- huffData
-                                               return (huffData', (l,s))
+    = flip runBitGetT mp3Data $ do (l,s) <- pScaleFactors prev
+                                   huffData' <- huffData
+                                   return (huffData', (l,s))
     where
       t0 = getTree ts_0 -- tableSelect
       t1 = getTree ts_1
