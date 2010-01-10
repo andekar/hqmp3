@@ -15,9 +15,6 @@ Stability:       experimental
 Build-type:      Simple
 Cabal-version:   >= 1.2
 
-Extra-source-files: Codecs/Mp3/c_synth.h,
-                    Codecs/Mp3/c_imdct.h
-
 Executable hqmp3
    build-depends:   base
                   , bytestring
@@ -39,6 +36,4 @@ Executable hqmp3
                     Codecs.Mp3.HybridFilterBank,
                     Codecs.Mp3.ID3                    
                     PCMWriter
-   c-sources:       Codecs/Mp3/c_synth.c
-   cc-options:      -O2 -std=c99
    ghc-options:     -O2 -threaded -funbox-strict-fields

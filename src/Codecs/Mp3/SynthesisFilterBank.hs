@@ -29,8 +29,9 @@ mp3SynthesisFilterBank (MP3SynthState oldstate) oldsamples
         output    = generateOutput newstates
     in  (MP3SynthState (fst $ last newstates), output)
   where stateList [] _ _ = []
-        stateList ((x',x):xs) state sample = let first = updateState x state sample
-                                             in  first `seq` ((first, x') : stateList xs first sample)
+        stateList ((x',x):xs) state sample 
+            = let first = updateState x state sample
+              in  first `seq` ((first, x') : stateList xs first sample)
 
 updateState ::  [(Int,Int)] -> UArray Int Double -> UArray Int Double -> UArray Int Double
 updateState updateVals oldstate samples = runSTUArray $ do
