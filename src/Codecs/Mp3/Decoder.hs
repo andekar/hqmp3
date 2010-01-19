@@ -45,7 +45,8 @@ decodeAll (Dual sr p scfsi g0 g1) = let (l,r) = splitAt 4 scfsi
     where single sc = func . Single sr p sc
 decodeAll s  = func s
 
-func = mp3Reorder . requantize . decodeGranules
+-- Needs to be checked once the rest of the stuff type-checks...
+func = runST $ mp3Reorder =<< requantize =<< decodeGranules
 
 -- Does the "step1" as in bjorns decoder :(
 -- Note that we skip stereoIS and StereoMS
@@ -92,9 +93,10 @@ emptyMP3DecodeState :: MP3DecodeState
 emptyMP3DecodeState = MP3DecodeState emptyMP3HybridState emptyMP3HybridState
 
 -- Okee
-mp3Reorder :: DChannel [Double] -> DChannel [Double]
-mp3Reorder (Single sr a b (g0, g1)) = Single sr a b ((reorder g0), (reorder g1))
-  where reorder g
+-- Here we must fix Arrays
+mp3Reorder :: DChannel (STUArray s Int Double) -> ST s (DChannel (STUArray Int Double))
+mp3Reorder (Single sr a b (g0, g1)) = return $ Single sr a b (reorder g0, reorder g1)
+    where reorder g
              | mixedBlock g
              = g {mp3Data = ChannelData  (scData g) $
                   take 46 (chData g) ++
@@ -103,13 +105,13 @@ mp3Reorder (Single sr a b (g0, g1)) = Single sr a b ((reorder g0), (reorder g1))
                                      ChannelData (scData g)
                                      (freq' sr $ chData g)} -- short blocks
              | otherwise = g -- long blocks
-        f = chanData . mp3Data
-        -- We want the output list to be as long as the input list to 
-        -- correctly handle IS Stereo decoding, but the unsafe reorderList 
-        -- requires the input to be as long as the index list.
-        freq' sr ds  = reorderList (tableReorder sr) (padWith 576 0.0 ds)
-        chData = chanData . mp3Data
-        scData = scale . mp3Data
+          f = chanData . mp3Data
+          -- We want the output list to be as long as the input list to 
+          -- correctly handle IS Stereo decoding, but the unsafe reorderList 
+          -- requires the input to be as long as the index list.
+          freq' sr ds  = reorderList (tableReorder sr) (padWith 576 0.0 ds)
+          chData = chanData . mp3Data
+          scData = scale . mp3Data
 
 -- 'reorderList' takes a list of indices and a list of elements and
 -- reorders the list based on the indices. Example:
@@ -128,17 +130,14 @@ tableScaleLength = listArray (0,15)
 -- Does decoding of granules given the main_data() chunk
 -- This function does huffman decoding, and extracts the 
 -- scale factor stuff as described in p.18 in ISO-11172-3
-decodeGranules :: SideInfo BS.BitString -> DChannel [Int]
-decodeGranules single@(Single _ _ scfsi (gran0, gran1))
-    = let (g0,scale0@(l,s)) = runST $ do (x,y) <- decodeGranule [] scfsi gran0
-                                         x' <- getElems x
-                                         return (x',y)
-          (g1,scale1)       = runST $ do (x,y) <-  decodeGranule l scfsi gran1
-                                         x' <- getElems x
-                                         return (x',y)
-      in single { gran = (setChannel scale0 g0 gran0, 
-                          setChannel scale1 g1 gran1)
-                }
+-- decodeGranules :: SideInfo BS.BitString -> DChannel [Int]
+decodeGranules :: SideInfo BS.BitString -> ST s (DChannel (STUArray s Int Int))
+decodeGranules single@(Single _ _ scfsi (gran0, gran1)) = do
+    (g0,scale0@(l,s)) <- decodeGranule [] scfsi gran0
+    (g1,scale1)       <- decodeGranule l scfsi gran1
+    return $ single { gran = (setChannel scale0 g0 gran0, 
+                              setChannel scale1 g1 gran1)
+                    }
 
   where setChannel s g gr = gr {mp3Data = (ChannelData (scales s g gr) g)}
         scales s g gr = unpack s (cpress gr) (sscale gr)
@@ -274,15 +273,20 @@ huffDecodeVWXY huff len arr i = do
 -- Requantization below
 --
 
--- seems to be working!
-requantize :: DChannel [Int] -> DChannel [Double]
-requantize chan@(Single sr a b (g1, g2)) = Single sr a b ((f sr g1), (f sr g2))
-  where f sr = requantizeGran sr
+requantize :: DChannel (STUArray s Int Int) -> ST s (DChannel (STUArray s Int Double))
+requantize chan@(Single sr a b (g1, g2)) = do
+  gr1 <- f g1
+  gr2 <- f g2
+  return $ Single sr a b (gr1, gr2)
+      where f = requantizeGran sr
 
-requantizeGran :: Int -> Granule (ChannelData [Int]) ->
-                  (Granule (ChannelData [Double]))
-requantizeGran freq gran= 
-    gran {mp3Data = ChannelData scales $ requantizeValues xs}
+requantizeGran :: Int -> Granule (ChannelData (STUArray s Int Int)) ->
+                  ST s (Granule (ChannelData (STUArray s Int Double)))
+requantizeGran freq gran = do
+    bounds <- getBounds xs
+    es <- getElems xs
+    requantized <-newListArray bounds (requantizeValues es)
+    return $ gran {mp3Data = ChannelData scales $ requantized}
   where
     (ChannelData scales@(Scales longScales shortScales) xs) = mp3Data gran
     requantizeValues :: [Int] -> [Double]
