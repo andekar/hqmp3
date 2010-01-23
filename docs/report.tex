@@ -1,0 +1,55 @@
+\documentclass[a4paper,12pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{graphicx}
+\usepackage[superscript]{cite}
+
+\title{HQmp3}
+\author{Anders Karlsson \\ \small{\texttt{andekar@student.chalmers.se}}
+   \and Tobias Olausson \\ \small{\texttt{olaussot@student.chalmers.se}}
+}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+    This project aims to show how one can parse and decode binary formats in
+    Haskell, showcased by implementing an mp3 decoder.
+\end{abstract}
+
+\tableofcontents
+
+\section{Motivation}
+    Det är ju najs med en mp3-decoder i Haskell
+
+\section{Background}
+    Hej
+    \subsection{The MP3 format}
+       The MP3 format is probably the most well-known and widespread format for
+       encoding audio. It was engineered by the MPEG group as part of the MPEG-1
+       standard ISO-11172 which was published in 1993. As part of this standard,
+       the document describing MP3 is ISO-11172-3 \cite{wikimp3,wikimpeg1}.
+
+       MP3 is a lossy format *describe me*.
+
+       The data in an mp3 file is divided into frames. Each frame consists of
+       a header, side info, and audio data. *describe me*
+
+\section{Implementation}
+    \subsection{bitstring}
+        Probably the best library I have ever seen
+    \subsection{huffman}
+        Probably the most unneccessary library I have ever written. Remove?
+
+\section{Results}
+    Beauty, Slowness\ldots
+
+\section{Future Work}
+
+\begin{thebibliography}{99}
+    \bibitem{wikimp3}
+        Wikipedia on MP3: http://en.wikipedia.org/wiki/Mp3
+    \bibitem{wikimpeg1}
+        Wikipedia on MPEG-1: http://en.wikipedia.org/wiki/MPEG-1
+\end{thebibliography}
+
+\end{document}
