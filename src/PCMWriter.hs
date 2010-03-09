@@ -36,7 +36,7 @@ module PCMWriter (
 import Data.Word
 import Data.Bits
 import System.IO
-import Char
+import Data.Char
 import Control.Monad
 import Control.Monad.State
 

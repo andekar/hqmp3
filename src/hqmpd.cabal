@@ -19,7 +19,6 @@ Executable hqmp3
    build-depends:   base
                   , bytestring
                   , mtl
-                  , haskell98
                   , array
                   , bitstring
                   , binary
