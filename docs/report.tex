@@ -46,7 +46,9 @@
 
 TODO: Lägg all kod i captions,
       Lägg alla referenser till funktioner i en texttt,
-      Fixa bilder.
+      Fixa bilder,
+      Skriv en snutt om björns decoder,
+      Lägg alla tabeller i captions.
 
 \section{Motivation}
     Det är ju najs med en mp3-decoder i Haskell
@@ -137,6 +139,8 @@ TODO: Lägg all kod i captions,
 \section{Implementation}
     We wanted different parts of the process to be separate in the code, so we
     divided the decoder into two main modules: Unpack.hs and Decode.hs. 
+
+    \subsection{Unpacking}
 
     \begin{lstlisting}
 unpackMp3 :: L.ByteString -> [SideInfo BS.BitString]
@@ -255,20 +259,22 @@ readHeader = do
     \begin{lstlisting}
 readSideInfo :: MP3Mode -> Int -> BitGet (SideInfo Int)
 readSideInfo mode freq = do
-    dataptr  <- getInt 9
+    dataptr <- getInt 9
     skipPrivate
     scaleFactors <- getScaleFactors
     case mode of
         Mono -> do 
             g0 <- getGranule
             g1 <- getGranule
-            return $ Single freq (dataptr * 8) scaleFactors (g0, g1)
+            return $ Single freq (dataptr * 8) 
+                     scaleFactors (g0, g1)
         _    -> do 
             g0 <- getGranule
             g1 <- getGranule
             g2 <- getGranule
             g3 <- getGranule
-            return $ Dual freq (dataptr * 8) scaleFactors (g0, g2) (g1, g3)
+            return $ Dual freq (dataptr * 8) 
+                     scaleFactors (g0, g2) (g1, g3)
   where
     skipPrivate = case mode of
         Mono -> skip 5
@@ -277,54 +283,137 @@ readSideInfo mode freq = do
         Mono -> replicateM 4 getBit
         _    -> replicateM 8 getBit
     getGranule = do
-            part23len        <- getInt 12
-            bigValues        <- getInt 9
-            globalGain       <- getInt 8
-            scaleFacCompress <- getInt 4
-            w                <- getBit -- windowSwitching
-
-            blockType  <- getInt $ if w then 2 else 0
-            mixedBlock <- if w then getBit else return False
-            tableSelect0  <- getInt 5
-            tableSelect1  <- getInt 5
-            tableSelect2  <- if w then return 0 else getInt 5
-            subBlockGain0 <- if w then liftM fi (getInt 3) else return 0
-            subBlockGain1 <- if w then liftM fi (getInt 3) else return 0
-            subBlockGain2 <- if w then liftM fi (getInt 3) else return 0
-            region0Count  <- if w then return (reg0 mixedBlock blockType)
-                                else getInt 4
-            region1Count  <- if w then return 0 else getInt 3
-            let r0count = if w then (if blockType == 2 then 8 else 7)
-                             else region0Count
-                r1count = if w then 20 - r0count
-                             else region1Count
-                sbTable   = tableScaleBandBoundary freq
-                r1bound   = sbTable $ r0count + 1
-                r2bound   = sbTable $ r0count + 1 + r1count + 1
-                bv2       = bigValues * 2
-                reg0len   = if blockType == 2 then min bv2 36
-                               else min bv2 r1bound
-                reg1len     = if blockType == 2 then min (bv2-reg0len) 540 
-                                 else min (bv2-reg0len) (r2bound - reg0len) 
-                reg2len     = if blockType == 2 then 0   
-                                 else bv2 - (reg0len + reg1len)
-            preFlag           <- getBit
-            scaleFacScale     <- getBit
-            count1TableSelect <- getBit
-            return $ Granule bigValues 
-                     (mp3FloatRep1 globalGain)
-                     scaleFacCompress w blockType mixedBlock 
-                     tableSelect0 tableSelect1 tableSelect2
-                     (mp3FloatRep2 subBlockGain0)
-                     (mp3FloatRep2 subBlockGain1)
-                     (mp3FloatRep2 subBlockGain2)
-                     preFlag scaleFacScale count1TableSelect
-                     reg0len reg1len reg2len part23len
+        part23len        <- getInt 12
+        bigValues        <- getInt 9
+        globalGain       <- getInt 8
+        scaleFacCompress <- getInt 4
+        w  <- getBit -- windowSwitching
+        -- blockType
+        bt <- getInt $ if w then 2 else 0
+        -- mixedBlock
+        mb <- if w then getBit else return False
+        tableSelect0  <- getInt 5
+        tableSelect1  <- getInt 5
+        tableSelect2  <- if w then return 0 else getInt 5
+        subBlockGain0 <- if w then liftM fi (getInt 3) 
+                              else return 0
+        subBlockGain1 <- if w then liftM fi (getInt 3) 
+                              else return 0
+        subBlockGain2 <- if w then liftM fi (getInt 3) 
+                              else return 0
+        region0Count  <- if w then return (reg0 mb bt)
+                              else getInt 4
+        region1Count  <- if w then return 0 else getInt 3
+        let r0count = if w then (if bt == 2 then 8 else 7)
+                           else region0Count
+            r1count = if w then 20 - r0count
+                           else region1Count
+            sbTable = tableScaleBandBoundary freq
+            r1bound = sbTable $ r0count + 1
+            r2bound = sbTable $ r0count + 1 + r1count + 1
+            bv2     = bigValues * 2
+            reg0len = if bt == 2 then min bv2 36
+                                 else min bv2 r1bound
+            reg1len = if bt == 2 
+                      then min (bv2 - reg0len) 540 
+                      else min (bv2 - reg0len) 
+                               (r2bound - reg0len) 
+            reg2len = if bt == 2 
+                      then 0   
+                      else bv2 - (reg0len + reg1len)
+        preFlag           <- getBit
+        scaleFacScale     <- getBit
+        count1TableSelect <- getBit
+        return $ Granule bigValues 
+                 (mp3FloatRep1 globalGain)
+                 scaleFacCompress w bt mb 
+                 tableSelect0 tableSelect1 tableSelect2
+                 (mp3FloatRep2 subBlockGain0)
+                 (mp3FloatRep2 subBlockGain1)
+                 (mp3FloatRep2 subBlockGain2)
+                 preFlag scaleFacScale count1TableSelect
+                 reg0len reg1len reg2len part23len
     reg0 False 2 = 8
     reg0 _ _     = 7
 
     \end{lstlisting}
+    So, lots of stuff that is done here are \textit{not} mentioned in the
+    standard, but is stuff that one have to magically know (or see in somebody
+    else's code, like we did). However, this is what a granule looks like,
+    except for the data that is read in as stated above. Most of the stuff here
+    is of little interest from a programming point of view, however all of them
+    are used when decoding. The variables named \texttt{reg\{0,1,2}len are a bit
+    more interesting though, since they control the number of times one has to
+    invoke the huffman decoder. These variables are used together with
+    \texttt{tableSelect\{0,1,2\}} that tells the decoder which huffman table
+    that was used when compressing the audio data. 
+
+    \subsection{Decoding}
+    \subsubsection{Huffman}
+    We have had two approaches to huffman decoding; binary trees, and lookup
+    tables (arrays). The first approach was the most intuitive one in which we
+    read one bit at a time, and walked the tree until we had read a whole code
+    word and reached a leaf. This was rather elegant and the code for doing so
+    was no more than $\sim$10 lines. On the downside, this approach was very
+    slow, and at that time the huffman decoder took almost 50\% of the total
+    running time. We did some thinking, and looking at other people's ideas we
+    found out that one could make rather large tables of size $2^n$ in the
+    largest code word. Of course this was not practical, since the longest code
+    word in one of the huffman tables was 19 bits, so we ended up with a 13MB
+    source code file which was impossible to compile. We did some further
+    thinking at this point, and came up with another idea! How about if we fix
+    some code word length for a table (say 8), and for those code words that
+    were longer a new table was returned. For those code words that were
+    shorter, these were padded with all possible combinations to make it of the
+    right length. It might be easier to understand with an example!
+
+    \begin{tabular}{| l | l |}
+        \hline
+        Code Word & Value \\ \hline \hline
+        1   & 5 \\ 
+        000 & 7 \\
+        001 & 3 \\
+        010 & 2 \\
+        0111  & 4 \\ 
+        01101 & 1 \\ 
+        01100 & 8 \\ \hline
+    \end{tabular} \\
+    In this case, one might choose code word length three, which we will use in
+    this example. The lookup table generated from this would look like this:
     
+    \begin{tabular}{| l | l |}
+        \hline
+        Code Word & Value \\ \hline \hline
+        100 & 5 \\
+        101 & 5 \\
+        110 & 5 \\
+        111 & 5 \\
+        000 & 7 \\
+        001 & 3 \\
+        010 & 2 \\ \hline
+        011 & \begin{tabular}{l | l}
+                10 & 4 \\
+                11 & 4 \\
+                01 & 1 \\
+                00 & 8 \\
+              \end{tabular} \\ \hline
+    \end{tabular} \\
+    So what happened here was that the one was expanded to fill all code words
+    of length three starting with a one. The words that were of length three
+    already were left as is, but the ones longer had one common factor of size
+    three, 011. So if one reads 011, a new table is returned, where all code
+    words are expanded to the longest one (two in this case). We see already
+    here that this is much smaller than having $2^5$ entries (we have almost a
+    three-fold in size here). With this approach, we could read more than one
+    bit at the time. What we did was to read the common code word length number
+    of bits. This saved time both in reading, and it saved us the traversal of a
+    data structure, since it was replaced with an array lookup. Together with
+    some other optimizations we lowered the amount of time taken by the huffman
+    decoder to $\sim$8\%.
+
+    \subsubsection{Audio Decoding}
+        * Requantization * IMDCT * FilterBank * ScaleFactors
+
 \section{Results}
     Beauty, Slowness\ldots
     \subsection{bitstring}
@@ -343,6 +432,10 @@ readSideInfo mode freq = do
         Wikipedia on MP3: http://en.wikipedia.org/wiki/Mp3
     \bibitem{wikimpeg1}
         Wikipedia on MPEG-1: http://en.wikipedia.org/wiki/MPEG-1
+    \bibitem{standard}
+        ISO-11172-3 Information technology -- Coding of moving pictures and
+        associated audio for digital storage media at up to about 1,5 Mbit/s --
+        Part 3: Audio
 \end{thebibliography}
 
 \end{document}
