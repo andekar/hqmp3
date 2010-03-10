@@ -2,6 +2,31 @@
 \usepackage[utf8]{inputenc}
 \usepackage{graphicx}
 \usepackage[superscript]{cite}
+\usepackage{color}
+
+\usepackage{listings}
+\definecolor{light-gray}{gray}{0.95}
+\lstdefinestyle{normal}{
+  basicstyle=\footnotesize\ttfamily,
+  numbers=none,
+  backgroundcolor=\color{light-gray},
+  showspaces=false,
+  showstringspaces=false,
+  showtabs=false,
+  tabsize=2,
+  captionpos=b,
+  escapechar=¤,
+  frame=single,
+  framesep=0.2cm,
+  xleftmargin=2mm,
+  xrightmargin=2mm,
+  breaklines=true,
+  emph={}
+}
+\lstset{style=normal}
+\lstdefinestyle{javascript}{ language=JavaScript }
+\lstdefinestyle{haskell}{ language=Haskell }
+\lstset{style=haskell}
 
 \title{HQmp3}
 \author{Anders Karlsson \\ \small{\texttt{andekar@student.chalmers.se}}
@@ -18,31 +43,298 @@
 
 \tableofcontents
 
+
+TODO: Lägg all kod i captions,
+      Lägg alla referenser till funktioner i en texttt,
+      Fixa bilder.
+
 \section{Motivation}
     Det är ju najs med en mp3-decoder i Haskell
 
 \section{Background}
-    Hej
     \subsection{The MP3 format}
        The MP3 format is probably the most well-known and widespread format for
        encoding audio. It was engineered by the MPEG group as part of the MPEG-1
        standard ISO-11172 which was published in 1993. As part of this standard,
        the document describing MP3 is ISO-11172-3 \cite{wikimp3,wikimpeg1}.
 
-       MP3 is a lossy format *describe me*.
-
        The data in an mp3 file is divided into frames. Each frame consists of
-       a header, side info, and audio data. *describe me*
+       a header, side info, and main data. We distinguish between physical
+       frames, and logical frames. Physical frames are all data between two
+       headers (unsorted), whereas a logical frame is a header and it's
+       associated frame data (sorted). The distance in bits between two
+       consecutive physical frames are constant once you know bitrate and sample
+       rate. However, there might not be data to fill all those bits, in which
+       case the data for the \textit{next} frame is inserted before its frame.
+       This implies that one needs to keep track of two consecutive frames at a 
+       time in order to know where data begins and ends.
+
+       To avoid redundant information we only briefly describe the format here.
+       If you feel that there are a lot of details missing, then don't worry --
+       we will cover all that in the implementation part.
+
+       \subsubsection{Header}
+       \label{sec:header}
+            Bild här \\
+            \begin{itemize}
+                \item{12 bits} All ones, sync word.
+                \item{3 bits} 101 for MPEG layer 3.
+                \item{1 bit} 0 if CRC follows the frame.
+                \item{4 bits} Bitrate index.
+                \item{2 bits} Sample rate index.
+                \item{1 bit} 1 if frame is padded.
+                \item{1 bit} Private bit - not used.
+                \item{2 bits} Mode - Mono/Stereo/DualChannel/JointStereo.
+                \item{2 bits} Mode extension - only used with JointStereo.
+                \item{2 bits} Copyright data.
+                \item{2 bits} Emphasis.
+            \end{itemize}
+            
+            There are lots of data here that does not matter for the decoding
+            process, and some that does not matter because of limits in our
+            decoder. We restricted our decoder to files not using JointStereo,
+            so the Mode Extension bits are not used. All bits are however
+            checked for correctness. The most important bits for decoding are
+            bitrate index (BT) and sample rate index (SR).
+
+            The decoding process can be divided into two parts: unpacking and
+            decoding. For the unpacking, the CRC info and padding data are also
+            important.
+
+            One might think that the header would contain all data needed for
+            decoding, but that is absolutely not the case. In fact, the only
+            useful data for decoding that is contained in the header are SR and
+            BT. Then some data in the header is of course useful for unpacking,
+            but unpacking is a rather small part of the whole decoding process.
+
+       \subsubsection{Side Info}
+            The side info is the part that contains most information on how to
+            unpack the compressed audio and some information on how to decode
+            the data. However, there is some information usable for decoding
+            that is \textit{not} included in the side info, for some unknown
+            reason. Some things to note in this data are: 
+            \begin{itemize}
+                \item main\_data\_begin - a pointer to the audio data
+                \item scfsi bands - scale factor information for each data part.
+                \item part2\_3\_length - the amount of audio data for each 
+                      data part.
+            \end{itemize}
+            The rest of this section contains only decoding-specific data, which
+            we will cover more in the implementation part.
+       
+       \subsubsection{Main Data}
+            The main data is further divided into two granules, which may be
+            divided further, depending on the number of channels (1 or 2). For
+            each of these data parts, the main data contains scale information
+            for decoding, and huffman data.
+        
+        \subsubsection{ID3}
+            ID3 tags may be present within an mp3 file. Technically, it may
+            appear anywhere in the file, but is by convention always in the
+            beginning. Our decoder ignores id3 tags, however a library for
+            parsing these tags was written for future use.
 
 \section{Implementation}
-    \subsection{bitstring}
-        Probably the best library I have ever seen
-    \subsection{huffman}
-        Probably the most unneccessary library I have ever written. Remove?
-        maybe some different approaches should be discussed here? ulf and Koen had their ideas that we discussed and ignored.
+    We wanted different parts of the process to be separate in the code, so we
+    divided the decoder into two main modules: Unpack.hs and Decode.hs. 
 
+    \begin{lstlisting}
+unpackMp3 :: L.ByteString -> [SideInfo BS.BitString]
+unpackMp3 = runBitGet first . BS.convert
+    where first = do
+            skipId3
+            init <- lookAhead (runMaybeT readHeader)
+            unpackFrames init
+    \end{lstlisting}
+    What is going on here? The function expects a lazy bytestring as input (this
+    is the contents of the mp3 file), and finally gives us a list of SideInfo
+    datatypes parametrized by a BitString. There are lots of stuff that needs to
+    be explained, clearly!
+    
+    First, what is the SideInfo type?
+    \begin{lstlisting}
+data SideInfo a
+    = Single { sampleRate  :: !Int
+             , dataPointer :: !Int -- 9 bits
+             , scales      :: ![Bool]
+             , gran        :: !(Granule a, Granule a)
+             }
+    | Dual   { sampleRate  :: !Int
+             , dataPointer :: !Int -- 9 bits
+             , scales' :: ![Bool]
+             , gran0  :: !(Granule a, Granule a)
+             , gran1  :: !(Granule a, Granule a)
+             } deriving Show
+    \end{lstlisting}
+    So, it holds some values (sampleRate, dataPointer), some scale data
+    information, and two or four Granules. There is a type of headers aswell,
+    but that is only used intermediately when unpacking, so it is of rather
+    little interest. We might describe it later.
+
+    What is a Granule then? This is where the good stuff is!
+    \begin{lstlisting}
+data Granule a = Granule {
+    bigValues         :: !Int
+  , globalGain        :: !Double
+  , scaleFacCompress  :: !Int
+  , windowSwitching   :: !Bool
+    -- windows
+  , blockType       :: !Int
+  , mixedBlock      :: !Bool
+  , tableSelect_1   :: !Int
+  , tableSelect_2   :: !Int
+
+    -- window == 0
+  , tableSelect_3   :: !Int
+
+    -- window == 1
+  , subBlockGain1   :: !Double
+  , subBlockGain2   :: !Double
+  , subBlockGain3   :: !Double
+
+  , preFlag           :: !Bool
+  , scaleFacScale     :: !Bool
+  , count1TableSelect :: !Bool
+
+  -- calculated from previous values
+  , region0Start     :: !Int
+  , region1Start     :: !Int
+  , region2Start     :: !Int
+
+  , mp3Data          :: a
+} deriving Show
+    \end{lstlisting}
+    So, it contains lots of information on how to decode, and then it contains
+    an \texttt{a}. Recall that the result from unpackMp3 was parametrized by a
+    BitString, so the mp3Data in the Granule would be a BitString in this case.
+    BitString is a library we wrote during the project. It works like
+    ByteString, but has support for bit-level operations, hence the name. We
+    will cover BitString in section \ref{sec:bitstring}.
+
+    We saw in \texttt{unpackMp3} that it read one frame, and then called 
+    \texttt{unpackFrames} with that frame as an argument. \texttt{unpackFrames}
+    simply loops and accumulates frames until there are no more frames to read.
+    The interesting function here is \texttt{readHeader}, which looks as
+    follows:
+    \begin{lstlisting}
+readHeader :: MaybeT BitGet (MP3Header Int)
+readHeader = do
+    h <- lift syncWord
+    if not h then fail "" else do
+        prot  <- lift $ liftM not getBit
+        brate <- getBitRate
+        freq  <- getFreq
+        padd  <- lift getBit
+        lift $ skip 1 -- private bit
+        mode  <- getMode
+        mext' <- getModeExt
+        lift $ skip 4 -- copyright, original & emphasis
+        when prot $ lift $ skip 16
+        sinfo <- lift $ readSideInfo mode freq
+        let size = ((144 * 1000 * brate) `div` freq +
+                    if padd then 1 else 0) * 8
+            f' = if prot then 2 else 0
+            ff = case mode of
+                Mono -> 17
+                _    -> 32
+            hsize = (f' + ff + 4) * 8
+            mext = case mode of
+                JointStereo -> mext'
+                _ -> (False, False)
+        return $ MP3Header mode mext size hsize sinfo
+    \end{lstlisting}
+    So, comparing it to the description of an mp3 header in section
+    \ref{sec:header} we see that the only change is the size variable, which
+    calculates the length in bits to the next header. This function however,
+    does not read in any data, and thus does not produce a logical frame. To do
+    that, we need to first read side info and then look ahead to the next
+    header in order to determine how long we should read. The function that
+    reads the data can be found in the source code of Unpack.hs, we do not
+    include it here. However, we do include \texttt{readSideInfo}, since it is
+    by far more interesting even though it is long.
+    \begin{lstlisting}
+readSideInfo :: MP3Mode -> Int -> BitGet (SideInfo Int)
+readSideInfo mode freq = do
+    dataptr  <- getInt 9
+    skipPrivate
+    scaleFactors <- getScaleFactors
+    case mode of
+        Mono -> do 
+            g0 <- getGranule
+            g1 <- getGranule
+            return $ Single freq (dataptr * 8) scaleFactors (g0, g1)
+        _    -> do 
+            g0 <- getGranule
+            g1 <- getGranule
+            g2 <- getGranule
+            g3 <- getGranule
+            return $ Dual freq (dataptr * 8) scaleFactors (g0, g2) (g1, g3)
+  where
+    skipPrivate = case mode of
+        Mono -> skip 5
+        _    -> skip 3
+    getScaleFactors = case mode of
+        Mono -> replicateM 4 getBit
+        _    -> replicateM 8 getBit
+    getGranule = do
+            part23len        <- getInt 12
+            bigValues        <- getInt 9
+            globalGain       <- getInt 8
+            scaleFacCompress <- getInt 4
+            w                <- getBit -- windowSwitching
+
+            blockType  <- getInt $ if w then 2 else 0
+            mixedBlock <- if w then getBit else return False
+            tableSelect0  <- getInt 5
+            tableSelect1  <- getInt 5
+            tableSelect2  <- if w then return 0 else getInt 5
+            subBlockGain0 <- if w then liftM fi (getInt 3) else return 0
+            subBlockGain1 <- if w then liftM fi (getInt 3) else return 0
+            subBlockGain2 <- if w then liftM fi (getInt 3) else return 0
+            region0Count  <- if w then return (reg0 mixedBlock blockType)
+                                else getInt 4
+            region1Count  <- if w then return 0 else getInt 3
+            let r0count = if w then (if blockType == 2 then 8 else 7)
+                             else region0Count
+                r1count = if w then 20 - r0count
+                             else region1Count
+                sbTable   = tableScaleBandBoundary freq
+                r1bound   = sbTable $ r0count + 1
+                r2bound   = sbTable $ r0count + 1 + r1count + 1
+                bv2       = bigValues * 2
+                reg0len   = if blockType == 2 then min bv2 36
+                               else min bv2 r1bound
+                reg1len     = if blockType == 2 then min (bv2-reg0len) 540 
+                                 else min (bv2-reg0len) (r2bound - reg0len) 
+                reg2len     = if blockType == 2 then 0   
+                                 else bv2 - (reg0len + reg1len)
+            preFlag           <- getBit
+            scaleFacScale     <- getBit
+            count1TableSelect <- getBit
+            return $ Granule bigValues 
+                     (mp3FloatRep1 globalGain)
+                     scaleFacCompress w blockType mixedBlock 
+                     tableSelect0 tableSelect1 tableSelect2
+                     (mp3FloatRep2 subBlockGain0)
+                     (mp3FloatRep2 subBlockGain1)
+                     (mp3FloatRep2 subBlockGain2)
+                     preFlag scaleFacScale count1TableSelect
+                     reg0len reg1len reg2len part23len
+    reg0 False 2 = 8
+    reg0 _ _     = 7
+
+    \end{lstlisting}
+    
 \section{Results}
     Beauty, Slowness\ldots
+    \subsection{bitstring}
+    \label{sec:bitstring}
+        Probably the best library I have ever seen
+    \subsection{huffman}
+    \label{sec:huffman}
+        Probably the most unneccessary library I have ever written. Remove?
+        maybe some different approaches should be discussed here? ulf and Koen
+        had their ideas that we discussed and ignored.
 
 \section{Future Work}
 
