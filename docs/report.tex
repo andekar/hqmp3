@@ -28,9 +28,13 @@
 \lstdefinestyle{haskell}{ language=Haskell }
 \lstset{style=haskell}
 
-\title{HQmp3}
-\author{Anders Karlsson \\ \small{\texttt{andekar@student.chalmers.se}}
-   \and Tobias Olausson \\ \small{\texttt{olaussot@student.chalmers.se}}
+\title{HQMp3 -- MP3 decoder in Haskell}
+\author{Tobias Olausson \\ \texttt{\small{olaussot@student.chalmers.se}} \and 
+        Anders Karlsson \\ \texttt{\small{andekar@student.chalmers.se}}
+}
+\date{ \rule{0.8 \linewidth}{0.5mm} \\[3mm]
+       University of Gothenburg \\ 
+       \small{\today}
 }
 
 \begin{document}
@@ -38,7 +42,9 @@
 
 \begin{abstract}
     This project aims to show how one can parse and decode binary formats in
-    Haskell, showcased by implementing an mp3 decoder.
+    Haskell, showcased by implementing an mp3 decoder. The decoder features its
+    own library for handling of binary formats, a fast huffman decoder and is
+    written entirely in Haskell.
 \end{abstract}
 
 \tableofcontents
