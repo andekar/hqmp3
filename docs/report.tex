@@ -51,7 +51,10 @@ TODO: Lägg all kod i captions,
       Lägg alla tabeller i captions.
 
 \section{Motivation}
-    Det är ju najs med en mp3-decoder i Haskell
+    MP3 decoders exists today in most languages, however there does not exist
+    a fast one written in Haskell. It does exists one written by Björn Edström
+    \cite{bjorn}, but it is very slow, and bitwise poorly implemented (sorry
+    Björn).
 
 \section{Background}
     \subsection{The MP3 format}
@@ -428,6 +431,9 @@ readSideInfo mode freq = do
 \section{Future Work}
 
 \begin{thebibliography}{99}
+    \bibitem{bjorn}
+        Let's build an MP3-decoder!
+        http://blog.bjrn.se/2008/10/lets-build-mp3-decoder.html
     \bibitem{wikimp3}
         Wikipedia on MP3: http://en.wikipedia.org/wiki/Mp3
     \bibitem{wikimpeg1}
