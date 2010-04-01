@@ -421,7 +421,15 @@ readSideInfo mode freq = do
     decoder to $\sim$8\%.
 
     \subsubsection{Audio Decoding}
-        * Requantization * IMDCT * FilterBank * ScaleFactors
+        All audio is represented as floating-point numbers. Now, representing
+        floats in a binary file format is not very space efficient, so the
+        huffman decoder decodes integers instead of floats. These integers then
+        has to be \textit{requantized}. TODO: Kod och förklaring
+
+        To further compress the audio, the encoder passes the data through an
+        \textit{Inverse Modified Discrete Cosine Transform} (IMDCT).
+
+        IMDCT * FilterBank * ScaleFactors
 
 \section{Results}
     Beauty, Slowness\ldots
