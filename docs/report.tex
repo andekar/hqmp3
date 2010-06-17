@@ -424,12 +424,35 @@ readSideInfo mode freq = do
         All audio is represented as floating-point numbers. Now, representing
         floats in a binary file format is not very space efficient, so the
         huffman decoder decodes integers instead of floats. These integers then
-        has to be \textit{requantized}. TODO: Kod och förklaring
+        has to be \textit{requantized}. \\
+        
+        At this point we were starting to get low on time. A lot of time had
+        gone to parse the format and to huffman decode, largely due to the
+        rather unspecific specification in ISO 11172-3. Therefore, some of the
+        parts below will not be very well described, basically because we did
+        not have time to investigate in how they work. Also, we will not show
+        much of this code, since we did not write it. \\
+
+        So, the \textit{requantization} is basically a transformation of all
+        integers decoded by the huffman decoder into floats. How this is done
+        depends on blocktype and windowswitching. Depending on those, different
+        tables are for obtaining values that are multiplied by the integer from
+        huffdecoding and also multiplied by different other more or less special
+        values depending on blocktype and windowswitching. \\
+
+        Next processing step is the reordering. During encoding, some parts of
+        the data may be reordered in order to increase compression. The
+        reordering basically reverses this process so that the actual audio is
+        correctly ordered. Whenever the granule only has long blocks, this
+        reordering is skipped. In the code, this step also pads the list of
+        samples so that it is always of length 576 for simplicity in the further
+        steps. \\
+        
+        % TODO: Describe these, and that's about it for this section
+        AliasAddition, IMDCT, FrequencyInvert, SynthethisFilterBank \\
 
         To further compress the audio, the encoder passes the data through an
         \textit{Inverse Modified Discrete Cosine Transform} (IMDCT).
-
-        IMDCT * FilterBank * ScaleFactors
 
 \section{Results}
     Beauty, Slowness\ldots
@@ -439,7 +462,7 @@ readSideInfo mode freq = do
     \subsection{huffman}
     \label{sec:huffman}
         Probably the most unneccessary library I have ever written. Remove?
-        maybe some different approaches should be discussed here? ulf and Koen
+        maybe some different approaches should be discussed here? Ulf and Koen
         had their ideas that we discussed and ignored.
 
 \section{Future Work}
