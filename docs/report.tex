@@ -499,7 +499,10 @@ imdct18 xs = map (\s -> sumZip (*) xs s) lookupIMDCT
         As you can see, there was a special version when there were only 18
         samples to transform, and we have not investigated in how that code was
         written, but we just translated it to Haskell, which in our opinion went
-        very well. 
+        very well. For performance reasons we wrote sumZip, which would not be
+        needed otherwise. This was however quite slow compared to the C version,
+        but that was not a big concern when we first wrote it, the goal was to
+        have a Haskell version first, and if there were time, to optimise.
 
 \section{Results}
     Beauty, Slowness\ldots
