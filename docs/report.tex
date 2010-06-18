@@ -29,11 +29,11 @@
 \lstset{style=haskell}
 
 \title{HQMp3 -- MP3 decoder in Haskell}
-\author{Tobias Olausson \\ \texttt{\small{olaussot@student.chalmers.se}} \and 
+\author{Tobias Olausson \\ \texttt{\small{olaussot@student.chalmers.se}} \and
         Anders Karlsson \\ \texttt{\small{andekar@student.chalmers.se}}
 }
 \date{ \rule{0.8 \linewidth}{0.5mm} \\[3mm]
-       University of Gothenburg \\ 
+       University of Gothenburg \\
        \small{\today}
 }
 
@@ -77,7 +77,7 @@ TODO: Lägg all kod i captions,
        consecutive physical frames are constant once you know bitrate and sample
        rate. However, there might not be data to fill all those bits, in which
        case the data for the \textit{next} frame is inserted before its frame.
-       This implies that one needs to keep track of two consecutive frames at a 
+       This implies that one needs to keep track of two consecutive frames at a
        time in order to know where data begins and ends.
 
        To avoid redundant information we only briefly describe the format here.
@@ -100,7 +100,7 @@ TODO: Lägg all kod i captions,
                 \item{2 bits} Copyright data.
                 \item{2 bits} Emphasis.
             \end{itemize}
-            
+
             There are lots of data here that does not matter for the decoding
             process, and some that does not matter because of limits in our
             decoder. We restricted our decoder to files not using JointStereo,
@@ -123,22 +123,22 @@ TODO: Lägg all kod i captions,
             unpack the compressed audio and some information on how to decode
             the data. However, there is some information usable for decoding
             that is \textit{not} included in the side info, for some unknown
-            reason. Some things to note in this data are: 
+            reason. Some things to note in this data are:
             \begin{itemize}
                 \item main\_data\_begin - a pointer to the audio data
                 \item scfsi bands - scale factor information for each data part.
-                \item part2\_3\_length - the amount of audio data for each 
+                \item part2\_3\_length - the amount of audio data for each
                       data part.
             \end{itemize}
             The rest of this section contains only decoding-specific data, which
             we will cover more in the implementation part.
-       
+
        \subsubsection{Main Data}
             The main data is further divided into two granules, which may be
             divided further, depending on the number of channels (1 or 2). For
             each of these data parts, the main data contains scale information
             for decoding, and huffman data.
-        
+
         \subsubsection{ID3}
             ID3 tags may be present within an mp3 file. Technically, it may
             appear anywhere in the file, but is by convention always in the
@@ -147,7 +147,7 @@ TODO: Lägg all kod i captions,
 
 \section{Implementation}
     We wanted different parts of the process to be separate in the code, so we
-    divided the decoder into two main modules: Unpack.hs and Decode.hs. 
+    divided the decoder into two main modules: Unpack.hs and Decode.hs.
 
     \subsection{Unpacking}
 
@@ -163,7 +163,7 @@ unpackMp3 = runBitGet first . BS.convert
     is the contents of the mp3 file), and finally gives us a list of SideInfo
     datatypes parametrized by a BitString. There are lots of stuff that needs to
     be explained, clearly!
-    
+
     First, what is the SideInfo type?
     \begin{lstlisting}
 data SideInfo a
@@ -224,7 +224,7 @@ data Granule a = Granule {
     ByteString, but has support for bit-level operations, hence the name. We
     will cover BitString in section \ref{sec:bitstring}.
 
-    We saw in \texttt{unpackMp3} that it read one frame, and then called 
+    We saw in \texttt{unpackMp3} that it read one frame, and then called
     \texttt{unpackFrames} with that frame as an argument. \texttt{unpackFrames}
     simply loops and accumulates frames until there are no more frames to read.
     The interesting function here is \texttt{readHeader}, which looks as
@@ -272,17 +272,17 @@ readSideInfo mode freq = do
     skipPrivate
     scaleFactors <- getScaleFactors
     case mode of
-        Mono -> do 
+        Mono -> do
             g0 <- getGranule
             g1 <- getGranule
-            return $ Single freq (dataptr * 8) 
+            return $ Single freq (dataptr * 8)
                      scaleFactors (g0, g1)
-        _    -> do 
+        _    -> do
             g0 <- getGranule
             g1 <- getGranule
             g2 <- getGranule
             g3 <- getGranule
-            return $ Dual freq (dataptr * 8) 
+            return $ Dual freq (dataptr * 8)
                      scaleFactors (g0, g2) (g1, g3)
   where
     skipPrivate = case mode of
@@ -304,11 +304,11 @@ readSideInfo mode freq = do
         tableSelect0  <- getInt 5
         tableSelect1  <- getInt 5
         tableSelect2  <- if w then return 0 else getInt 5
-        subBlockGain0 <- if w then liftM fi (getInt 3) 
+        subBlockGain0 <- if w then liftM fi (getInt 3)
                               else return 0
-        subBlockGain1 <- if w then liftM fi (getInt 3) 
+        subBlockGain1 <- if w then liftM fi (getInt 3)
                               else return 0
-        subBlockGain2 <- if w then liftM fi (getInt 3) 
+        subBlockGain2 <- if w then liftM fi (getInt 3)
                               else return 0
         region0Count  <- if w then return (reg0 mb bt)
                               else getInt 4
@@ -323,19 +323,19 @@ readSideInfo mode freq = do
             bv2     = bigValues * 2
             reg0len = if bt == 2 then min bv2 36
                                  else min bv2 r1bound
-            reg1len = if bt == 2 
-                      then min (bv2 - reg0len) 540 
-                      else min (bv2 - reg0len) 
-                               (r2bound - reg0len) 
-            reg2len = if bt == 2 
-                      then 0   
+            reg1len = if bt == 2
+                      then min (bv2 - reg0len) 540
+                      else min (bv2 - reg0len)
+                               (r2bound - reg0len)
+            reg2len = if bt == 2
+                      then 0
                       else bv2 - (reg0len + reg1len)
         preFlag           <- getBit
         scaleFacScale     <- getBit
         count1TableSelect <- getBit
-        return $ Granule bigValues 
+        return $ Granule bigValues
                  (mp3FloatRep1 globalGain)
-                 scaleFacCompress w bt mb 
+                 scaleFacCompress w bt mb
                  tableSelect0 tableSelect1 tableSelect2
                  (mp3FloatRep2 subBlockGain0)
                  (mp3FloatRep2 subBlockGain1)
@@ -355,7 +355,7 @@ readSideInfo mode freq = do
     more interesting though, since they control the number of times one has to
     invoke the huffman decoder. These variables are used together with
     \texttt{tableSelect\{0,1,2\}} that tells the decoder which huffman table
-    that was used when compressing the audio data. 
+    that was used when compressing the audio data.
 
     \subsection{Decoding}
     \subsubsection{Huffman}
@@ -379,17 +379,17 @@ readSideInfo mode freq = do
     \begin{tabular}{| l | l |}
         \hline
         Code Word & Value \\ \hline \hline
-        1   & 5 \\ 
+        1   & 5 \\
         000 & 7 \\
         001 & 3 \\
         010 & 2 \\
-        0111  & 4 \\ 
-        01101 & 1 \\ 
+        0111  & 4 \\
+        01101 & 1 \\
         01100 & 8 \\ \hline
     \end{tabular} \\
     In this case, one might choose code word length three, which we will use in
     this example. The lookup table generated from this would look like this:
-    
+
     \begin{tabular}{| l | l |}
         \hline
         Code Word & Value \\ \hline \hline
@@ -425,7 +425,7 @@ readSideInfo mode freq = do
         floats in a binary file format is not very space efficient, so the
         huffman decoder decodes integers instead of floats. These integers then
         has to be \textit{requantized}. \\
-        
+
         At this point we were starting to get low on time. A lot of time had
         gone to parse the format and to huffman decode, largely due to the
         rather unspecific specification in ISO 11172-3. Therefore, some of the
@@ -447,7 +447,7 @@ readSideInfo mode freq = do
         reordering is skipped. In the code, this step also pads the list of
         samples so that it is always of length 576 for simplicity in the further
         steps. \\
-        
+
         % TODO: Describe these, and that's about it for this section
         AliasAddition, IMDCT, FrequencyInvert, SynthethisFilterBank \\
 
@@ -467,13 +467,13 @@ readSideInfo mode freq = do
 -- Straightforward translation from the C code.
 imdct :: Int -> [Double] -> [Double]
 imdct 18 xs  = imdct18 xs
-imdct pts xs = map 
-    (\n -> sum $ zipWith (subone n) xs [0..pts-1]) 
+imdct pts xs = map
+    (\n -> sum $ zipWith (subone n) xs [0..pts-1])
     [0..2*pts-1]
   where
     subone :: Int -> Double -> Int -> Double
-    subone n y k = y * (cos $ pipts 
-                            * (fi n + 0.5 + nhalf) 
+    subone n y k = y * (cos $ pipts
+                            * (fi n + 0.5 + nhalf)
                             * (fi k + 0.5)
                        )
     pipts        = pi / (fi pts)
@@ -486,14 +486,14 @@ imdct18 xs = map (\s -> sumZip (*) xs s) lookupIMDCT
     -- 36x18 matrix
     lookupIMDCT :: [[Double]]
     lookupIMDCT = [[ cos $ (pi / 18.0) * n * k
-                   | k <- [0.5, 1.5 .. 17.5]] 
+                   | k <- [0.5, 1.5 .. 17.5]]
                    | n <- [9.5, 10.5 .. 44.5]]
-    
+
     -- Instead of specialize
     sumZip _ [] _ = 0
     sumZip _ _ [] = 0
-    sumZip f (a:as) (b:bs) 
-        = let acc = (f a b) 
+    sumZip f (a:as) (b:bs)
+        = let acc = (f a b)
           in acc `seq` acc + sumZip f as bs
         \end{lstlisting}
         As you can see, there was a special version when there were only 18
@@ -518,7 +518,7 @@ imdct18 xs = map (\s -> sumZip (*) xs s) lookupIMDCT
 \section{Future Work}
     Rewrite the back-end to use vector, optimise further. Add support for
     all modes that are currently not supported. Also, other implementations of
-    the huffman library may be considered. 
+    the huffman library may be considered.
 
 \begin{thebibliography}{99}
     \bibitem{bjorn}
