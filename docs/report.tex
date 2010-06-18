@@ -452,7 +452,54 @@ readSideInfo mode freq = do
         AliasAddition, IMDCT, FrequencyInvert, SynthethisFilterBank \\
 
         To further compress the audio, the encoder passes the data through an
-        \textit{Inverse Modified Discrete Cosine Transform} (IMDCT).
+        \textit{Inverse Modified Discrete Cosine Transform} (IMDCT). As stated
+        in ISO 11172-3, the transformation for each sample is done as follows:
+        \[
+            x_i = \sum_{k=0}^{\frac{n}{2} - 1}{X_k * cos(\frac{\pi}{2n}(2i + 1 +
+                  \frac{n}{2})(2k + 1))}
+            \textit{ for i=0 to n-1}
+        \]
+        In the code that we plugged in to, the IMDCT was written as a piece of C
+        code, as was the synthethis filterbank. We thought that it would be much
+        nicer to have that code written in Haskell, so we rewrote both those
+        files into Haskell versions. For the IMDCT that went extremely smooth:
+        \begin{lstlisting}
+-- Straightforward translation from the C code.
+imdct :: Int -> [Double] -> [Double]
+imdct 18 xs  = imdct18 xs
+imdct pts xs = map 
+    (\n -> sum $ zipWith (subone n) xs [0..pts-1]) 
+    [0..2*pts-1]
+  where
+    subone :: Int -> Double -> Int -> Double
+    subone n y k = y * (cos $ pipts 
+                            * (fi n + 0.5 + nhalf) 
+                            * (fi k + 0.5)
+                       )
+    pipts        = pi / (fi pts)
+    nhalf        = (fi pts) / 2.0
+
+-- Straightforward translation from the C code, elegant!
+imdct18 :: [Double] -> [Double]
+imdct18 xs = map (\s -> sumZip (*) xs s) lookupIMDCT
+  where
+    -- 36x18 matrix
+    lookupIMDCT :: [[Double]]
+    lookupIMDCT = [[ cos $ (pi / 18.0) * n * k
+                   | k <- [0.5, 1.5 .. 17.5]] 
+                   | n <- [9.5, 10.5 .. 44.5]]
+    
+    -- Instead of specialize
+    sumZip _ [] _ = 0
+    sumZip _ _ [] = 0
+    sumZip f (a:as) (b:bs) 
+        = let acc = (f a b) 
+          in acc `seq` acc + sumZip f as bs
+        \end{lstlisting}
+        As you can see, there was a special version when there were only 18
+        samples to transform, and we have not investigated in how that code was
+        written, but we just translated it to Haskell, which in our opinion went
+        very well. 
 
 \section{Results}
     Beauty, Slowness\ldots
@@ -466,6 +513,9 @@ readSideInfo mode freq = do
         had their ideas that we discussed and ignored.
 
 \section{Future Work}
+    Rewrite the back-end to use vector, optimise further. Add support for
+    all modes that are currently not supported. Also, other implementations of
+    the huffman library may be considered. 
 
 \begin{thebibliography}{99}
     \bibitem{bjorn}
