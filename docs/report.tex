@@ -448,8 +448,7 @@ readSideInfo mode freq = do
         samples so that it is always of length 576 for simplicity in the further
         steps. \\
 
-        % TODO: Describe these, and that's about it for this section
-        AliasAddition, IMDCT, FrequencyInvert, SynthethisFilterBank \\
+%        TODO: Describe Alias Addition here
 
         To further compress the audio, the encoder passes the data through an
         \textit{Inverse Modified Discrete Cosine Transform} (IMDCT). As stated
@@ -496,13 +495,30 @@ imdct18 xs = map (\s -> sumZip (*) xs s) lookupIMDCT
         = let acc = (f a b)
           in acc `seq` acc + sumZip f as bs
         \end{lstlisting}
-        As you can see, there was a special version when there were only 18
+        As you can see, there is a special version when there are only 18
         samples to transform, and we have not investigated in how that code was
         written, but we just translated it to Haskell, which in our opinion went
         very well. For performance reasons we wrote sumZip, which would not be
         needed otherwise. This was however quite slow compared to the C version,
         but that was not a big concern when we first wrote it, the goal was to
-        have a Haskell version first, and if there were time, to optimise.
+        have a Haskell version first, and if there were time, to optimise. \\
+
+        The output of the IMDCT is inverted on all odd samples in odd sub bands,
+        so they need to be inverted, in the code, this is done by simply
+        changing the sign of them. \\
+
+        The last step in the audio decoding is the synthethis filter bank, which
+        when we plugged into the existing codec also was written in C, so it had
+        to be rewritten in Haskell. This time however, it was not as neat as the
+        IMDCT code. THe synthethis filterbank was written in a far more
+        imperative style, with lots and lots of array indexing, which made
+        operations such as map and zipWith infeasible for this purpose. So this
+        time we unfortunately had to write it in the same imperative style in
+        Haskell as it was written in C, but with unboxed arrays in the ST monad.
+        Unlike the C version, we managed to separate the filterbank into two
+        functions, one for updating the internal codec state, and one for
+        computing the output.
+        % TODO: Describe Synthethis more
 
 \section{Results}
     Beauty, Slowness\ldots
