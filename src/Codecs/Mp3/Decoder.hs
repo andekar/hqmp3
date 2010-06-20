@@ -329,8 +329,7 @@ requantizeGran freq gran = do
 -- b **^ e == sign(b) * abs(b)**e
 (**^) :: (Floating a, Ord a) => a -> a -> a
 b **^ e = let sign = if b < 0 then -1 else 1
-              b'   = abs b
-          in sign * b' ** e
+          in sign * (abs b) ** e
 infixr 8 **^
 
 -- Code taken from bjorn...
