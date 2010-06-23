@@ -518,23 +518,111 @@ imdct18 xs = map (\s -> sumZip (*) xs s) lookupIMDCT
         Unlike the C version, we managed to separate the filterbank into two
         functions, one for updating the internal codec state, and one for
         computing the output.
-        % TODO: Describe Synthethis more
+        % TODO: Describe Synthethis more, maybe some code?
 
 \section{Results}
     Beauty, Slowness\ldots
     \subsection{bitstring}
     \label{sec:bitstring}
-        Probably the best library I have ever seen
+        Initially, we started to parse the format using ByteStrings, but since
+        the MP3 format does not only deal in single bytes, but rather in single
+        bits, we found that it would not be feasible to keep track of the bits
+        by hand. Therefore, we wrote our own library, BitString.
+    
+        The BitString structure itself is rather simple:
+        \begin{lstlisting}
+data BitString = Empty 
+               | Chunk L.ByteString !Word8 !Word8 BitString
+        \end{lstlisting}
+        If you have ever used lazy ByteStrings, you will notice that the data
+        definition here is similar, but with two extra Word8's. The first is
+        used to keep track of at which bit we are in the first byte, and the
+        second one is used for knowing at which bit in the last byte the string
+        ends (since BitStrings does not need to be full bytes). \\
+        The further design of the BitString library looks more or less like the
+        ByteString library, but with additional functions for fetching bits,
+        such as takeWord8, takeWord16 and so on. \\
+
+        To make this library usable, we wanted to be able to operate on these
+        BitStrings without keeping track of everything by ourselves, therefore
+        we put it in a monad. This is how it looks:
+        \begin{lstlisting}
+newtype BitGetT m a = BitGetT { 
+    unGet :: BitString -> m (a, BitString) 
+}
+type BitGet = BitGetT Identity
+instance (Monad m) => Monad (BitGetT m) where
+    return a = BitGetT $ \bs -> return (a,bs)
+    bg >>= f = BitGetT $ \bs -> do
+        ~(a,bs') <- unGet bg bs
+        unGet (f a) bs'
+    \end{lstlisting}
+Much of the design of the BitGet monad was inspired by the existing BitGet
+    monad available in the binary-strict package \cite{binarystrict}. However,
+    it is not as extensive as the existing BitGet library, and it needs to
+    include more handy functions before being released. Currently, we have only
+    included functions that were needed for parsing the MP3 format.
+
     \subsection{huffman}
     \label{sec:huffman}
-        Probably the most unneccessary library I have ever written. Remove?
-        maybe some different approaches should be discussed here? Ulf and Koen
-        had their ideas that we discussed and ignored.
+        Initially, we wrote a nice (but extremely slow) library for huffman
+        encoding and decoding. This library was later subsumed by the huffman
+        code available in HuffArrays.hs. The initial idea was based on the
+        ground theory behind huffman codes, to have a tree with codes, and to
+        traverse it when looking for the code for a value. That proved to be
+        much too slow, since it did not only had to read one bit at the time,
+        but also carry a large datastructure. Therefore we wrote the new
+        version, which utilizes statically compiled arrays of variable size, but
+        where the lookup in an array is always done with a fixed number of bits
+        for every tree. The initial idea was to have $2^n$ entries in each
+        table, where n would be the maximum size of a code word in that table,
+        but that instantly showed to be impossible, since the maximum code word
+        length for some tables are 18 and 19, this led to the tables being 13MB
+        large, and could not be compiled. We then had to compromise, so we let
+        the trees have at most $2^10$ entries, and in the cases where there were
+        code words that were larger than 10 bits, the result from a lookup in
+        the table was another table. The not-so-intuitive data structure looks
+        like this:
+        \begin{lstlisting}
+-- SmallTable / Deep Table
+type MP3Huffman a = Either (HuffArray a) (HuffDeep a)
+-- plain lookup
+type HuffArray a  = (Int, Array Int (Int, a))
+-- Int is Code Word length
+-- In the array there may be values or arrays
+type HuffDeep a  = (Int, Array Int 
+                         (Either (Int,a) (HuffArray a))
+                   )
+        \end{lstlisting}
+        But the complicated structure aside, this works very well, ever though
+        HuffTables.hs still takes more time to compile than any other module.
+        The lookup function looks like this:
+        \begin{lstlisting}
+-- Lookup a value in the huffman array
+lookupHuff :: Monad m => MP3Huffman a -> BitGetT m (Int,a)
+lookupHuff huff = case huff of
+    Left  (cw,arr) -> liftM (arr !) (f cw)
+    Right (cw,arr) -> do
+        i <- f cw
+        case arr ! i of
+            Left a           -> return a
+            Right (cw',arr') -> do
+                (l,a) <- liftM (arr' !) (f cw')
+                return (cw+l,a)
+  where
+    f w | w <= 8  = liftM fromIntegral 
+                    (getAsWord8 $ fromIntegral w)
+        | w <= 16 = liftM fromIntegral 
+                    (getAsWord16 $ fromIntegral w)
+        \end{lstlisting}
+        The huffman encoder that we wrote has never been used, and judging by
+        its poor performance, it never should be.
 
 \section{Future Work}
-    Rewrite the back-end to use vector, optimise further. Add support for
-    all modes that are currently not supported. Also, other implementations of
-    the huffman library may be considered.
+    Rewrite the back-end to use a fast mutable structure, optimise further. Add
+    support for all modes that are currently not supported. Also, other
+    implementations of the huffman library may be considered. Also make the
+    bitstring library good enough for a release.
 
 \begin{thebibliography}{99}
     \bibitem{bjorn}
@@ -544,6 +632,9 @@ imdct18 xs = map (\s -> sumZip (*) xs s) lookupIMDCT
         Wikipedia on MP3: http://en.wikipedia.org/wiki/Mp3
     \bibitem{wikimpeg1}
         Wikipedia on MPEG-1: http://en.wikipedia.org/wiki/MPEG-1
+    \bibitem{binarystrict}
+        Binary-Strict package on Hackage:
+        http://hackage.haskell.org/package/binary-strict
     \bibitem{standard}
         ISO-11172-3 Information technology -- Coding of moving pictures and
         associated audio for digital storage media at up to about 1,5 Mbit/s --
