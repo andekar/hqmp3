@@ -127,20 +127,45 @@ mp3AA blockflag blocktype freq
       in first ++ aaHelper third ++ fourth
   where
       aaHelper []    = []
-      aaHelper chunk = before ++ aaButterfly middle ++ after ++ 
-                       aaHelper (drop 18 chunk)
+      aaHelper (c:chunk) = c : (aaButterfly middle ++ [after] ++ 
+                                aaHelper last)
           where
-              before = take 1 chunk
-              middle = take 16 (drop 1 chunk)
-              after  = take 1 (drop 17 chunk)
-      aaButterfly f = zipWith (-) (take 8 seqcs) (take 8 seqca) ++
-                      zipWith (+) (drop 8 seqcs) (drop 8 seqca)
+              (middle, (after:last)) = splitAt 16 chunk
+      aaButterfly f = let (seqcs', seqcs'') = splitAt 8 seqcs
+                          (seqca', seqca'')   = splitAt 8 seqca
+                      in zipWith (-) seqcs' seqca' ++
+                         zipWith (+) seqcs'' seqca''
           where
-              seqcs = zipWith (*) f (reverse cs ++ cs)
-              seqca = reverse $ zipWith (*) f (reverse ca ++ ca)
-      cs = [1 / sqrt (1.0 + c**2) | c <- aaCoeff]
-      ca = [c / sqrt (1.0 + c**2) | c <- aaCoeff]
-      aaCoeff = [-0.6, -0.535, -0.33, -0.185, -0.095, -0.041, -0.0142, -0.0037]
+              seqcs :: [Double]
+              seqcs = zipWith (*) f revCs
+              seqca :: [Double]
+              seqca = reverse $ zipWith (*) f revCa
+        
+cs = [1 / sqrt (1.0 + c**2) | c <- aaCoeff]
+ca = [c / sqrt (1.0 + c**2) | c <- aaCoeff]
+{-# ANN revCs ([1 / sqrt (1.0 + c**2) | c <- [-0.6, -0.535, -0.33, -0.185, 
+           -0.095, -0.041, -0.0142, -0.0037]] ++
+        [1 / sqrt (1.0 + c**2) | c <-  [-0.6, -0.535, -0.33, -0.185, 
+           -0.095, -0.041, -0.0142, -0.0037]]:: [Double]) #-}
+revCs = [1 / sqrt (1.0 + c**2) | c <- aaCoeff]
+{-# ANN revCa ([c / sqrt (1.0 + c**2) | c <- [-0.0037, -0.0142, -0.041, -0.095,
+        -0.185, -0.33, -0.535, -0.6]] ++
+        [c / sqrt (1.0 + c**2) | c <-  [-0.6, -0.535, -0.33, -0.185, 
+           -0.095, -0.041, -0.0142, -0.0037]]:: [Double]) #-}
+revCa = [c / sqrt (1.0 + c**2) | c <- revAaCoeff]
+revAaCoeff = [-0.0037, -0.0142, -0.041, -0.095,
+              -0.185, -0.33, -0.535, -0.6]
+{-# ANN aaCoeff ([-0.6, -0.535, -0.33, -0.185, 
+                   -0.095, -0.041, -0.0142, -0.0037] :: [Double]) #-}
+aaCoeff = [-0.6, -0.535, -0.33, -0.185, 
+           -0.095, -0.041, -0.0142, -0.0037]
+-- *************
+--               seqcs = zipWith (*) f (reverse cs ++ cs)
+--               seqca = reverse $ zipWith (*) f (reverse ca ++ ca)
+--       cs = [1 / sqrt (1.0 + c**2) | c <- aaCoeff]
+--       ca = [c / sqrt (1.0 + c**2) | c <- aaCoeff]
+--       aaCoeff = [-0.6, -0.535, -0.33, -0.185, -0.095, -0.041, -0.0142, -0.0037]
+-- ^ ^ ^ ^ ^ ^ ^
 
 -- 
 -- mp3FrequencyInvert
