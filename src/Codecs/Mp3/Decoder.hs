@@ -49,7 +49,7 @@ func = runST $ mp3Reorder =<< requantize =<< decodeGranules
 -- Note that we skip stereoIS and StereoMS
 -- this should be changed later so that we can use par here too
 decodeRest :: [DChannel [Double]]
-        -> LS.State MP3DecodeState [([Double],[Double])]
+       -> LS.State MP3DecodeState [([Double],[Double])]
 decodeRest []  = return []
 decodeRest (chan:xs) = do
   prevState <- LS.get
