@@ -60,8 +60,9 @@ mp3IMDCT blockflag blocktype freq overlap =
     let (samples, overlap') = case blockflag of
              LongBlocks  -> transf (doImdctLong blocktype) freq
              ShortBlocks -> transf (doImdctShort) freq
-             MixedBlocks -> transf (doImdctLong 0) (take 36 freq) <++>
-                            transf (doImdctShort)  (drop 36 freq)
+             MixedBlocks -> let (first, second) = splitAt 36 freq 
+                            in transf (doImdctLong 0) first <++>
+                               transf (doImdctShort)  second
         samples' = zipWith (+) samples overlap
     in (samples', overlap')
     where
