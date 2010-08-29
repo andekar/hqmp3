@@ -173,15 +173,15 @@ decodeGranule prev scfsi (Granule _ _
               scaleFacS0 <- replicateM 3 $ replicateM 3 $ getAsWord8 $ fi slen1
               scaleFacS1 <- replicateM 7 $ replicateM 3 $ getAsWord8 $ fi slen2
               let scaleS= [[0,0,0],[0,0,0],[0,0,0]] ++ scaleFacS0 ++ scaleFacS1
-              return ((map fi $  padWith 22 0 scalefacL0),
-                      map (map fi) (padWith 22 [0,0,0] scaleS))
+              return $! ((map fi $ padWith 22 0 scalefacL0),
+                         map (map fi) (padWith 22 [0,0,0] scaleS))
           | blockType == 2 && window = do
               -- slen1: 0 to 5
               -- slen2: 6 to 11
               scaleFacS0 <- replicateM 6 $ replicateM 3 $ getAsWord8 $ fi slen1
               scaleFacS1 <- replicateM 6 $ replicateM 3 $ getAsWord8 $ fi slen2
-              return$ ([], map (map fi)
-                       (padWith 22 [0,0,0] $ scaleFacS0 ++ scaleFacS1))
+              return $! ([], map (map fi)
+                        (padWith 22 [0,0,0] $ scaleFacS0 ++ scaleFacS1))
           | otherwise = do
               -- slen1: 0 to 10
               s0 <- if recycle scfsi0 then return $ take 6 prev
@@ -194,7 +194,7 @@ decodeGranule prev scfsi (Granule _ _
               s3 <- if recycle scfsi3 then return $ take 5 $ drop 16 prev
                        else replicateM 5 $ liftM fi $ getAsWord8 $ fi slen2
                   -- (if we want a list of 22 elements)
-              return ((s0 ++ s1 ++ s2 ++ s3 ++ [0]), [[]])
+              return $! ((s0 ++ s1 ++ s2 ++ s3 ++ [0]), [[]])
                   where recycle sc = sc && not (null prev)
 
 -- Above parses the scale factors to bits. This functions takes the bits
@@ -307,7 +307,7 @@ requantizeGran freq gran = do
             procLong sample sfb =
                 let localgain   = longScales !! sfb
                     dsample     = fi sample :: Double
-                in gain * localgain * dsample **^ (4/3)
+                in (*) gain $ localgain * dsample **^ (4/3)
 
             procShort :: Int -> (Int,Int) -> Double
             procShort sample (sfb, win) =
@@ -316,8 +316,8 @@ requantizeGran freq gran = do
                                             1 -> subgain2
                                             2 -> subgain3
                     dsample   = fi sample
-                in gain * localgain * blockgain * dsample **^ (4/3)
-                                    
+                in (*) gain $ localgain * blockgain * dsample **^ (4/3)
+
             -- Frequency index (0-575) to scale factor band index (0-21).
             longbands = tableScaleBandIndexLong freq
             -- Frequency index to scale factor band index and window index (0-2).
