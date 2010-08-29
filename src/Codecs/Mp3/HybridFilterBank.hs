@@ -191,9 +191,9 @@ mp3HybridFilterBank :: BlockFlag -> Int ->
                        MP3HybridState -> [Frequency] -> 
                        (MP3HybridState, UArray Int Double)
 mp3HybridFilterBank bf bt (MP3HybridState simdct ssynthesis) input =
-    let input'                = padWith 576 0.0 input -- ensure length 576
-        aa                    = mp3AA    bf bt input'
-        (samp, simdct')       = mp3IMDCT bf bt aa (elems simdct)
+    let input'                = padWith 576 0.0 aa -- ensure length 576
+        aa                    = mp3AA    bf bt input
+        (samp, simdct')       = mp3IMDCT bf bt input' (elems simdct)
         samp'                 = mp3FrequencyInvert samp
         (ssynthesis', output) = mp3SynthesisFilterBank ssynthesis samp'
     in (MP3HybridState (listArray (0,575) simdct') ssynthesis', output)
