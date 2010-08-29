@@ -52,22 +52,22 @@ decodeRest :: [DChannel [Double]]
        -> LS.State MP3DecodeState [([Double],[Double])]
 decodeRest []  = return []
 decodeRest (chan:xs) = do
-  prevState <- LS.get
-  case chan of
-    (Single _ _ _ (g0, g1)) -> do 
-        let (state0, output0) = step1 g0 (decodeState0 prevState)
-            (state1, output1) = step1 g1 state0
-        LS.put $ MP3DecodeState state1 state1
-        rest <- decodeRest xs
-        return (((elems output0) ++ (elems output1), (elems output0) ++ (elems output1)):rest)
-    (Dual _ _ _ (g0, g2) (g1, g3)) -> do
-        let s'@(state0, output0) = step1 g0 (decodeState0 prevState)
-            s''@(state1, output1) = step1 g1 (decodeState1 prevState)
-            (state2, output2) = s' `par` s'' `par` step1 g2 state0
-            (state3, output3) = step1 g3 state1
-        LS.put $ MP3DecodeState state2 state3
-        rest <- decodeRest xs
-        return (((elems output0) ++ (elems output2), (elems output1) ++ (elems output3)) : rest )
+    prevState <- LS.get
+    case chan of
+        (Single _ _ _ (g0, g1)) -> do
+            let (state0, output0) = step1 g0 (decodeState0 prevState)
+                (state1, output1) = step1 g1 state0
+            LS.put $ MP3DecodeState state1 state1
+            rest <- decodeRest xs
+            return (((elems output0) ++ (elems output1), (elems output0) ++ (elems output1)):rest)
+        (Dual _ _ _ (g0, g2) (g1, g3)) -> do
+            let s'@(state0, output0) = step1 g0 (decodeState0 prevState)
+                s''@(state1, output1) = step1 g1 (decodeState1 prevState)
+                (state2, output2) = s' `par` s'' `par` step1 g2 state0
+                (state3, output3) = step1 g3 state1
+            LS.put $ MP3DecodeState state2 state3
+            rest <- decodeRest xs
+            return (((elems output0) ++ (elems output2), (elems output1) ++ (elems output3)):rest)
   where
     step1 gran state =
         let bf  = toBlockflag (mixedBlock gran) (blockType gran)
