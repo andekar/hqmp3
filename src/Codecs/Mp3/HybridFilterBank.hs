@@ -155,17 +155,8 @@ revCs = [1 / sqrt (1.0 + c**2) | c <- aaCoeff]
 revCa = [c / sqrt (1.0 + c**2) | c <- revAaCoeff]
 revAaCoeff = [-0.0037, -0.0142, -0.041, -0.095,
               -0.185, -0.33, -0.535, -0.6]
-{-# ANN aaCoeff ([-0.6, -0.535, -0.33, -0.185, 
-                   -0.095, -0.041, -0.0142, -0.0037] :: [Double]) #-}
 aaCoeff = [-0.6, -0.535, -0.33, -0.185, 
            -0.095, -0.041, -0.0142, -0.0037]
--- *************
---               seqcs = zipWith (*) f (reverse cs ++ cs)
---               seqca = reverse $ zipWith (*) f (reverse ca ++ ca)
---       cs = [1 / sqrt (1.0 + c**2) | c <- aaCoeff]
---       ca = [c / sqrt (1.0 + c**2) | c <- aaCoeff]
---       aaCoeff = [-0.6, -0.535, -0.33, -0.185, -0.095, -0.041, -0.0142, -0.0037]
--- ^ ^ ^ ^ ^ ^ ^
 
 -- 
 -- mp3FrequencyInvert
