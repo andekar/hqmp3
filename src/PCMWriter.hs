@@ -75,23 +75,23 @@ from32bit n = [chr . fromIntegral $ n .&. 0xff,
                chr . fromIntegral $ (n `shiftR` 24) .&. 0xff]
 
 hWrite16 :: Handle -> Word16 -> IO ()
-hWrite16 handle n = do hPutStr handle (from16bit n)
+hWrite16 handle n = do hPutStr handle $! from16bit n
 
 hWrite32 :: Handle -> Word32 -> IO ()
-hWrite32 handle n = do hPutStr handle (from32bit n)
+hWrite32 handle n = do hPutStr handle $! from32bit n
 
 writeSamplerate :: Handle -> Int -> IO ()
 writeSamplerate handle sr = 
     do cur <- hTell handle
        hSeek    handle AbsoluteSeek 24
        hWrite32 handle (fromIntegral sr)
-       hWrite32 handle (fromIntegral sr * 2 * 2)
+       hWrite32 handle (fromIntegral sr * 4)
        hSeek    handle AbsoluteSeek cur
 
 writeNumSamples :: Handle -> Int -> IO ()
 writeNumSamples handle num =
     do cur <- hTell handle
-       let count1 = (num * 2 * 2) 
+       let count1 = (num * 4)
            count2 = 36 + count1
        hSeek    handle AbsoluteSeek 4
        hWrite32 handle (fromIntegral count2)
@@ -108,7 +108,7 @@ writeHeader handle =
         write16 1
         write16 2                -- Num. channels
         write32 44100            -- Sample rate
-        write32 (44100 * 2 * 2)  -- Derived from sample rate.
+        write32 (44100 * 4)  -- Derived from sample rate.
         write16 4
         write16 16
         write "data"
