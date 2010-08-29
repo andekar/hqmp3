@@ -23,17 +23,18 @@ lookupIMDCT = [[ cos $ (pi / 18.0) * n * k
 --                    | k <- [0.5, 1.5 .. 17.5]] | n <- [9.5, 10.5 .. 44.5]]
 -- ^ ^ ^ ^ ^ ^ ^
     
-    -- Instead of specialize
-    sumZip :: (Double -> Double -> Double) -> [Double] -> [Double] -> Double
-    sumZip _ [] _ = 0
-    sumZip _ _ [] = 0
-    sumZip f (a:as) (b:bs) = let acc = (f a b) 
-                             in acc `seq` acc + sumZip f as bs
+-- Instead of specialize
+-- sumZip :: (Double -> Double -> Double) -> [Double] -> [Double] -> Double
+sumZip f acc x1 x2 = lgo acc x1 x2
+    where lgo acc [] _ = acc
+          lgo acc _ [] = acc
+          lgo acc (x:xs) (y:ys) = let res = acc + (f x y)
+                                  in res `seq` lgo res xs ys
 
 -- Straightforward translation from the C code.
 imdct :: Int -> [Double] -> [Double]
 imdct 18 xs  = imdct18 xs
-imdct pts xs = map (\n -> sum $ zipWith (subone n) xs [0..pts-1]) [0..2*pts-1]
+imdct pts xs = map (\n -> sumZip (subone n) 0 xs [0..pts-1]) [0..2*pts-1]
   where
     subone :: Int -> Double -> Int -> Double
     subone n y k = y * (cos $ pipts * (fi n + 0.5 + nhalf) * (fi k + 0.5))
