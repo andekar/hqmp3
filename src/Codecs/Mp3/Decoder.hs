@@ -102,13 +102,13 @@ mp3Reorder (Single sr a b (g0, g1)) = return $ Single sr a b (reorder g0, reorde
                                      ChannelData (scData g)
                                      (freq' sr $ chData g)} -- short blocks
              | otherwise = g -- long blocks
-          f = chanData . mp3Data
-          -- We want the output list to be as long as the input list to 
-          -- correctly handle IS Stereo decoding, but the unsafe reorderList 
-          -- requires the input to be as long as the index list.
-          freq' sr ds  = reorderList (tableReorder sr) (padWith 576 0.0 ds)
-          chData = chanData . mp3Data
-          scData = scale . mp3Data
+        f = chanData . mp3Data
+        -- We want the output list to be as long as the input list to
+        -- correctly handle IS Stereo decoding, but the unsafe reorderList
+        -- requires the input to be as long as the index list.
+        freq' sr ds  = reorderList (tableReorder sr) (padWith 576 0.0 ds)
+        chData = chanData . mp3Data
+        scData = scale . mp3Data
 
 -- 'reorderList' takes a list of indices and a list of elements and
 -- reorders the list based on the indices. Example:
