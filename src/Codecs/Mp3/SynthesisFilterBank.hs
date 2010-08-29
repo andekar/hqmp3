@@ -27,7 +27,7 @@ mp3SynthesisFilterBank (MP3SynthState oldstate) oldsamples
   = let samples = listArray (0,575) oldsamples
         newstates = stateList updateVals' oldstate samples
         output    = generateOutput newstates
-    in  (MP3SynthState (fst $ last newstates), output)
+    in  (MP3SynthState (fst $! last newstates), output)
   where stateList [] _ _ = []
         stateList ((x',x):xs) state sample
             = let first = updateState x state sample
@@ -36,7 +36,7 @@ mp3SynthesisFilterBank (MP3SynthState oldstate) oldsamples
 updateState ::  [(Int,Int)] -> UArray Int Double -> UArray Int Double -> UArray Int Double
 updateState updateVals oldstate samples = runSTUArray $ do
     newstate <- newArray_ (0,1023)
-    mapM_ (\(i,j) -> writeArray newstate i $ oldstate ! j) updateList
+    mapM_ (\(i,j) -> writeArray newstate i $! oldstate ! j) updateList
     forM_ [0..63]    $ \i -> do
         let r = sumZip updateVals (lookupSynth ! i) samples
         writeArray newstate i r
