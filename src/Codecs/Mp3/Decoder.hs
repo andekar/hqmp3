@@ -7,13 +7,10 @@ module Codecs.Mp3.Decoder (decodeFrames
 
 import Data.Binary.BitString.BitGet
 import qualified Data.Binary.BitString.BitString as BS
-import qualified Data.ByteString.Lazy as L
-import qualified Data.ByteString as S
 import Codecs.Mp3.ID3
 import Control.Monad
 import Control.Parallel
 import Control.Parallel.Strategies
-import Control.Arrow
 import Codecs.Mp3.Unpack
 import qualified Control.Monad.State.Lazy as LS
 import Codecs.Mp3.MP3Types
