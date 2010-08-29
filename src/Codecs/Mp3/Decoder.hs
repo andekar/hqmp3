@@ -98,7 +98,7 @@ mp3Reorder (Single sr a b (g0, g1)) = return $ Single sr a b (reorder g0, reorde
              = g {mp3Data = ChannelData  (scData g) $
                   take 46 (chData g) ++
                   drop 36 (freq' sr $ chData g)}
-             | blockType g == 2 = g {mp3Data = 
+             | blockType g == 2 = g {mp3Data =
                                      ChannelData (scData g)
                                      (freq' sr $ chData g)} -- short blocks
              | otherwise = g -- long blocks
@@ -125,7 +125,7 @@ tableScaleLength = listArray (0,15)
 
 
 -- Does decoding of granules given the main_data() chunk
--- This function does huffman decoding, and extracts the 
+-- This function does huffman decoding, and extracts the
 -- scale factor stuff as described in p.18 in ISO-11172-3
 -- decodeGranules :: SideInfo BS.BitString -> DChannel [Int]
 decodeGranules :: SideInfo BS.BitString -> ST s (DChannel (STUArray s Int Int))
@@ -159,7 +159,7 @@ decodeGranule prev scfsi (Granule _ _
       huffData = huffDecode [(r0,t0), (r1, t1), (r2, t2)] count1TableSelect
       (slen1, slen2) = tableScaleLength ! scaleFacCompress
       (scfsi0:scfsi1:scfsi2:scfsi3:[]) = scfsi
-      
+
       -- will return a list of long scalefactors
       -- a list of lists of short scalefactors
       pScaleFactors :: [Int] -> BitGetT (ST s) ([Int],[[Int]])
@@ -266,7 +266,7 @@ huffDecodeVWXY huff len arr i = do
   where setSign 0 = return 0
         setSign c = liftM (\s -> if s then negate c else c) getBit
 
--- 
+--
 -- Requantization below
 --
 
@@ -304,7 +304,7 @@ requantizeGran freq gran = do
             short = zipWith procShort compressed shortbands
 
             procLong :: Int -> Int -> Double
-            procLong sample sfb = 
+            procLong sample sfb =
                 let localgain   = longScales !! sfb
                     dsample     = fi sample :: Double
                 in gain * localgain * dsample **^ (4/3)
@@ -336,8 +336,8 @@ tableScaleBandIndexLong = indexify . consecutiveDiff . tableScaleBandBoundLong
   where indexify xs = concat (zipWith replicate xs [0..])
 
 tableScaleBandIndexShort :: Int -> [(Int, Int)]
-tableScaleBandIndexShort = indexifyWindows . 
-                           consecutiveDiff . 
+tableScaleBandIndexShort = indexifyWindows .
+                           consecutiveDiff .
                            tableScaleBandBoundShort
   where
     indexifyWindows = concat . zipWith addFirst [0..] . map buildTriple

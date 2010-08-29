@@ -177,4 +177,3 @@ emptyMP3HybridState
     = MP3HybridState (listArray (0,575) $ replicate 576 0.0)
                      (MP3SynthState (listArray (0,1023) empty))
   where empty = (replicate 1024 0.0)
-
