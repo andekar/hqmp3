@@ -13,15 +13,6 @@ imdct18 xs = map (\s -> sumZip (*) 0.0 xs s) lookupIMDCT
 lookupIMDCT :: [[Double]]
 lookupIMDCT = [[ cos $ (pi / 18.0) * n * k
                  | k <- [0.5, 1.5 .. 17.5]] | n <- [9.5, 10.5 .. 44.5]]
--- *************
--- imdct18 xs = map (\s -> sumZip (*) xs s) lookupIMDCT
--- -- imdct20 xs = map (\s -> sum (zipWith (*) xs s)) lookupIMDCT
---   where
---     -- 36x18 matrix
---     lookupIMDCT :: [[Double]]
---     lookupIMDCT = [[ cos $ (pi / 18.0) * n * k
---                    | k <- [0.5, 1.5 .. 17.5]] | n <- [9.5, 10.5 .. 44.5]]
--- ^ ^ ^ ^ ^ ^ ^
     
 -- Instead of specialize
 -- sumZip :: (Double -> Double -> Double) -> [Double] -> [Double] -> Double
