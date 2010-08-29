@@ -116,10 +116,14 @@ infixr 5 <++>
 mp3AA :: BlockFlag -> Int -> [Frequency] -> [Frequency]
 mp3AA blockflag blocktype freq
   | blocktype == 2 && blockflag /= MixedBlocks   = freq
-  | blocktype == 2 && blockflag == MixedBlocks   = 
-      (take 9 freq) ++ aaHelper (take 18 (drop 9 freq)) ++ (drop 27 freq)
-  | otherwise                                    = 
-      (take 9 freq) ++ aaHelper (take 558 (drop 9 freq)) ++ (drop 567 freq)
+  | blocktype == 2 && blockflag == MixedBlocks
+    = let (first, second) = splitAt 9 freq
+          (third, fourth) = splitAt 18 second
+      in first ++ aaHelper third ++ fourth
+  | otherwise
+    = let (first, second) = splitAt 9 freq
+          (third, fourth) = splitAt 558 second
+      in first ++ aaHelper third ++ fourth
   where
       aaHelper []    = []
       aaHelper chunk = before ++ aaButterfly middle ++ after ++ 
