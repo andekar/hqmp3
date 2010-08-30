@@ -16,7 +16,7 @@ Build-type:      Simple
 Cabal-version:   >= 1.2
 
 Executable hqmp3
-   build-depends:   base
+   build-depends:   base >= 4
                   , bytestring
                   , mtl
                   , array
