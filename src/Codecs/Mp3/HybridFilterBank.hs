@@ -132,7 +132,7 @@ mp3AA blockflag blocktype freq
           where
               (middle, (after:last)) = splitAt 16 chunk
       aaButterfly f = let (seqcs', seqcs'') = splitAt 8 seqcs
-                          (seqca', seqca'')   = splitAt 8 seqca
+                          (seqca', seqca'') = splitAt 8 seqca
                       in zipWith (-) seqcs' seqca' ++
                          zipWith (+) seqcs'' seqca''
           where
@@ -140,19 +140,19 @@ mp3AA blockflag blocktype freq
               seqcs = zipWith (*) f revCs
               seqca :: [Double]
               seqca = reverse $ zipWith (*) f revCa
-        
+
 cs = [1 / sqrt (1.0 + c**2) | c <- aaCoeff]
 ca = [c / sqrt (1.0 + c**2) | c <- aaCoeff]
 {-# ANN revCs ([1 / sqrt (1.0 + c**2) | c <- [-0.6, -0.535, -0.33, -0.185, 
            -0.095, -0.041, -0.0142, -0.0037]] ++
         [1 / sqrt (1.0 + c**2) | c <-  [-0.6, -0.535, -0.33, -0.185, 
            -0.095, -0.041, -0.0142, -0.0037]]:: [Double]) #-}
-revCs = [1 / sqrt (1.0 + c**2) | c <- aaCoeff]
+revCs = [1 / sqrt (1.0 + c**2) | c <- aaCoeff] ++ cs
 {-# ANN revCa ([c / sqrt (1.0 + c**2) | c <- [-0.0037, -0.0142, -0.041, -0.095,
         -0.185, -0.33, -0.535, -0.6]] ++
         [c / sqrt (1.0 + c**2) | c <-  [-0.6, -0.535, -0.33, -0.185, 
            -0.095, -0.041, -0.0142, -0.0037]]:: [Double]) #-}
-revCa = [c / sqrt (1.0 + c**2) | c <- revAaCoeff]
+revCa = [c / sqrt (1.0 + c**2) | c <- revAaCoeff] ++ ca
 revAaCoeff = [-0.0037, -0.0142, -0.041, -0.095,
               -0.185, -0.33, -0.535, -0.6]
 aaCoeff = [-0.6, -0.535, -0.33, -0.185, 
@@ -182,8 +182,8 @@ mp3HybridFilterBank :: BlockFlag -> Int ->
                        MP3HybridState -> [Frequency] -> 
                        (MP3HybridState, UArray Int Double)
 mp3HybridFilterBank bf bt (MP3HybridState simdct ssynthesis) input =
-    let input'                = padWith 576 0.0 aa -- ensure length 576
-        aa                    = mp3AA    bf bt input
+    let aa                    = mp3AA bf bt input
+        input'                = padWith 576 0.0 aa -- ensure length 576
         (samp, simdct')       = mp3IMDCT bf bt input' (elems simdct)
         samp'                 = mp3FrequencyInvert samp
         (ssynthesis', output) = mp3SynthesisFilterBank ssynthesis samp'
