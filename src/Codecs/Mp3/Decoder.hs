@@ -35,6 +35,7 @@ decodeFrames :: [SideInfo BS.BitString] -> [([Double],[Double])]
 decodeFrames = output . map decodeAll
   where output =  flip LS.evalState emptyMP3DecodeState . decodeRest
 
+decodeAll :: SideInfo BS.BitString -> DChannel [Double]
 decodeAll (Dual sr p scfsi g0 g1) = let (l,r) = splitAt 4 scfsi
                                         (Single _ _ _ g0') = single l g0
                                         (Single _ _ _ g1') = single r g1
