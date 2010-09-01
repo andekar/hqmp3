@@ -43,8 +43,23 @@ decodeAll (Dual sr p scfsi g0 g1) = let (l,r) = splitAt 4 scfsi
     where single sc = func . Single sr p sc
 decodeAll s  = func s
 
--- Needs to be checked once the rest of the stuff type-checks...
-func = runST $ mp3Reorder =<< requantize =<< decodeGranules
+
+-- requantize . decodeGranules
+
+-- experimental
+--func2 :: SideInfo BS.BitString -> ST s (DChannel (STUArray s Int Double))
+func :: SideInfo BS.BitString -> DChannel [Double]
+func arg = runST $
+           do res <- decodeGranules arg
+              chan@(Single sr a b (g1, g2)) <- mp3Reorder =<< requantize res
+              let (ChannelData a1 mp3) = mp3Data g1
+                  (ChannelData a2 mp32) = mp3Data g2
+              g1' <- getElems mp3
+              g2' <- getElems mp32
+              return (Single sr a b ( g1 {mp3Data = (ChannelData a1 g1')}
+                                    , g2 {mp3Data = (ChannelData a2 g2')}))
+
+-- experimental --
 
 -- Does the "step1" as in bjorns decoder :(
 -- Note that we skip stereoIS and StereoMS
