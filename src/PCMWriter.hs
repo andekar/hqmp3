@@ -123,7 +123,7 @@ writeSamples handle ch0 ch1 =
     do zipWithM_ writeInterleaved ch0 ch1
        cur <- hTell handle
        let totalsamples = fromIntegral $ (cur - 44) `div` (2*2)
-       writeNumSamples handle totalsamples
+       writeNumSamples handle $ fromIntegral $ (cur - 44) `div` (2*2)
        --hFlush handle
     where
         writeInterleaved ch0sample ch1sample = 

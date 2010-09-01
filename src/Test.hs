@@ -1,5 +1,5 @@
 {-# OPTIONS -w #-}
-module Main (test) where
+module Main (main, test) where
 import Data.Binary.BitString.BitGet
 -- import qualified Codec.Compression.Huffman.Huffman as Huff
 -- import Data.Binary.Strict.BitGet
