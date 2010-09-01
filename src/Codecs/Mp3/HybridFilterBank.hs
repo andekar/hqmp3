@@ -36,6 +36,10 @@ import Codecs.Mp3.SynthesisFilterBank
 import Codecs.Mp3.Tables
 import Codecs.Mp3.Types
 import Data.Array.Unboxed
+import Control.Monad.ST
+import Data.Array.ST
+import Control.Monad.Trans
+import Control.Monad
 
 mapBlock :: Int -> ([a] -> b) -> [a] -> [b]
 mapBlock blocksize func []  = []

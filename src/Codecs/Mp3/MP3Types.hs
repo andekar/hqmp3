@@ -38,8 +38,8 @@ data SideInfo a
              , gran1  :: !(Granule a, Granule a) -- this is g1 and g3
              } deriving Show
 
-instance NFData (SideInfo a) where
-    rnf info = info `seq` ()
+--instance NFData (SideInfo a) where
+--     rnf info = info `seq` ()
     
 
 -- Granule is computed for each specific channel
