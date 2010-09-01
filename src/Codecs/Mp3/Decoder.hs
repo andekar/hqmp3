@@ -167,6 +167,20 @@ mp3Reorder (Single sr a b (g0, g1)) = do
 reorderList :: [Int] -> [a] -> [a]
 reorderList indices list = map (list !!) indices
 
+-- add an offset argument that simply inserts that many positions to the right
+-- also maybe add an skipnumber for the values that will not be needed to write
+reorderArray :: Int -> Int -> (STUArray s Int Int) -> (STUArray s Int Double) -> (STUArray s Int Double) -> ST s (STUArray s Int Double)
+reorderArray offset dont indices list newList
+    = do (start,end) <- getBounds list
+         forM_ [start..end] $ \i -> do
+                v1 <- readArray indices i
+                write (v1 + offset) end v1
+         return newList
+ where write pos end v1 | pos > dont && pos <= end
+                          = do v2 <- readArray list v1
+                               writeArray newList pos v2
+                        | otherwise = return ()
+
 -- Array to find out how much data we're supposed to read from
 -- scalefac_l. Idea stolen from Bjorn Edstrom
 tableScaleLength :: Array Int (Int,Int)
