@@ -193,6 +193,24 @@ tableScaleLength = listArray (0,15)
 -- This function does huffman decoding, and extracts the
 -- scale factor stuff as described in p.18 in ISO-11172-3
 -- decodeGranules :: SideInfo BS.BitString -> DChannel [Int]
+-- decodeGranules single@(Single _ _ scfsi (gran0, gran1))
+--     = let (g0,scale0@(l,s)) = runST $ do (x,y) <- decodeGranule [] scfsi gran0
+--                                          x' <- getElems x
+--                                          return (x',y)
+--           (g1,scale1)       = runST $ do (x,y) <-  decodeGranule l scfsi gran1
+--                                          x' <- getElems x
+--                                          return (x',y)
+--       in single { gran = (setChannel scale0 g0 gran0,
+--                           setChannel scale1 g1 gran1)
+--                 }
+-- 
+--   where setChannel s g gr = gr {mp3Data = (ChannelData (scales s g gr) g)}
+--         scales s g gr = unpack s (cpress gr) (sscale gr)
+--         cpress = preFlag
+--         sscale = scaleFacScale
+--         unpack = mp3UnpackScaleFactors
+
+--experimental
 decodeGranules :: SideInfo BS.BitString -> ST s (DChannel (STUArray s Int Int))
 decodeGranules single@(Single _ _ scfsi (gran0, gran1)) = do
     (g0,scale0@(l,s)) <- decodeGranule [] scfsi gran0
@@ -200,12 +218,13 @@ decodeGranules single@(Single _ _ scfsi (gran0, gran1)) = do
     return $ single { gran = (setChannel scale0 g0 gran0, 
                               setChannel scale1 g1 gran1)
                     }
-
   where setChannel s g gr = gr {mp3Data = (ChannelData (scales s g gr) g)}
         scales s g gr = unpack s (cpress gr) (sscale gr)
         cpress = preFlag
         sscale = scaleFacScale
         unpack = mp3UnpackScaleFactors
+
+--experimental --
 
 decodeGranule :: [Int] -> [Bool] -> Granule BS.BitString
                   -> ST s (STUArray s Int Int, ([Int],[[Int]]))
@@ -335,19 +354,20 @@ huffDecodeVWXY huff len arr i = do
 -- Requantization below
 --
 
+-- experimental
 requantize :: DChannel (STUArray s Int Int) -> ST s (DChannel (STUArray s Int Double))
 requantize chan@(Single sr a b (g1, g2)) = do
-  gr1 <- f g1
-  gr2 <- f g2
-  return $ Single sr a b (gr1, gr2)
-      where f = requantizeGran sr
+    gr1 <- f g1
+    gr2 <- f g2
+    return $ Single sr a b (gr1, gr2)
+ where f = requantizeGran sr
 
 requantizeGran :: Int -> Granule (ChannelData (STUArray s Int Int)) ->
                   ST s (Granule (ChannelData (STUArray s Int Double)))
 requantizeGran freq gran = do
     bounds <- getBounds xs
     es <- getElems xs
-    requantized <-newListArray bounds (requantizeValues es)
+    requantized <- newListArray bounds (requantizeValues es)
     return $ gran {mp3Data = ChannelData scales $ requantized}
   where
     (ChannelData scales@(Scales longScales shortScales) xs) = mp3Data gran
@@ -387,11 +407,61 @@ requantizeGran freq gran = do
             longbands = tableScaleBandIndexLong freq
             -- Frequency index to scale factor band index and window index (0-2).
             shortbands = tableScaleBandIndexShort freq
+-- experimental --
+
+-- seems to be working!
+-- requantize :: DChannel [Int] -> DChannel [Double]
+-- requantize chan@(Single sr a b (g1, g2)) = Single sr a b ((f sr g1), (f sr g2))
+--   where f sr = requantizeGran sr
+-- 
+-- requantizeGran :: Int -> Granule (ChannelData [Int]) ->
+--                   (Granule (ChannelData [Double]))
+-- requantizeGran freq gran=
+--     gran {mp3Data = ChannelData scales $ requantizeValues xs}
+--   where
+--     (ChannelData scales@(Scales longScales shortScales) xs) = mp3Data gran
+--     requantizeValues :: [Int] -> [Double]
+--     requantizeValues compressed
+--         | mixedflag = take 36 long ++ drop 36 short
+--         | blockflag == 2 = short
+--         | otherwise = long
+--         where
+--             blockflag = blockType gran
+--             mixedflag = mixedBlock gran
+--             winSwitch = windowSwitching gran
+--             gain      = globalGain gran
+--             subgain1  = subBlockGain1 gran
+--             subgain2  = subBlockGain2 gran
+--             subgain3  = subBlockGain3 gran
+-- 
+--             long  = zipWith procLong  compressed longbands
+--             short = zipWith procShort compressed shortbands
+-- 
+--             procLong :: Int -> Int -> Double
+--             procLong sample sfb =
+--                 let localgain   = longScales !! sfb
+--                     dsample     = fi sample :: Double
+--                 in (*) gain $ localgain * dsample **^ (4/3)
+-- 
+--             procShort :: Int -> (Int,Int) -> Double
+--             procShort sample (sfb, win) =
+--                 let localgain = (shortScales !! sfb) !! win
+--                     blockgain = case win of 0 -> subgain1
+--                                             1 -> subgain2
+--                                             2 -> subgain3
+--                     dsample   = fi sample
+--                 in (*) gain $ localgain * blockgain * dsample **^ (4/3)
+-- 
+--             -- Frequency index (0-575) to scale factor band index (0-21).
+--             longbands = tableScaleBandIndexLong freq
+--             -- Frequency index to scale factor band index and window index (0-2).
+--             shortbands = tableScaleBandIndexShort freq
 
 -- b **^ e == sign(b) * abs(b)**e
 (**^) :: (Floating a, Ord a) => a -> a -> a
 b **^ e = let sign = if b < 0 then -1 else 1
-          in sign * (abs b) ** e
+              b'   = abs b
+          in sign * b' ** e `seq` sign * b' ** e
 infixr 8 **^
 
 -- Code taken from bjorn...
