@@ -35,4 +35,6 @@ Executable hqmp3
                     Codecs.Mp3.HybridFilterBank,
                     Codecs.Mp3.ID3                    
                     PCMWriter
-   ghc-options:     -O2 -threaded -funbox-strict-fields
+   ghc-options:     -O2 -prof -auto-all -osuf p_o
+-- -threaded -funbox-strict-fields
+-- time hqmp3 songs/song2Short.mp3 +RTS -sstderr -p
