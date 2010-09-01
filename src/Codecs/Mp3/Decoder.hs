@@ -105,26 +105,61 @@ data MP3DecodeState = MP3DecodeState {
 emptyMP3DecodeState :: MP3DecodeState
 emptyMP3DecodeState = MP3DecodeState emptyMP3HybridState emptyMP3HybridState
 
--- Okee
--- Here we must fix Arrays
-mp3Reorder :: DChannel (STUArray s Int Double) -> ST s (DChannel (STUArray Int Double))
-mp3Reorder (Single sr a b (g0, g1)) = return $ Single sr a b (reorder g0, reorder g1)
+
+-- experimental
+mp3Reorder :: DChannel (STUArray s Int Double) -> ST s (DChannel (STUArray s Int Double))
+mp3Reorder (Single sr a b (g0, g1)) = do
+            g0' <- reorder g0
+            g1' <- reorder g1
+            return $ Single sr a b (g0', g1')
     where reorder g
-             | mixedBlock g
-             = g {mp3Data = ChannelData  (scData g) $
-                  take 46 (chData g) ++
-                  drop 36 (freq' sr $ chData g)}
-             | blockType g == 2 = g {mp3Data =
-                                     ChannelData (scData g)
-                                     (freq' sr $ chData g)} -- short blocks
-             | otherwise = g -- long blocks
-        f = chanData . mp3Data
-        -- We want the output list to be as long as the input list to
-        -- correctly handle IS Stereo decoding, but the unsafe reorderList
-        -- requires the input to be as long as the index list.
-        freq' sr ds  = reorderList (tableReorder sr) (padWith 576 0.0 ds)
-        chData = chanData . mp3Data
-        scData = scale . mp3Data
+             | mixedBlock g -- TODO: Solve THIS by doing smart stuff!!!
+             =  do res <- freq' 46 10 sr (chData g)
+                   return $ g {mp3Data =
+                                 ChannelData (scData g)
+                               res} -- short blocks
+                   -- g {mp3Data = ChannelData  (scData g) $
+                   -- take 46 (chData g) ++
+                   -- drop 36 (freq' sr $ chData g)}
+             | blockType g == 2 = do res <- freq' 0 0 sr (chData g)
+                                     return $ g {mp3Data =
+                                                 ChannelData (scData g)
+                                                 res} -- short blocks
+             | otherwise = return g -- long blocks
+          f = chanData . mp3Data
+          -- We want the output list to be as long as the input list to 
+          -- correctly handle IS Stereo decoding, but the unsafe reorderList 
+          -- requires the input to be as long as the index list.
+          freq' :: Int -> Int -> Int -> (STUArray s Int Double) -> ST s (STUArray s Int Double)
+          freq' offset dont sr ds  = do 
+              bounds <- getBounds ds
+              newArr <- newArray bounds 0
+              reorder <- (tableReorder' sr)
+              reorderArray offset dont reorder ds newArr
+          chData = chanData . mp3Data
+          scData = scale . mp3Data
+-- experimental -- 
+
+-- Okee
+-- mp3Reorder :: DChannel [Double] -> DChannel [Double]
+-- mp3Reorder (Single sr a b (g0, g1)) = Single sr a b ((reorder g0), (reorder g1))
+--   where reorder g
+--              | mixedBlock g
+--              = g {mp3Data = ChannelData  (scData g) $
+--                   take 46 (chData g) ++
+--                   drop 36 (freq' sr $ chData g)}
+--              | blockType g == 2 = g {mp3Data =
+--                                      ChannelData (scData g)
+--                                      (freq' sr $ chData g)} -- short blocks
+--              | otherwise = g -- long blocks
+--         f = chanData . mp3Data
+--         -- We want the output list to be as long as the input list to
+--         -- correctly handle IS Stereo decoding, but the unsafe reorderList
+--         -- requires the input to be as long as the index list.
+--         freq' sr ds  = reorderList (tableReorder sr) (padWith 576 0.0 ds)
+--         chData = chanData . mp3Data
+--         scData = scale . mp3Data
+
 
 -- 'reorderList' takes a list of indices and a list of elements and
 -- reorders the list based on the indices. Example:
