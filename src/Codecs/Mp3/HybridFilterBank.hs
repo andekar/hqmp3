@@ -31,6 +31,7 @@ module Codecs.Mp3.HybridFilterBank (
    ,emptyMP3HybridState
 ) where
 
+-- Imports
 import Codecs.Mp3.IMDCT
 import Codecs.Mp3.SynthesisFilterBank
 import Codecs.Mp3.Tables
@@ -40,6 +41,11 @@ import Control.Monad.ST
 import Data.Array.ST
 import Control.Monad.Trans
 import Control.Monad
+import Data.List
+
+-- Types
+type STUDArr s = STUArray s Int Double
+type STDArr s = ST s (STUDArr s)
 
 mapBlock :: Int -> ([a] -> b) -> [a] -> [b]
 mapBlock blocksize func []  = []
@@ -118,6 +124,47 @@ infixr 5 <++>
 -- Undo the encoders alias reduction.
 -- TODO: Rewrite this, clumsy and non-intuitive.
 --
+
+-- experimental
+-- This function uses real magic
+-- DO NOT change it because that might release the hellhounds
+mp3AA' :: BlockFlag -> Int -> STUDArr s -> STDArr s
+mp3AA' blockflag blocktype freq'
+  | blocktype == 2 && blockflag /= MixedBlocks = return freq'
+  | blocktype == 2 &&  blockflag == MixedBlocks = do
+      aaHelper 9 27 freq'
+      return freq'
+  | otherwise = do
+      aaHelper 9 567 freq'
+      return freq'
+  where
+      aaHelper count range chunk | count < range
+               = do aaButterfly (count + 1) chunk
+                    aaHelper (count + 18) range chunk
+                                 | otherwise = return chunk
+      aaButterfly begin f = fixButter f fourTuples' (begin,begin + 15)
+      fixButter arr tArr (begin, end)
+          = do forM_ [0..7] $ \i -> do
+                      first <- readArray arr (begin + i)
+                      last  <- readArray arr (end - i)
+                      let (f1, f2, f3, f4) = tArr ! i
+                      writeArray arr (begin + i) ((first * f1) - (last * f2))
+                      writeArray arr (end - i) ((first * f3) + (last * f4))
+               return arr
+      fourTuples = zip4 cs' ca' ca' cs'
+      fourTuples' :: Array Int (Double, Double, Double, Double)
+      fourTuples' = listArray (0,15) $ fourTuples
+
+      cs = [1 / sqrt (1.0 + c**2) | c <- aaCoeff]
+      ca = [c / sqrt (1.0 + c**2) | c <- aaCoeff]
+      aaCoeff = [-0.6, -0.535, -0.33, -0.185, 
+                 -0.095, -0.041, -0.0142, -0.0037]
+      ca' = [c / sqrt (1.0 + c**2) | c <- aaCoeff']
+      cs' = [1 / sqrt (1.0 + c**2) | c <- aaCoeff']
+      aaCoeff' = [-0.0037, -0.0142, -0.041, -0.095,
+                  -0.185, -0.33, -0.535, -0.6]
+
+-- experimental --
 mp3AA :: BlockFlag -> Int -> [Frequency] -> [Frequency]
 mp3AA blockflag blocktype freq
   | blocktype == 2 && blockflag /= MixedBlocks   = freq
@@ -186,8 +233,9 @@ mp3HybridFilterBank :: BlockFlag -> Int ->
                        MP3HybridState -> [Frequency] -> 
                        (MP3HybridState, UArray Int Double)
 mp3HybridFilterBank bf bt (MP3HybridState simdct ssynthesis) input =
-    let aa                    = mp3AA bf bt input
-        input'                = padWith 576 0.0 aa -- ensure length 576
+    let -- aa                    = mp3AA bf bt input
+        aa'                   = runST (cast input bf bt)
+        input'                = padWith 576 0.0 aa' -- ensure length 576
         (samp, simdct')       = mp3IMDCT bf bt input' (elems simdct)
         samp'                 = mp3FrequencyInvert samp
         (ssynthesis', output) = mp3SynthesisFilterBank ssynthesis samp'
@@ -196,6 +244,11 @@ mp3HybridFilterBank bf bt (MP3HybridState simdct ssynthesis) input =
 -- [Sample] = IMDCT output from previous granule, used for overlapping.
 -- MP3SynthState = State for the synthesis filterbank.
 data MP3HybridState = MP3HybridState (UArray Int Double) MP3SynthState
+
+-- cast :: [Double] -> [Double]
+cast arr bf bt = do arr' <- newListArray (0,575) arr
+                    res  <- mp3AA' bf bt arr'
+                    getElems res
 
 emptyMP3HybridState :: MP3HybridState
 emptyMP3HybridState
