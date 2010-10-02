@@ -32,6 +32,7 @@ data ChannelData a = ChannelData { scale :: Scales
 
 type DChannel a = SideInfo (ChannelData a)
 
+-- For dual channel the length [Double] = 1152 (576*2)
 decodeFrames :: [SideInfo BS.BitString] -> [([Double],[Double])]
 decodeFrames  = output . decodeAll'
   where output = flip LS.evalState emptyMP3DecodeState . decodeRest
@@ -135,9 +136,11 @@ decodeRest (chan:xs) = do
                 s''@(state1, output1) = step1 g1 (decodeState1 prevState)
                 (state2, output2) = s' `par` s'' `par` step1 g2 state0
                 (state3, output3) = step1 g3 state1
+                left = (elems output0) ++ (elems output2)
+                right = (elems output1) ++ (elems output3)
             LS.put $ MP3DecodeState state2 state3
             rest <- decodeRest xs
-            return (((elems output0) ++ (elems output2), (elems output1) ++ (elems output3)):rest)
+            return ((left, right):rest)
   where
     step1 gran state =
         let bf  = toBlockflag (mixedBlock gran) (blockType gran)
