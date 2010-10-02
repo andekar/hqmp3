@@ -102,8 +102,6 @@ mp3IMDCT blockflag blocktype freq overlap =
 -- IMDCT with windows. This also does the overlapping when short blocks
 -- are used.
 --
-doImdctLong :: Int -> [Frequency] -> [Sample]
-doImdctLong blocktype f = imdct 18 f `windowWith` tableImdctWindow blocktype
 
 doImdctShort :: [Frequency] -> [Sample]
 doImdctShort f = overlap3 shorta shortb shortc
