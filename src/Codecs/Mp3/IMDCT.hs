@@ -24,6 +24,9 @@ imdct18 xs = map (\s -> sumZip (*) 0.0 xs s) lookupIMDCT
 imdct6 :: [Double] -> [Double]
 imdct6 xs = map (\s -> sumZip (*) 0.0 xs s) lookupIMDCT6
 
+imdct18' :: UArray Int Double -> (Int, Int) -> [Double]
+imdct18' xs (begin, end) = map (\s -> sumZip'' 17 (*) 0.0 (begin + 17) xs s) lookupIMDCT
+
 imdct6' :: UArray Int Double -> (Int, Int) -> [Double]
 imdct6' xs (begin, end) = map (\s -> sumZip'' 5 (*) 0.0 (begin+5) xs s) lookupIMDCT6
 
@@ -84,13 +87,8 @@ sumZip' c f begin x1 x2 = lgo 0.0 x1 x2 c
 
 -- Straightforward translation from the C code.BB
 imdct :: Int -> [Double] -> [Double]
-imdct 18 xs  = imdct18 xs
-imdct pts xs = map (\n -> sumZip (subone n) 0 xs [0..pts-1]) [0..2*pts-1]
-  where
-    subone :: Int -> Double -> Int -> Double
-    subone n y k = y * (cos $ pipts * (fi n + 0.5 + nhalf) * (fi k + 0.5))
-    pipts        = pi / (fi pts)
-    nhalf        = (fi pts) / 2.0
+imdct 18 xs  = imdct18' (listArray (0,35) xs) (0,17)
+
 
 {-
  - Until HybridFilterBank can handle arrays this code is useless, I'm afraid...
