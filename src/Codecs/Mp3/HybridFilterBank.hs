@@ -313,24 +313,22 @@ padWith n padding xs = xs ++ replicate (n - length xs) padding
 mp3HybridFilterBank :: BlockFlag -> Int -> 
                        MP3HybridState -> [Frequency] -> 
                        (MP3HybridState, UArray Int Double)
-mp3HybridFilterBank bf bt (MP3HybridState simdct ssynthesis) input =
-    let aa'                   = cast input bf bt
---         input'                = padWith 576 0.0 aa' -- ensure length 576
-        (samp, simdct')       = mp3IMDCT bf bt aa' simdct
-        samp'                 = mp3FrequencyInvert samp
-        (ssynthesis', output) = mp3SynthesisFilterBank ssynthesis samp'
-    in (MP3HybridState simdct' ssynthesis', output)
+
+mp3HybridFilterBank bf bt st inp = runST $ mp3HybridFilterBank' bf bt st inp
 
 -- experimental
--- mp3HybridFilterBank' :: BlockFlag -> Int ->
---                        MP3HybridState -> [Frequency] -> 
---                        (MP3HybridState, UArray Int Double)
--- mp3HybridFilterBank' bf bt (MP3HybridState simdct ssynthesis) input =
---     let aa'                   = runST (cast input bf bt)
---         (samp, simdct')       = mp3IMDCT bf bt aa' simdct
---         samp'                 = mp3FrequencyInvert samp
---         (ssynthesis', output) = mp3SynthesisFilterBank ssynthesis samp'
---     in (MP3HybridState simdct' ssynthesis', output)
+mp3HybridFilterBank' :: BlockFlag -> Int -> 
+                       MP3HybridState -> [Frequency] -> 
+                       ST s (MP3HybridState, UArray Int Double)
+mp3HybridFilterBank' bf bt (MP3HybridState simdct ssynthesis) input =
+    do let aa'                   = cast input bf bt
+    --         input'                = padWith 576 0.0 aa' -- ensure length 576
+           (samp, simdct')       = mp3IMDCT bf bt aa' simdct
+       samp'' <- newListArray (0,575) samp :: ST s (STUArray s Int Sample)
+       sam''' <- mp3FrequencyInvert' samp''
+       samps  <- freeze sam'''
+       (ssynthesis', output) <- mp3SynthesisFilterBank ssynthesis samps
+       return (MP3HybridState simdct' ssynthesis', output)
 -- experimental --
 
 -- [Sample] = IMDCT output from previous granule, used for overlapping.
