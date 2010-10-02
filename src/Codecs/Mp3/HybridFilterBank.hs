@@ -53,6 +53,16 @@ mapBlock blocksize func seq =
     let (block, rem) = splitAt blocksize seq
     in func block : mapBlock blocksize func rem
 
+-- experimental
+-- we always have 576 samples so we do this 32 times (18*32)
+mapBlock' :: (UArray Int a -> (Int, Int) -> b) -> UArray Int a -> (Int, Int) -> [b]
+mapBlock' func seq (starts, end) = mb starts
+--     let (block, rem) = splitAt 18 seq
+--     in func block : mapBlock' 18 func rem
+  where mb start | start == end = []
+                 | otherwise = func seq (start,start+18) : mb (start + 18)
+-- experimental --
+
 -- 'windowWith' windows two signals. For readability, so we can do:
 -- signal' = signal `windowWith` win
 windowWith :: (Num a) => [a] -> [a] -> [a]
