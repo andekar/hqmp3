@@ -20,6 +20,40 @@ fi = fromIntegral
 imdct18 :: [Double] -> [Double]
 imdct18 xs = map (\s -> sumZip (*) 0.0 xs s) lookupIMDCT
 
+-- #6->#12
+imdct6 :: [Double] -> [Double]
+imdct6 xs = map (\s -> sumZip (*) 0.0 xs s) lookupIMDCT6
+
+imdct6' :: UArray Int Double -> (Int, Int) -> [Double]
+imdct6' xs (begin, end) = map (\s -> sumZip'' 5 (*) 0.0 (begin+5) xs s) lookupIMDCT6
+
+-- A very specialized imdct6
+-- We provide two mutable arrays, one for the state and one for output
+-- the imdctshort is a bit special, which is why we do it in this way...
+-- we still need to change this slightly so that we add some of the values
+imdct6'' :: Part -> UArray Int Double -> STPair s -> (Int, Int) -> ST s (STPair s)
+imdct6'' p xs st@(p1,p2) (begin, end) = do foldM_ fun 0 lookupIMDCT6
+                                           return st
+    where fun i n
+              = case p of
+                  A -> do write (6 + i) (maps n)
+                          return (i + 1)
+                  B -> do write (i + 12) (maps n)
+                          return (i + 1)
+                  C -> do write (i + 18) (maps n)
+                          return (i + 1)
+          write n | n < 18    = writeArray p1 (n + begin) -- first part
+                  | otherwise = writeArray p2 (n + begin) -- second part
+          maps = sumZip'' 5 (*) 0.0 (begin + 5) xs
+
+{-# ANN lookupIMDCT6 ([[ cos $ (pi / 6.0) * (n + 0.5 + 6.0) * (k + 0.5)
+                 | k <- [0 .. 5]] | n <- [0 ..11]]
+             :: [[Double]]) #-}
+lookupIMDCT6 :: [[Double]]
+lookupIMDCT6 = [[ cos $ (pi / 6.0) * (n + 0.5 + 6.0) * (k + 0.5)
+                  | k <- [0 .. 5]] | n <- [0 .. 11]]
+
+
 {-# ANN lookupIMDCT ([[ cos $ (pi / 18.0) * n * k
                  | k <- [0.5, 1.5 .. 17.5]] | n <- [9.5, 10.5 .. 44.5]]
              :: [[Double]]) #-}
