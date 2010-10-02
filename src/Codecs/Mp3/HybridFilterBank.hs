@@ -244,6 +244,15 @@ aaCoeff = [-0.6, -0.535, -0.33, -0.185,
 -- as with bandpass sampling: odd subbands have inverted frequency spectra -
 -- invert it by changing signs on odd samples.
 --
+-- experimental
+-- TODO: zipWith'
+mp3FrequencyInvert' :: STUArray s Int Sample -> ST s (STUArray s Int Sample)
+mp3FrequencyInvert' arr  = zipWith' (*) pattern arr
+    where pattern :: Array Int Double
+          pattern = listArray (0,575) $ cycle $ replicate 18 1 ++ take 18 (cycle [1,-1])
+          zipWith' a1 a2 = undefined
+-- experimental --
+
 mp3FrequencyInvert :: [Sample] -> [Sample]
 mp3FrequencyInvert = zipWith (*) pattern
     where pattern = cycle $ replicate 18 1 ++ take 18 (cycle [1,-1])
