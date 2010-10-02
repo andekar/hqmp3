@@ -41,7 +41,14 @@ sumZip'' c f acc begin x1 x2 = lgo acc x1 x2 c
           lgo acc xs (y:ys) c' = let res =  acc + (f (xs ! (begin - c')) y)
                                  in  res `seq` lgo res xs ys (c' -1)
 
--- Straightforward translation from the C code.
+sumZip' :: Int -> TFun -> Int -> UArray Int Double -> [Double] -> Double
+sumZip' c f begin x1 x2 = lgo 0.0 x1 x2 c
+    where lgo acc _ _ (-1) = acc
+          lgo acc xs (y:ys) c' = let res =  acc + (f (xs ! (begin - c')) y)
+                                 in  res `seq` lgo res xs ys (c' -1)
+
+
+-- Straightforward translation from the C code.BB
 imdct :: Int -> [Double] -> [Double]
 imdct 18 xs  = imdct18 xs
 imdct pts xs = map (\n -> sumZip (subone n) 0 xs [0..pts-1]) [0..2*pts-1]
