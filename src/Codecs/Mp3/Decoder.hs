@@ -33,27 +33,12 @@ data ChannelData a = ChannelData { scale :: Scales
 type DChannel a = SideInfo (ChannelData a)
 
 -- For dual channel the length [Double] = 1152 (576*2)
-decodeFrames :: [SideInfo BS.BitString] -> [([Double],[Double])]
-decodeFrames  = output . decodeAll'
-  where output = flip LS.evalState emptyMP3DecodeState . decodeRest
+decodeFrames :: [SideInfo BS.BitString] -> ST s [([Double],[Double])]
+decodeFrames s = do res <- maps s
+                    output res
+  where output samps = flip LS.evalStateT emptyMP3DecodeState $ decodeRest samps
 --         output' r =  runST $ (flip LS.evalStateT emptyMP3DecodeState . decodeRest) r
         maps bs = mapM decodeAll bs
-        decodeAll' :: [SideInfo BS.BitString] -> [DChannel [Double]]
-        decodeAll' a = runST $do
-            res <- mapM decodeAll a
-            res' <- mapM get res
-            return res'
-        get :: DChannel (STUArray s Int Double) -> ST s (DChannel [Double])
-        get (Dual sr p scfsi g0 g1) = do g0' <- getMp3Data g0
-                                         g1' <- getMp3Data g1
-                                         return (Dual sr p scfsi g0' g1')
-        getChanData :: ChannelData (STUArray s Int Double) -> ST s (ChannelData [Double])
-        getChanData (ChannelData a b) = do b' <- getElems b
-                                           return (ChannelData a b')
-        getMp3Data (c1,c2) = do 
-            c1' <- getChanData (mp3Data c1)
-            c2' <- getChanData (mp3Data c2)
-            return (c1 {mp3Data = c1'}, c2 {mp3Data = c2'})
 
 decodeAll :: SideInfo BS.BitString -> ST s (DChannel (STUArray s Int Double))
 decodeAll (Dual sr p scfsi g0 g1) = do let (l,r) = splitAt 4 scfsi
@@ -73,8 +58,6 @@ func arg = do res <- decodeGranules arg
               chan@(Single sr a b (g1, g2)) <- mp3Reorder =<< requantize res
               let (ChannelData a1 mp3) = mp3Data g1
                   (ChannelData a2 mp32) = mp3Data g2
---               g1' <- getElems mp3
---               g2' <- getElems mp32
               return (Single sr a b ( g1 {mp3Data = (ChannelData a1 mp3)}
                                     , g2 {mp3Data = (ChannelData a2 mp32)}))
 
@@ -84,69 +67,39 @@ func arg = do res <- decodeGranules arg
 -- Note that we skip stereoIS and StereoMS
 -- this should be changed later so that we can use par here too
 
--- experimental 
-decodeRest' :: [DChannel (STUArray s Int Double)]
-       -> LS.StateT MP3DecodeState (ST s) [([Double],[Double])]
-decodeRest' []  = return []
-decodeRest' (chan:xs) = do
-    prevState <- LS.get
-    case chan of
-        (Single _ _ _ (g0, g1)) -> do
-            let (state0, output0) = step1 g0 (decodeState0 prevState)
-                (state1, output1) = step1 g1 state0
-            LS.put $ MP3DecodeState state1 state1
-            rest <- decodeRest' xs
-            return undefined --(((elems output0) ++ (elems output1), (elems output0) ++ (elems output1)):rest)
-        (Dual _ _ _ (g0, g2) (g1, g3)) -> do
-            let s'@(state0, output0) = step1 g0 (decodeState0 prevState)
-                s''@(state1, output1) = step1 g1 (decodeState1 prevState)
-                (state2, output2) = s' `par` s'' `par` step1 g2 state0
-                (state3, output3) = step1 g3 state1
-            LS.put $ MP3DecodeState state2 state3
-            rest <- decodeRest' xs
-            return undefined --(((elems output0) ++ (elems output2), (elems output1) ++ (elems output3)):rest)
-  where
-    step1 gran state = undefined
---         let bf  = toBlockflag (mixedBlock gran) (blockType gran)
---             bt  = blockType gran
---             inp = chanData $ mp3Data gran
---         in (mp3HybridFilterBank bf bt state inp)
-    step1' gran state = do
-        let bf  = toBlockflag (mixedBlock gran) (blockType gran)
-            bt  = blockType gran
-            inp = chanData $ mp3Data gran
-        return ()
-
--- experimental --
-
-decodeRest :: [DChannel [Double]]
-       -> LS.State MP3DecodeState [([Double],[Double])]
+decodeRest :: [DChannel (STUArray s Int Double)]
+       -> LS.StateT MP3DecodeState (ST s) [([Double],[Double])] -- LS.State MP3DecodeState [([Double],[Double])]
 decodeRest []  = return []
 decodeRest (chan:xs) = do
     prevState <- LS.get
     case chan of
         (Single _ _ _ (g0, g1)) -> do
-            let (state0, output0) = step1 g0 (decodeState0 prevState)
-                (state1, output1) = step1 g1 state0
+            (state0, output0) <- step1 g0 (decodeState0 prevState)
+            (state1, output1) <- step1 g1 state0
             LS.put $ MP3DecodeState state1 state1
             rest <- decodeRest xs
             return (((elems output0) ++ (elems output1), (elems output0) ++ (elems output1)):rest)
         (Dual _ _ _ (g0, g2) (g1, g3)) -> do
-            let s'@(state0, output0) = step1 g0 (decodeState0 prevState)
-                s''@(state1, output1) = step1 g1 (decodeState1 prevState)
-                (state2, output2) = s' `par` s'' `par` step1 g2 state0
-                (state3, output3) = step1 g3 state1
-                left = (elems output0) ++ (elems output2)
+--             let s'@(state0, output0) = step1 g0 (decodeState0 prevState)
+--                 s''@(state1, output1) = step1 g1 (decodeState1 prevState)
+--                 (state2, output2) = s' `par` s'' `par` step1 g2 state0
+--                 (state3, output3) = step1 g3 state1
+            s'@(state0, output0) <- step1 g0 (decodeState0 prevState)
+            s''@(state1, output1) <- step1 g1 (decodeState1 prevState)
+            (state2, output2) <- step1 g2 state0
+            (state3, output3) <- step1 g3 state1
+            let left = (elems output0) ++ (elems output2)
                 right = (elems output1) ++ (elems output3)
             LS.put $ MP3DecodeState state2 state3
             rest <- decodeRest xs
             return ((left, right):rest)
   where
-    step1 gran state =
+    step1 gran state = do
         let bf  = toBlockflag (mixedBlock gran) (blockType gran)
             bt  = blockType gran
             inp = chanData $ mp3Data gran
-        in (mp3HybridFilterBank bf bt state inp)
+        lift $ mp3HybridFilterBank bf bt state inp
+
 
 -- Sadly this is needed because of Bjorns structure
 toBlockflag mixedflag blocktype

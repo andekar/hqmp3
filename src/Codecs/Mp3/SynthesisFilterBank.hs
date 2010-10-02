@@ -23,10 +23,10 @@ type Sample = Double
 newtype MP3SynthState = MP3SynthState (UArray Int Double)
 
 -- TODO: Change to Mutable array
-mp3SynthesisFilterBank :: MP3SynthState -> UArray Int Sample -> ST s (MP3SynthState, UArray Int Double)
+mp3SynthesisFilterBank :: MP3SynthState -> (STUArray s Int Sample) -> ST s (MP3SynthState, UArray Int Double)
 mp3SynthesisFilterBank (MP3SynthState oldstate) oldsamples
-  = do let -- samples = listArray (0,575) oldsamples
-           newstates = stateList updateVals' oldstate oldsamples
+  = do samples <- freeze oldsamples
+       let newstates = stateList updateVals' oldstate samples
            output    = generateOutput newstates
        return  (MP3SynthState (fst $! last newstates), output)
   where stateList [] _ _ = []

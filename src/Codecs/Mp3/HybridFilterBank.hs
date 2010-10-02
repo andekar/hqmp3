@@ -310,24 +310,24 @@ padWith n padding xs = xs ++ replicate (n - length xs) padding
 -- mp3HybridFilterBank
 -- Frequency domain to time domain.
 --
-mp3HybridFilterBank :: BlockFlag -> Int -> 
-                       MP3HybridState -> [Frequency] -> 
-                       (MP3HybridState, UArray Int Double)
-
-mp3HybridFilterBank bf bt st inp = runST $ mp3HybridFilterBank' bf bt st inp
+-- mp3HybridFilterBank :: BlockFlag -> Int -> 
+--                        MP3HybridState -> UArray Int Frequency ->
+--                        (MP3HybridState, UArray Int Double)
+-- 
+-- mp3HybridFilterBank bf bt st inp = runST $ mp3HybridFilterBank' bf bt st inp
 
 -- experimental
-mp3HybridFilterBank' :: BlockFlag -> Int -> 
-                       MP3HybridState -> [Frequency] -> 
+mp3HybridFilterBank :: BlockFlag -> Int -> 
+                       MP3HybridState -> STUArray s Int Frequency ->
                        ST s (MP3HybridState, UArray Int Double)
-mp3HybridFilterBank' bf bt (MP3HybridState simdct ssynthesis) input =
-    do let aa'                   = cast input bf bt
+mp3HybridFilterBank bf bt (MP3HybridState simdct ssynthesis) input =
+    do aa'                   <- mp3AA' bf bt input
+       aa'' <- freeze aa'
     --         input'                = padWith 576 0.0 aa' -- ensure length 576
-           (samp, simdct')       = mp3IMDCT bf bt aa' simdct
+       let (samp, simdct')       = mp3IMDCT bf bt aa'' simdct
        samp'' <- newListArray (0,575) samp :: ST s (STUArray s Int Sample)
        sam''' <- mp3FrequencyInvert' samp''
-       samps  <- freeze sam'''
-       (ssynthesis', output) <- mp3SynthesisFilterBank ssynthesis samps
+       (ssynthesis', output) <- mp3SynthesisFilterBank ssynthesis sam'''
        return (MP3HybridState simdct' ssynthesis', output)
 -- experimental --
 
@@ -335,9 +335,10 @@ mp3HybridFilterBank' bf bt (MP3HybridState simdct ssynthesis) input =
 -- MP3SynthState = State for the synthesis filterbank.
 data MP3HybridState = MP3HybridState (UArray Int Double) MP3SynthState
 
-cast :: [Frequency] -> BlockFlag -> Int -> UArray Int Frequency
-cast arr bf bt = runSTUArray $ do arr' <- newListArray (0,575) arr
-                                  mp3AA' bf bt arr'
+cast :: UArray Int Frequency -> BlockFlag -> Int -> ST s (STUArray s Int Frequency)
+cast arr bf bt = do let ars = elems arr
+                    arr' <- newListArray (0,575) ars
+                    mp3AA' bf bt arr'
 
 emptyMP3HybridState :: MP3HybridState
 emptyMP3HybridState

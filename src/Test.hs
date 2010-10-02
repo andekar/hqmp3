@@ -16,6 +16,8 @@ import Codecs.Mp3.Decoder
 import Codecs.Mp3.MP3Types
 import Codecs.Mp3.Unpack
 import System.Environment
+import Control.Monad.ST
+import Data.Array.ST
 
 import qualified PCMWriter as PCM
 import System.IO
@@ -30,7 +32,7 @@ test f = do
     out  <- openBinaryFile "out.wav" WriteMode
     PCM.writeHeader out
     let fs = unpackMp3 file
-        dc = decodeFrames fs
+        dc = runST $ decodeFrames fs
         f = fs `par` dc `par` "wee"
     putStr f
 --     mapM_ print dc
