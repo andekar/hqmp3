@@ -75,26 +75,48 @@ windowWith = zipWith (*)
 -- was called.
 -- Output: 576 time domain samples and new state.
 --
-mp3IMDCT :: BlockFlag -> Int -> [Frequency] -> [Sample] -> ([Sample], [Sample])
+mp3IMDCT :: BlockFlag -> Int -> UArray Int Frequency -> UArray Int Sample -> ([Sample], UArray Int Sample)
 mp3IMDCT blockflag blocktype freq overlap =
     let (samples, overlap') = case blockflag of
-             LongBlocks  -> transf (doImdctLong blocktype) freq
-             ShortBlocks -> transf (doImdctShort) freq
-             MixedBlocks -> let (first, second) = splitAt 36 freq 
-                            in transf (doImdctLong 0) first <++>
-                               transf (doImdctShort)  second
-        samples' = zipWith (+) samples overlap
-    in (samples', overlap')
+             LongBlocks  -> transf' (doImdctLong'' blocktype) freq (0,575)
+             ShortBlocks -> transf' (doImdctShort'') freq (0,575)
+             MixedBlocks -> let (first, second) = splitAt 36 (elems freq)
+                            in transf' (doImdctLong'' 0) freq (0,35) <++>
+                               transf' (doImdctShort'') freq (36,575)
+        samples' = zipWith (+) samples (elems overlap)
+    in (samples', listArray (0,575) overlap')
     where
-        transf imdctfunc input = unzipConcat $ mapBlock 18 toSO input
-            where
-                -- toSO takes 18 input samples b and computes 36 time samples
-                -- by the IMDCT. These are further divided into two equal
-                -- parts (S, O) where S are time samples for this frame
-                -- and O are values to be overlapped in the next frame.
-                toSO b = splitAt 18 (imdctfunc b)
-                unzipConcat xs = let (a, b) = unzip xs
-                                 in (concat a, concat b)
+        transf imdctfunc input = unzipConcat $ mapBlock 18 (toSO imdctfunc) input
+        transf' f input = unzipConcat . mapBlock' (toSO . f) input
+        zipWith' :: [Int] -> UArray Int Sample -> (Int -> Sample -> Sample) -> [Sample]
+        zipWith' = zips 0
+        zips pointer [] _ _ = []
+        zips pointer (x:xs) arr fun = let v1 = arr ! pointer
+                                          res = fun x v1
+                                      in (res : zips (pointer + 1) xs arr fun)
+
+
+-- experimental
+-- mp3IMDCT'  :: BlockFlag -> Int -> [Frequency] -> [Sample] -> ([Sample], [Sample])
+-- mp3IMDCT'  blockflag blocktype freq overlap =
+--     let (samples, overlap') = case blockflag of
+--              LongBlocks  -> transf (doImdctLong blocktype) freq
+--              ShortBlocks -> transf (doImdctShort) freq
+--              MixedBlocks -> let (first, second) = splitAt 36 freq 
+--                             in transf (doImdctLong 0) first <++>
+--                                transf (doImdctShort)  second
+--         samples' = zipWith (+) samples overlap
+--     in (samples', overlap')
+--     where
+--         transf imdctfunc input = unzipConcat $ mapBlock 18 (toSO imdctfunc) input
+-- toSO takes 18 input samples b and computes 36 time samples
+-- by the IMDCT. These are further divided into two equal
+-- parts (S, O) where S are time samples for this frame
+-- and O are values to be overlapped in the next frame.
+toSO f b = splitAt 18 (f b)
+unzipConcat xs = let (a, b) = unzip xs
+                 in (concat a, concat b)
+-- experimental -- 
 
 --
 -- doImdctLong, doImdctShort
@@ -137,6 +159,23 @@ doImdctShort'' f (begin,end) = overlap3 shorta shortb shortc
         add3 x y z = x+y+z
         p1         = [0,0,0, 0,0,0]
         p2         = [0,0,0, 0,0,0, 0,0,0, 0,0,0]
+
+-- experimental -- 
+
+-- doImdctShort :: [Frequency] -> [Sample]
+-- doImdctShort f = overlap3 shorta shortb shortc
+--   where
+--     (f1, f2, f3) = splitAt2 6 f
+--     shorta       = imdct 6 f1 `windowWith` tableImdctWindow 2
+--     shortb       = imdct 6 f2 `windowWith` tableImdctWindow 2
+--     shortc       = imdct 6 f3 `windowWith` tableImdctWindow 2
+--     
+--     overlap3 a b c = 
+--       p1 ++ (zipWith3 add3 (a ++ p2) (p1 ++ b ++ p1) (p2 ++ c)) ++ p1
+--       where
+--         add3 x y z = x+y+z
+--         p1         = [0,0,0, 0,0,0]
+--         p2         = [0,0,0, 0,0,0, 0,0,0, 0,0,0]
 
 splitAt2 :: Int -> [a] -> ([a], [a], [a])
 splitAt2 n xs = let (part1, part23) = splitAt n xs
@@ -241,7 +280,7 @@ aaCoeff = [-0.6, -0.535, -0.33, -0.185,
 -- mp3FrequencyInvert
 --
 -- The time samples returned from mp3IMDCT are inverted. This is the same
--- as with bandpass sampling: odd subbands have inverted frequency spectra -
+-- as with bandpass sampling: odd subbands have inverteBd frequency spectra -
 -- invert it by changing signs on odd samples.
 --
 -- experimental
@@ -270,22 +309,32 @@ mp3HybridFilterBank :: BlockFlag -> Int ->
                        MP3HybridState -> [Frequency] -> 
                        (MP3HybridState, UArray Int Double)
 mp3HybridFilterBank bf bt (MP3HybridState simdct ssynthesis) input =
-    let -- aa                    = mp3AA bf bt input
-        aa'                   = runST (cast input bf bt)
-        input'                = padWith 576 0.0 aa' -- ensure length 576
-        (samp, simdct')       = mp3IMDCT bf bt input' (elems simdct)
+    let aa'                   = cast input bf bt
+--         input'                = padWith 576 0.0 aa' -- ensure length 576
+        (samp, simdct')       = mp3IMDCT bf bt aa' simdct
         samp'                 = mp3FrequencyInvert samp
         (ssynthesis', output) = mp3SynthesisFilterBank ssynthesis samp'
-    in (MP3HybridState (listArray (0,575) simdct') ssynthesis', output)
+    in (MP3HybridState simdct' ssynthesis', output)
+
+-- experimental
+-- mp3HybridFilterBank' :: BlockFlag -> Int ->
+--                        MP3HybridState -> [Frequency] -> 
+--                        (MP3HybridState, UArray Int Double)
+-- mp3HybridFilterBank' bf bt (MP3HybridState simdct ssynthesis) input =
+--     let aa'                   = runST (cast input bf bt)
+--         (samp, simdct')       = mp3IMDCT bf bt aa' simdct
+--         samp'                 = mp3FrequencyInvert samp
+--         (ssynthesis', output) = mp3SynthesisFilterBank ssynthesis samp'
+--     in (MP3HybridState simdct' ssynthesis', output)
+-- experimental --
 
 -- [Sample] = IMDCT output from previous granule, used for overlapping.
 -- MP3SynthState = State for the synthesis filterbank.
 data MP3HybridState = MP3HybridState (UArray Int Double) MP3SynthState
 
--- cast :: [Double] -> [Double]
-cast arr bf bt = do arr' <- newListArray (0,575) arr
-                    res  <- mp3AA' bf bt arr'
-                    getElems res
+cast :: [Frequency] -> BlockFlag -> Int -> UArray Int Frequency
+cast arr bf bt = runSTUArray $ do arr' <- newListArray (0,575) arr
+                                  mp3AA' bf bt arr'
 
 emptyMP3HybridState :: MP3HybridState
 emptyMP3HybridState
