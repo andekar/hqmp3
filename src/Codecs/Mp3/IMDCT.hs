@@ -1,4 +1,17 @@
-module Codecs.Mp3.IMDCT (imdct) where
+module Codecs.Mp3.IMDCT (imdct, imdct18', imdct6') where
+import Data.Array.Unboxed
+import Control.Monad.ST
+import Control.Monad
+import Data.Array.ST
+import Control.Monad.Trans
+import Data.List
+import System.IO.Unsafe
+
+type STPair s = (STUArray s Int Double, STUArray s Int Double)
+type TFun = (Double -> Double -> Double)
+
+data Part = A | B | C
+    deriving Eq
 
 fi :: Int -> Double
 fi = fromIntegral
