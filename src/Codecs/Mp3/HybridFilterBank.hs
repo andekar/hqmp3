@@ -103,15 +103,25 @@ mp3IMDCT blockflag blocktype freq overlap =
 -- are used.
 --
 
-doImdctShort :: [Frequency] -> [Sample]
-doImdctShort f = overlap3 shorta shortb shortc
+-- IMDCT short is like magic, you use some parts and then you glue them together
+-- in a mysterious way. From 18 samples we create 36, in this case the first six
+-- and the last six values will always be zero.
+doImdctShort'' :: UArray Int Frequency -> (Int, Int) -> [Sample]
+doImdctShort'' f (begin,end) = overlap3 shorta shortb shortc
   where
-    (f1, f2, f3) = splitAt2 6 f
-    shorta       = imdct 6 f1 `windowWith` tableImdctWindow 2
-    shortb       = imdct 6 f2 `windowWith` tableImdctWindow 2
-    shortc       = imdct 6 f3 `windowWith` tableImdctWindow 2
-    
-    overlap3 a b c = 
+    shorta       = imdct6' f (begin, begin + 5) `windowWith` tableImdctWindow 2
+    shortb       = imdct6' f (begin + 6, begin+11) `windowWith` tableImdctWindow 2
+    shortc       = imdct6' f (begin + 12,begin+17) `windowWith` tableImdctWindow 2
+    overlap3 a b c =
+      -- length a b c = 12, a + b + c = 36
+      -- left =
+      -- (0-5) p1
+      -- (6-11) 1/2 a
+      -- (12-17) 1/2 a + 1/b
+      -- right
+      -- 0-5 1/2 b + 1/2 c
+      -- 6-11 1/2 c
+      -- 12-17 0
       p1 ++ (zipWith3 add3 (a ++ p2) (p1 ++ b ++ p1) (p2 ++ c)) ++ p1
       where
         add3 x y z = x+y+z
