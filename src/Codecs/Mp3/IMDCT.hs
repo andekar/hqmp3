@@ -33,7 +33,13 @@ sumZip f acc x1 x2 = lgo acc x1 x2
     where lgo acc [] _ = acc
           lgo acc _ [] = acc
           lgo acc (x:xs) (y:ys) = let res = acc + (f x y)
-                                  in res `seq` lgo res xs ys
+                                  in  res `seq` lgo res xs ys
+
+sumZip'' :: Int -> (Double -> Double -> Double) -> Double -> Int -> UArray Int Double -> [Double] -> Double
+sumZip'' c f acc begin x1 x2 = lgo acc x1 x2 c
+    where lgo acc _ _ (-1) = acc
+          lgo acc xs (y:ys) c' = let res =  acc + (f (xs ! (begin - c')) y)
+                                 in  res `seq` lgo res xs ys (c' -1)
 
 -- Straightforward translation from the C code.
 imdct :: Int -> [Double] -> [Double]
