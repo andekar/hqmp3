@@ -13,6 +13,7 @@ import Control.Parallel
 import Control.Parallel.Strategies
 import Codecs.Mp3.Unpack
 import qualified Control.Monad.State.Lazy as LS
+import qualified Control.Monad.Identity as ID
 import Codecs.Mp3.MP3Types
 import Codecs.Mp3.HuffArrays
 import Codecs.Mp3.HybridFilterBank
