@@ -103,6 +103,16 @@ mp3IMDCT blockflag blocktype freq overlap =
 -- are used.
 --
 
+-- doImdctLong :: Int -> [Frequency] -> [Sample]
+-- doImdctLong blocktype f = imdct 18 f `windowWith` tableImdctWindow blocktype
+
+-- experimental
+
+-- The imdct long is quite easy if you compare with the short. We create 36
+-- samples from the 18 we give this function.
+doImdctLong'' :: Int -> UArray Int Frequency -> (Int, Int) -> [Sample]
+doImdctLong'' blocktype f range = imdct18' f range `windowWith` tableImdctWindow blocktype
+
 -- IMDCT short is like magic, you use some parts and then you glue them together
 -- in a mysterious way. From 18 samples we create 36, in this case the first six
 -- and the last six values will always be zero.
