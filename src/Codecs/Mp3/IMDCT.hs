@@ -17,6 +17,8 @@ fi :: Int -> Double
 fi = fromIntegral
 
 -- Straightforward translation from the C code, elegant!
+-- transforms 36 samples
+-- #18 -> #36
 imdct18 :: [Double] -> [Double]
 imdct18 xs = map (\s -> sumZip (*) 0.0 xs s) lookupIMDCT
 
@@ -61,11 +63,17 @@ lookupIMDCT6 = [[ cos $ (pi / 6.0) * (n + 0.5 + 6.0) * (k + 0.5)
                  | k <- [0.5, 1.5 .. 17.5]] | n <- [9.5, 10.5 .. 44.5]]
              :: [[Double]]) #-}
 lookupIMDCT :: [[Double]]
-lookupIMDCT = [[ cos $ (pi / 18.0) * n * k
-                 | k <- [0.5, 1.5 .. 17.5]] | n <- [9.5, 10.5 .. 44.5]]
-    
+lookupIMDCT = [[ cos $ (pi / 18.0) * (n + 0.5 + 9) * (k + 0.5)
+                 | k <- [0 .. 17]] | n <- [0 .. 35]]
+
+lookupIMDCT' :: [UArray Int Double]
+lookupIMDCT' = map (listArray (0,17)) lookupIMDCT
+
+lookupIMDCT6' :: [UArray Int Double]
+lookupIMDCT6' = map (listArray (0,5)) lookupIMDCT6
+
 -- Instead of specialize
--- sumZip :: (Double -> Double -> Double) -> [Double] -> [Double] -> Double
+-- sumZip :: (Double -> Double -> Double) -> Double -> [Double] -> [Double] -> Double
 sumZip f acc x1 x2 = lgo acc x1 x2
     where lgo acc [] _ = acc
           lgo acc _ [] = acc
@@ -88,11 +96,17 @@ sumZip' c f begin x1 x2 = lgo 0.0 x1 x2 c
 -- Straightforward translation from the C code.BB
 imdct :: Int -> [Double] -> [Double]
 imdct 18 xs  = imdct18' (listArray (0,35) xs) (0,17)
+imdct 6 xs   = imdct6 xs
+-- imdct pts xs = map (\n -> sumZip (subone n) 0 xs [0..pts-1]) [0..2*pts-1]
+--   where
+--     subone :: Int -> Double -> Int -> Double
+--     subone n y k = y * (cos $ pipts * (fi n + 0.5 + nhalf) * (fi k + 0.5))
+--     pipts        = pi / (fi pts)
+--     nhalf        = (fi pts) / 2.0
 
 
-{-
- - Until HybridFilterBank can handle arrays this code is useless, I'm afraid...
- -
+--  - Until HybridFilterBank can handle arrays this code is useless, I'm afraid...
+--  -
 
 -- Array version of the above, but is it any faster?
 -- imdct18'' :: UArray Int Double -> [Double]
