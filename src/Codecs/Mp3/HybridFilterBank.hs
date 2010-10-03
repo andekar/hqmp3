@@ -49,10 +49,10 @@ type STDArr s = ST s (STUDArr s)
 
 -- experimental
 -- we always have 576 samples so we do this 32 times (18*32)
-mapBlock' :: (UArray Int a -> (Int, Int) -> b) -> UArray Int a -> (Int, Int) -> [b]
-mapBlock' func seq (starts, end) = mb starts
+mapBlock :: (UArray Int a -> (Int, Int) -> b) -> UArray Int a -> (Int, Int) -> [b]
+mapBlock func seq (starts, end) = mb starts
 --     let (block, rem) = splitAt 18 seq
---     in func block : mapBlock' 18 func rem
+--     in func block : mapBlock 18 func rem
   where mb start | start == end = []
                  | otherwise = func seq (start,start+18) : mb (start + 18)
 -- experimental --
@@ -80,7 +80,7 @@ mp3IMDCT blockflag blocktype freq overlap =
         samples' = zipWith (+) samples (elems overlap)
     in (samples', listArray (0,575) overlap')
     where
-        transf' f input = unzipConcat . mapBlock' (toSO . f) input
+        transf' f input = unzipConcat . mapBlock (toSO . f) input
         zipWith' :: [Int] -> UArray Int Sample -> (Int -> Sample -> Sample) -> [Sample]
         zipWith' = zips 0
         zips pointer [] _ _ = []
