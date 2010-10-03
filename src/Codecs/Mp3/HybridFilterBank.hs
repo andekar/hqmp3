@@ -73,10 +73,10 @@ mp3IMDCT :: BlockFlag -> Int -> UArray Int Frequency -> UArray Int Sample -> ([S
 mp3IMDCT blockflag blocktype freq overlap =
     let (samples, overlap') = case blockflag of
              LongBlocks  -> transf (doImdctLong blocktype) freq (0,575)
-             ShortBlocks -> transf (doImdctShort'') freq (0,575)
+             ShortBlocks -> transf doImdctShort freq (0,575)
              MixedBlocks -> let (first, second) = splitAt 36 (elems freq)
                             in transf (doImdctLong 0) freq (0,35) <++>
-                               transf (doImdctShort'') freq (36,575)
+                               transf doImdctShort freq (36,575)
         samples' = zipWith (+) samples (elems overlap)
     in (samples', listArray (0,575) overlap')
     where
@@ -113,8 +113,8 @@ doImdctLong blocktype f range = imdct18' f range `windowWith` tableImdctWindow b
 -- IMDCT short is like magic, you use some parts and then you glue them together
 -- in a mysterious way. From 18 samples we create 36, in this case the first six
 -- and the last six values will always be zero.
-doImdctShort'' :: UArray Int Frequency -> (Int, Int) -> [Sample]
-doImdctShort'' f (begin,end) = overlap3 shorta shortb shortc
+doImdctShort :: UArray Int Frequency -> (Int, Int) -> [Sample]
+doImdctShort f (begin,end) = overlap3 shorta shortb shortc
   where
     shorta       = imdct6' f (begin, begin + 5) `windowWith` tableImdctWindow 2
     shortb       = imdct6' f (begin + 6, begin+11) `windowWith` tableImdctWindow 2
@@ -134,23 +134,6 @@ doImdctShort'' f (begin,end) = overlap3 shorta shortb shortc
         add3 x y z = x+y+z
         p1         = [0,0,0, 0,0,0]
         p2         = [0,0,0, 0,0,0, 0,0,0, 0,0,0]
-
--- experimental -- 
-
--- doImdctShort :: [Frequency] -> [Sample]
--- doImdctShort f = overlap3 shorta shortb shortc
---   where
---     (f1, f2, f3) = splitAt2 6 f
---     shorta       = imdct 6 f1 `windowWith` tableImdctWindow 2
---     shortb       = imdct 6 f2 `windowWith` tableImdctWindow 2
---     shortc       = imdct 6 f3 `windowWith` tableImdctWindow 2
---     
---     overlap3 a b c = 
---       p1 ++ (zipWith3 add3 (a ++ p2) (p1 ++ b ++ p1) (p2 ++ c)) ++ p1
---       where
---         add3 x y z = x+y+z
---         p1         = [0,0,0, 0,0,0]
---         p2         = [0,0,0, 0,0,0, 0,0,0, 0,0,0]
 
 splitAt2 :: Int -> [a] -> ([a], [a], [a])
 splitAt2 n xs = let (part1, part23) = splitAt n xs
