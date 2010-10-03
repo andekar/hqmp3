@@ -149,9 +149,9 @@ infixr 5 <++>
 -- Undo the encoders alias reduction.
 
 -- This function uses real magic
--- DO NOT change it because that might release the hellhounds
-mp3AA' :: BlockFlag -> Int -> STUDArr s -> STDArr s
-mp3AA' blockflag blocktype freq'
+-- DO NOT change it because that might cause madness
+mp3AA :: BlockFlag -> Int -> STUDArr s -> STDArr s
+mp3AA blockflag blocktype freq'
   | blocktype == 2 && blockflag /= MixedBlocks = return freq'
   | blocktype == 2 &&  blockflag == MixedBlocks = do
       aaHelper 9 27 freq'
@@ -248,7 +248,7 @@ mp3HybridFilterBank :: BlockFlag -> Int ->
                        MP3HybridState -> STUArray s Int Frequency ->
                        ST s (MP3HybridState, UArray Int Double)
 mp3HybridFilterBank bf bt (MP3HybridState simdct ssynthesis) input =
-    do aa'                   <- mp3AA' bf bt input
+    do aa'                   <- mp3AA bf bt input
        aa'' <- freeze aa'
     --         input'                = padWith 576 0.0 aa' -- ensure length 576
        let (samp, simdct')       = mp3IMDCT bf bt aa'' simdct
