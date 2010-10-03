@@ -88,20 +88,6 @@ mp3IMDCT blockflag blocktype freq overlap =
                                           res = fun x v1
                                       in (res : zips (pointer + 1) xs arr fun)
 
-
--- experimental
--- mp3IMDCT'  :: BlockFlag -> Int -> [Frequency] -> [Sample] -> ([Sample], [Sample])
--- mp3IMDCT'  blockflag blocktype freq overlap =
---     let (samples, overlap') = case blockflag of
---              LongBlocks  -> transf (doImdctLong blocktype) freq
---              ShortBlocks -> transf (doImdctShort) freq
---              MixedBlocks -> let (first, second) = splitAt 36 freq 
---                             in transf (doImdctLong 0) first <++>
---                                transf (doImdctShort)  second
---         samples' = zipWith (+) samples overlap
---     in (samples', overlap')
---     where
---         transf imdctfunc input = unzipConcat $ mapBlock 18 (toSO imdctfunc) input
 -- toSO takes 18 input samples b and computes 36 time samples
 -- by the IMDCT. These are further divided into two equal
 -- parts (S, O) where S are time samples for this frame
