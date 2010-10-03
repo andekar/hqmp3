@@ -72,10 +72,10 @@ windowWith = zipWith (*)
 mp3IMDCT :: BlockFlag -> Int -> UArray Int Frequency -> UArray Int Sample -> ([Sample], UArray Int Sample)
 mp3IMDCT blockflag blocktype freq overlap =
     let (samples, overlap') = case blockflag of
-             LongBlocks  -> transf (doImdctLong'' blocktype) freq (0,575)
+             LongBlocks  -> transf (doImdctLong blocktype) freq (0,575)
              ShortBlocks -> transf (doImdctShort'') freq (0,575)
              MixedBlocks -> let (first, second) = splitAt 36 (elems freq)
-                            in transf (doImdctLong'' 0) freq (0,35) <++>
+                            in transf (doImdctLong 0) freq (0,35) <++>
                                transf (doImdctShort'') freq (36,575)
         samples' = zipWith (+) samples (elems overlap)
     in (samples', listArray (0,575) overlap')
@@ -103,16 +103,12 @@ unzipConcat xs = let (a, b) = unzip xs
 -- IMDCT with windows. This also does the overlapping when short blocks
 -- are used.
 --
-
--- doImdctLong :: Int -> [Frequency] -> [Sample]
--- doImdctLong blocktype f = imdct 18 f `windowWith` tableImdctWindow blocktype
-
 -- experimental
 
 -- The imdct long is quite easy if you compare with the short. We create 36
 -- samples from the 18 we give this function.
-doImdctLong'' :: Int -> UArray Int Frequency -> (Int, Int) -> [Sample]
-doImdctLong'' blocktype f range = imdct18' f range `windowWith` tableImdctWindow blocktype
+doImdctLong :: Int -> UArray Int Frequency -> (Int, Int) -> [Sample]
+doImdctLong blocktype f range = imdct18' f range `windowWith` tableImdctWindow blocktype
 
 -- IMDCT short is like magic, you use some parts and then you glue them together
 -- in a mysterious way. From 18 samples we create 36, in this case the first six
