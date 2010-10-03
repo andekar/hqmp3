@@ -23,6 +23,7 @@
 --    3. This notice may not be removed or altered from any source
 --    distribution.
 --
+-- This code has been changed significantly
 
 module Codecs.Mp3.HybridFilterBank (
     mp3HybridFilterBank
@@ -230,13 +231,6 @@ padWith n padding xs = xs ++ replicate (n - length xs) padding
 -- mp3HybridFilterBank
 -- Frequency domain to time domain.
 --
--- mp3HybridFilterBank :: BlockFlag -> Int -> 
---                        MP3HybridState -> UArray Int Frequency ->
---                        (MP3HybridState, UArray Int Double)
--- 
--- mp3HybridFilterBank bf bt st inp = runST $ mp3HybridFilterBank' bf bt st inp
-
--- experimental
 mp3HybridFilterBank :: BlockFlag -> Int -> 
                        MP3HybridState -> STUArray s Int Frequency ->
                        ST s (MP3HybridState, UArray Int Double)
@@ -249,7 +243,6 @@ mp3HybridFilterBank bf bt (MP3HybridState simdct ssynthesis) input =
        sam''' <- mp3FrequencyInvert samp''
        (ssynthesis', output) <- mp3SynthesisFilterBank ssynthesis sam'''
        return (MP3HybridState simdct' ssynthesis', output)
--- experimental --
 
 -- [Sample] = IMDCT output from previous granule, used for overlapping.
 -- MP3SynthState = State for the synthesis filterbank.
