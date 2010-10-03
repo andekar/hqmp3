@@ -48,7 +48,6 @@ import Data.List
 type STUDArr s = STUArray s Int Double
 type STDArr s = ST s (STUDArr s)
 
--- experimental
 -- we always have 576 samples so we do this 32 times (18*32)
 mapBlock :: (UArray Int a -> (Int, Int) -> b) -> UArray Int a -> (Int, Int) -> [b]
 mapBlock func seq (starts, end) = mb starts
@@ -56,10 +55,10 @@ mapBlock func seq (starts, end) = mb starts
 --     in func block : mapBlock 18 func rem
   where mb start | start == end = []
                  | otherwise = func seq (start,start+18) : mb (start + 18)
--- experimental --
 
 -- 'windowWith' windows two signals. For readability, so we can do:
 -- signal' = signal `windowWith` win
+-- TODO: This should be at least one array?
 windowWith :: (Num a) => [a] -> [a] -> [a]
 windowWith = zipWith (*)
 
@@ -96,7 +95,6 @@ mp3IMDCT blockflag blocktype freq overlap =
 toSO f b = splitAt 18 (f b)
 unzipConcat xs = let (a, b) = unzip xs
                  in (concat a, concat b)
--- experimental -- 
 
 --
 -- doImdctLong, doImdctShort
@@ -104,7 +102,6 @@ unzipConcat xs = let (a, b) = unzip xs
 -- IMDCT with windows. This also does the overlapping when short blocks
 -- are used.
 --
--- experimental
 
 -- The imdct long is quite easy if you compare with the short. We create 36
 -- samples from the 18 we give this function.
