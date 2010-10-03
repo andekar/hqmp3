@@ -147,10 +147,7 @@ infixr 5 <++>
 -- 
 -- mp3AA
 -- Undo the encoders alias reduction.
--- TODO: Rewrite this, clumsy and non-intuitive.
---
 
--- experimental
 -- This function uses real magic
 -- DO NOT change it because that might release the hellhounds
 mp3AA' :: BlockFlag -> Int -> STUDArr s -> STDArr s
@@ -188,34 +185,6 @@ mp3AA' blockflag blocktype freq'
       cs' = [1 / sqrt (1.0 + c**2) | c <- aaCoeff']
       aaCoeff' = [-0.0037, -0.0142, -0.041, -0.095,
                   -0.185, -0.33, -0.535, -0.6]
-
--- experimental --
-mp3AA :: BlockFlag -> Int -> [Frequency] -> [Frequency]
-mp3AA blockflag blocktype freq
-  | blocktype == 2 && blockflag /= MixedBlocks   = freq
-  | blocktype == 2 && blockflag == MixedBlocks
-    = let (first, second) = splitAt 9 freq
-          (third, fourth) = splitAt 18 second
-      in first ++ aaHelper third ++ fourth
-  | otherwise
-    = let (first, second) = splitAt 9 freq
-          (third, fourth) = splitAt 558 second
-      in first ++ aaHelper third ++ fourth
-  where
-      aaHelper []    = []
-      aaHelper (c:chunk) = c : (aaButterfly middle ++ [after] ++ 
-                                aaHelper last)
-          where
-              (middle, (after:last)) = splitAt 16 chunk
-      aaButterfly f = let (seqcs', seqcs'') = splitAt 8 seqcs
-                          (seqca', seqca'') = splitAt 8 seqca
-                      in zipWith (-) seqcs' seqca' ++
-                         zipWith (+) seqcs'' seqca''
-          where
-              seqcs :: [Double]
-              seqcs = zipWith (*) f revCs
-              seqca :: [Double]
-              seqca = reverse $ zipWith (*) f revCa
 
 cs = [1 / sqrt (1.0 + c**2) | c <- aaCoeff]
 ca = [c / sqrt (1.0 + c**2) | c <- aaCoeff]
