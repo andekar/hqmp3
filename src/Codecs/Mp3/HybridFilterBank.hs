@@ -47,12 +47,6 @@ import Data.List
 type STUDArr s = STUArray s Int Double
 type STDArr s = ST s (STUDArr s)
 
-mapBlock :: Int -> ([a] -> b) -> [a] -> [b]
-mapBlock blocksize func []  = []
-mapBlock blocksize func seq =
-    let (block, rem) = splitAt blocksize seq
-    in func block : mapBlock blocksize func rem
-
 -- experimental
 -- we always have 576 samples so we do this 32 times (18*32)
 mapBlock' :: (UArray Int a -> (Int, Int) -> b) -> UArray Int a -> (Int, Int) -> [b]
