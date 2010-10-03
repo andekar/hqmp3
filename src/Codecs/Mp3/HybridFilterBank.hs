@@ -80,7 +80,6 @@ mp3IMDCT blockflag blocktype freq overlap =
         samples' = zipWith (+) samples (elems overlap)
     in (samples', listArray (0,575) overlap')
     where
-        transf imdctfunc input = unzipConcat $ mapBlock 18 (toSO imdctfunc) input
         transf' f input = unzipConcat . mapBlock' (toSO . f) input
         zipWith' :: [Int] -> UArray Int Sample -> (Int -> Sample -> Sample) -> [Sample]
         zipWith' = zips 0
