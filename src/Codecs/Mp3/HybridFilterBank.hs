@@ -72,15 +72,15 @@ windowWith = zipWith (*)
 mp3IMDCT :: BlockFlag -> Int -> UArray Int Frequency -> UArray Int Sample -> ([Sample], UArray Int Sample)
 mp3IMDCT blockflag blocktype freq overlap =
     let (samples, overlap') = case blockflag of
-             LongBlocks  -> transf' (doImdctLong'' blocktype) freq (0,575)
-             ShortBlocks -> transf' (doImdctShort'') freq (0,575)
+             LongBlocks  -> transf (doImdctLong'' blocktype) freq (0,575)
+             ShortBlocks -> transf (doImdctShort'') freq (0,575)
              MixedBlocks -> let (first, second) = splitAt 36 (elems freq)
-                            in transf' (doImdctLong'' 0) freq (0,35) <++>
-                               transf' (doImdctShort'') freq (36,575)
+                            in transf (doImdctLong'' 0) freq (0,35) <++>
+                               transf (doImdctShort'') freq (36,575)
         samples' = zipWith (+) samples (elems overlap)
     in (samples', listArray (0,575) overlap')
     where
-        transf' f input = unzipConcat . mapBlock (toSO . f) input
+        transf f input = unzipConcat . mapBlock (toSO . f) input
         zipWith' :: [Int] -> UArray Int Sample -> (Int -> Sample -> Sample) -> [Sample]
         zipWith' = zips 0
         zips pointer [] _ _ = []
