@@ -335,11 +335,6 @@ mp3HybridFilterBank bf bt (MP3HybridState simdct ssynthesis) input =
 -- MP3SynthState = State for the synthesis filterbank.
 data MP3HybridState = MP3HybridState (UArray Int Double) MP3SynthState
 
-cast :: UArray Int Frequency -> BlockFlag -> Int -> ST s (STUArray s Int Frequency)
-cast arr bf bt = do let ars = elems arr
-                    arr' <- newListArray (0,575) ars
-                    mp3AA' bf bt arr'
-
 emptyMP3HybridState :: MP3HybridState
 emptyMP3HybridState
     = MP3HybridState (listArray (0,575) $ replicate 576 0.0)
