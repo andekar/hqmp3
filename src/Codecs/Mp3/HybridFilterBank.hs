@@ -210,9 +210,8 @@ aaCoeff = [-0.6, -0.535, -0.33, -0.185,
 -- as with bandpass sampling: odd subbands have inverteBd frequency spectra -
 -- invert it by changing signs on odd samples.
 --
--- experimental
-mp3FrequencyInvert' :: STUArray s Int Sample -> ST s (STUArray s Int Sample)
-mp3FrequencyInvert' arr  = zipWith' (*) pattern arr
+mp3FrequencyInvert :: STUArray s Int Sample -> ST s (STUArray s Int Sample)
+mp3FrequencyInvert arr  = zipWith' (*) pattern arr
     where pattern :: Array Int Double
           pattern = listArray (0,575) $ cycle $ replicate 18 1
                  ++ take 18 (cycle [1,-1])
@@ -221,12 +220,6 @@ mp3FrequencyInvert' arr  = zipWith' (*) pattern arr
                                     e2 <- readArray a2 i
                                     writeArray a2 i (fun e1 e2)
                                   return a2
-
--- experimental --
-
-mp3FrequencyInvert :: [Sample] -> [Sample]
-mp3FrequencyInvert = zipWith (*) pattern
-    where pattern = cycle $ replicate 18 1 ++ take 18 (cycle [1,-1])
 
 -- Pads a list until it's length is n.
 -- padWith 5 0 [1,2,3] == [1,2,3,0,0]
@@ -253,7 +246,7 @@ mp3HybridFilterBank bf bt (MP3HybridState simdct ssynthesis) input =
     --         input'                = padWith 576 0.0 aa' -- ensure length 576
        let (samp, simdct')       = mp3IMDCT bf bt aa'' simdct
        samp'' <- newListArray (0,575) samp :: ST s (STUArray s Int Sample)
-       sam''' <- mp3FrequencyInvert' samp''
+       sam''' <- mp3FrequencyInvert samp''
        (ssynthesis', output) <- mp3SynthesisFilterBank ssynthesis sam'''
        return (MP3HybridState simdct' ssynthesis', output)
 -- experimental --
