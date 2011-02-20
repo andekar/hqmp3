@@ -38,17 +38,8 @@ test f = do
 --     mapM_ print dc
     forM_ dc $ \dchan -> do
         let (left,right) = dchan
-        PCM.writeSamplerate out 44100 -- we need to write this all the time...
+--        PCM.writeSamplerate out 44100 -- we need to write this all the time...
         PCM.writeSamples out left right
+        cur <- hTell out
+        PCM.writeNumSamples out $ fromIntegral $ (cur - 44)
 --         putStrLn "# Oh yeah!"
-  where
---       extract :: ([Double], [Double]) -> (Double)
-    extract :: DChannel [Double] -> ([Double],[Double])
-    extract chan = case chan of
-        Single _ _ _ (g0, g1) -> (fromChanData $ mp3Data g0, fromChanData $ mp3Data g1)
-        Dual _ _ _ (g0, g2) (g1, g3) -> 
-            ( (fromChanData $ mp3Data g0) ++ (fromChanData $ mp3Data g2), 
-              (fromChanData $ mp3Data g1) ++ (fromChanData $ mp3Data g3) )
-
-    fromChanData :: ChannelData [Double] -> [Double]
-    fromChanData (ChannelData _ as) = as

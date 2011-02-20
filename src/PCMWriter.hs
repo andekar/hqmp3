@@ -28,9 +28,10 @@
 --
 
 module PCMWriter (
-     writeHeader
-    ,writeSamplerate
-    ,writeSamples
+      writeHeader
+    , writeSamplerate
+    , writeSamples
+    , writeNumSamples
 ) where
 
 import Data.Word
@@ -67,15 +68,18 @@ instance AudioSampleRepr Float where
 
 -- Add other instances here.
 
-from16bit n = [chr . fromIntegral $ n .&. 0xff, 
+from16bit :: Word16 -> [Char]
+from16bit n = [chr . fromIntegral $ n .&. 0xff,
                chr . fromIntegral $ n `shiftR` 8]
+
 from32bit n = [chr . fromIntegral $ n .&. 0xff,
                chr . fromIntegral $ (n `shiftR` 8) .&. 0xff,
                chr . fromIntegral $ (n `shiftR` 16) .&. 0xff,
                chr . fromIntegral $ (n `shiftR` 24) .&. 0xff]
 
-hWrite16 :: Handle -> Word16 -> IO ()
-hWrite16 handle n = do hPutStr handle $! from16bit n
+hWrite16 :: Handle -> Word16  -> IO ()
+hWrite16 handle n = hPutStr handle $ from16bit n
+
 
 hWrite32 :: Handle -> Word32 -> IO ()
 hWrite32 handle n = do hPutStr handle $! from32bit n
@@ -91,7 +95,7 @@ writeSamplerate handle sr =
 writeNumSamples :: Handle -> Int -> IO ()
 writeNumSamples handle num =
     do cur <- hTell handle
-       let count1 = (num * 4)
+       let count1 = if even num then num else num-1 --(num * 4)
            count2 = 36 + count1
        hSeek    handle AbsoluteSeek 4
        hWrite32 handle (fromIntegral count2)
@@ -120,15 +124,20 @@ writeHeader handle =
 
 writeSamples :: AudioSampleRepr a => Handle -> [a] -> [a] -> IO ()
 writeSamples handle ch0 ch1 =
-    do zipWithM_ writeInterleaved ch0 ch1
-       cur <- hTell handle
-       let totalsamples = fromIntegral $ (cur - 44) `div` (2*2)
-       writeNumSamples handle $ fromIntegral $ (cur - 44) `div` (2*2)
-       --hFlush handle
-    where
-        writeInterleaved ch0sample ch1sample = 
-            do hWrite16 handle (toPcmRepr ch0sample)
-               hWrite16 handle (toPcmRepr ch1sample)
+    do let samples = writeS ch0 ch1
+       samples `seq` hPutStr handle samples
+
+-- is supposed to be lazy
+writeS :: AudioSampleRepr a => [a] -> [a] -> String
+writeS [] [] = []
+writeS (ch1:chs1) (ch2:chs2)
+    = let c1 = toPcmRepr ch1
+          c2 = toPcmRepr ch2
+      in ((chr . fromIntegral $ c1 .&. 0xff)   :
+          (chr . fromIntegral $ c1 `shiftR` 8) :
+          (chr . fromIntegral $ c2 .&. 0xff)   :
+          (chr . fromIntegral $ c2 `shiftR` 8) :
+          writeS chs1 chs2)
 
 {-# SPECIALIZE writeSamples :: Handle -> [Double] -> [Double] -> IO () #-}
 {-# SPECIALIZE writeSamples :: Handle -> [Float] -> [Float] -> IO () #-}
