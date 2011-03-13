@@ -51,8 +51,6 @@ decodeAll s  = func s
 
 -- requantize . decodeGranules
 
--- experimental
---func2 :: SideInfo BS.BitString -> ST s (DChannel (STUArray s Int Double))
 func :: SideInfo BS.BitString -> ST s (DChannel (STUArray s Int Double))
 func arg = do res <- decodeGranules arg
               chan@(Single sr a b (g1, g2)) <- mp3Reorder =<< requantize res
@@ -60,8 +58,6 @@ func arg = do res <- decodeGranules arg
                   (ChannelData a2 mp32) = mp3Data g2
               return (Single sr a b ( g1 {mp3Data = (ChannelData a1 mp3)}
                                     , g2 {mp3Data = (ChannelData a2 mp32)}))
-
--- experimental --
 
 -- Does the "step1" as in bjorns decoder :(
 -- Note that we skip stereoIS and StereoMS
@@ -116,7 +112,6 @@ emptyMP3DecodeState :: MP3DecodeState
 emptyMP3DecodeState = MP3DecodeState emptyMP3HybridState emptyMP3HybridState
 
 
--- experimental
 mp3Reorder :: DChannel (STUArray s Int Double) -> ST s (DChannel (STUArray s Int Double))
 mp3Reorder (Single sr a b (g0, g1)) = do
             g0' <- reorder g0
