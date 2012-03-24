@@ -46,7 +46,9 @@
     This project aims to show how one can parse and decode binary formats in
     Haskell, showcased by implementing an mp3 decoder. The decoder features its
     own library for handling of binary formats, a fast huffman decoder and is
-    written entirely in Haskell.
+    written entirely in Haskell. The project was carried out as a 15hp course at
+    the department of computer science and engineering at the University of
+    Gothenburg during the autumn 2009. 
 \end{abstract}
 
 \tableofcontents
@@ -527,7 +529,7 @@ imdct18 xs = map (\s -> sumZip (*) xs s) lookupIMDCT
         The last step in the audio decoding is the synthethis filter bank, which
         when we plugged into the existing codec also was written in C, so it had
         to be rewritten in Haskell. This time however, it was not as neat as the
-        IMDCT code. THe synthethis filterbank was written in a far more
+        IMDCT code. The synthethis filterbank was written in a far more
         imperative style, with lots and lots of array indexing, which made
         operations such as \texttt{map} and \texttt{zipWith} infeasible for this
         purpose. So this time we unfortunately had to write it in the same
