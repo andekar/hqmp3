@@ -687,9 +687,21 @@ lookupHuff huff = case huff of
         ffmpeg would give good ideas for new algorithms in the decode phase.
 
     \subsection{Another huffman library}
+        The huffman library we wrote turned out to never be used in the actual
+        decoder due to its poor performance. Even though it is not really part
+        of the project, it would be nice to create a new library based on the
+        findings we did in this project. 
+
     \subsection{The bitstring library}
-    Also, other implementations of the huffman library may be considered. Also
-    make the bitstring library good enough for a release.
+        Apart from the actual decoder, the \texttt{bitstring} library is likely
+        to be the most useful result from it. Actually, given the decoders
+        current state, it is probably more useful. It is however not finished,
+        and currently only consists of some very basic functions and functions
+        that were needed in the decoder. Before the library can be released to
+        the public we need to add more general functions to it. Actually, since
+        we last coded on this project, a \texttt{bitstring} library has been
+        released at Hackage by Balasz Komuves\cite{bitstring}, using another
+        approach.
 
 \begin{thebibliography}{99}
     \bibitem{bjorn}
@@ -706,6 +718,9 @@ lookupHuff huff = case huff of
         ISO-11172-3 Information technology -- Coding of moving pictures and
         associated audio for digital storage media at up to about 1,5 Mbit/s --
         Part 3: Audio
+    \bibitem{bitstring}
+        Bitstring package on hackage:
+        http://hackage.haskell.org/package/bitstring
 \end{thebibliography}
 
 \end{document}
