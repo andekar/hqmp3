@@ -50,17 +50,10 @@
 
 \tableofcontents
 
-
-TODO: Lägg all kod i captions,
-      Lägg alla referenser till funktioner i en texttt,
-      Fixa bilder,
-      Skriv en snutt om björns decoder,
-      Lägg alla tabeller i captions.
-
 \section{Motivation}
     MP3 decoders exists today in most languages, however there does not exist
     a fast one written in Haskell. It does exists one written by Björn Edström
-    \cite{bjorn}, but it is very slow, and bitwise poorly implemented (sorry
+    \cite{bjorn}, but it is very slow, and partly poorly implemented (sorry
     Björn).
 
 \section{Background}
@@ -104,7 +97,7 @@ TODO: Lägg all kod i captions,
 
             There are lots of data here that does not matter for the decoding
             process, and some that does not matter because of limits in our
-            decoder. We restricted our decoder to files not using JointStereo,
+            decoder. We restricted our decoder to files not using Joint Stereo,
             so the Mode Extension bits are not used. All bits are however
             checked for correctness. The most important bits for decoding are
             bitrate index (BT) and sample rate index (SR).
@@ -148,7 +141,8 @@ TODO: Lägg all kod i captions,
 
 \section{Implementation}
     We wanted different parts of the process to be separate in the code, so we
-    divided the decoder into two main modules: Unpack.hs and Decode.hs.
+    divided the decoder into two main modules: \texttt{Unpack.hs} and
+    \texttt{Decode.hs}.
 
     \subsection{Unpacking}
 \begin{figure}[h]
@@ -235,12 +229,14 @@ data Granule a = Granule {
   \end{center}
 \end{figure}
 
-    So, it contains lots of information on how to decode, and then it contains
-    an \texttt{a}. Recall that the result from unpackMp3 was parametrized by a
-    BitString, so the mp3Data in the Granule would be a BitString in this case.
-    BitString is a library we wrote during the project. It works like
-    ByteString, but has support for bit-level operations, hence the name. We
-    will cover BitString in section \ref{sec:bitstring}.
+    The granule contains lots of information on how to decode, and then it
+    contains an \texttt{a}. Recall that the result from \texttt{unpackMp3} was
+    parametrized by a \texttt{BitString}, so the \texttt{mp3Data} in the granule
+    would be a \texttt{BitString} in this case, holding the actual data to be
+    decoded. \texttt{BitString} is a library we wrote during the project. It
+    works like \texttt{ByteString}, but has support for bit-level operations,
+    hence the name. We will cover \texttt{BitString} in section
+    \ref{sec:bitstring}.
 
     We saw in \texttt{unpackMp3} that it read one frame, and then called
     \texttt{unpackFrames} with that frame as an argument. \texttt{unpackFrames}
@@ -322,9 +318,9 @@ readSideInfo mode freq = do
     else's code, like we did). However, this is what a granule looks like,
     except for the data that is read in as stated above. Most of the stuff here
     is of little interest from a programming point of view, however all of them
-    are used when decoding. The variables named \texttt{reg\{0,1,2}len are a bit
-    more interesting though, since they control the number of times one has to
-    invoke the huffman decoder. These variables are used together with
+    are used when decoding. The variables named \texttt{reg\{0,1,2\}len} are a
+    bit more interesting though, since they control the number of times one has
+    to invoke the huffman decoder. These variables are used together with
     \texttt{tableSelect\{0,1,2\}} that tells the decoder which huffman table
     that was used when compressing the audio data.
 
@@ -500,10 +496,11 @@ imdct18 xs = map (\s -> sumZip (*) xs s) lookupIMDCT
         As you can see, there is a special version when there are only 18
         samples to transform, and we have not investigated in how that code was
         written, but we just translated it to Haskell, which in our opinion went
-        very well. For performance reasons we wrote sumZip, which would not be
-        needed otherwise. This was however quite slow compared to the C version,
-        but that was not a big concern when we first wrote it, the goal was to
-        have a Haskell version first, and if there were time, to optimise. \\
+        very well. For performance reasons we wrote \texttt{sumZip}, which would
+        not be needed otherwise. This was however quite slow compared to the C
+        version, but that was not a big concern when we first wrote it, the goal
+        was to have a Haskell version first, and if there were time, to
+        optimise. \\
 
         The output of the IMDCT is inverted on all odd samples in odd sub bands,
         so they need to be inverted, in the code, this is done by simply
@@ -514,12 +511,12 @@ imdct18 xs = map (\s -> sumZip (*) xs s) lookupIMDCT
         to be rewritten in Haskell. This time however, it was not as neat as the
         IMDCT code. THe synthethis filterbank was written in a far more
         imperative style, with lots and lots of array indexing, which made
-        operations such as map and zipWith infeasible for this purpose. So this
-        time we unfortunately had to write it in the same imperative style in
-        Haskell as it was written in C, but with unboxed arrays in the ST monad.
-        Unlike the C version, we managed to separate the filterbank into two
-        functions, one for updating the internal codec state, and one for
-        computing the output.
+        operations such as \texttt{map} and \texttt{zipWith} infeasible for this
+        purpose. So this time we unfortunately had to write it in the same
+        imperative style in Haskell as it was written in C, but with unboxed
+        arrays in the \texttt{ST} monad.  Unlike the C version, we managed to
+        separate the filterbank into two functions, one for updating the
+        internal codec state, and one for computing the output.
         % TODO: Describe Synthethis more, maybe some code?
 
 \section{Results}
@@ -532,6 +529,13 @@ imdct18 xs = map (\s -> sumZip (*) xs s) lookupIMDCT
         by hand. Therefore, we wrote our own library, BitString.
 
         The BitString structure itself is rather simple:
+        Initially, we started to parse the format using \texttt{ByteStrings},
+        but since the MP3 format does not only deal in single bytes, but rather
+        in single bits, we found that it would not be feasible to keep track of
+        the bits by hand. Therefore, we wrote our own library,
+        \texttt{BitString}.
+    
+        The \texttt{BitString} structure itself is rather simple:
 \begin{figure}[h]
   \begin{center}
         \begin{lstlisting}
@@ -542,18 +546,20 @@ data BitString = Empty
   \end{center}
 \end{figure}
 
-        If you have ever used lazy ByteStrings, you will notice that the data
-        definition here is similar, but with two extra Word8's. The first is
-        used to keep track of at which bit we are in the first byte, and the
-        second one is used for knowing at which bit in the last byte the string
-        ends (since BitStrings does not need to be full bytes). \\
-        The further design of the BitString library looks more or less like the
-        ByteString library, but with additional functions for fetching bits,
-        such as takeWord8, takeWord16 and so on. \\
+        If you have ever used lazy \texttt{ByteStrings}, you will notice that
+        the data definition here is similar, but with two extra
+        \texttt{Word8}'s. The first is used to keep track of at which bit we are
+        in the first byte, and the second one is used for knowing at which bit
+        in the last byte the string ends (since \texttt{BitStrings} does not
+        need to be full bytes). \\ The further design of the \texttt{BitString}
+        library looks more or less like the \texttt{ByteString} library, but
+        with additional functions for fetching bits, such as \texttt{takeWord8},
+        \texttt{takeWord16} and so on. \\
 
         To make this library usable, we wanted to be able to operate on these
-        BitStrings without keeping track of everything by ourselves, therefore
-        we put it in a monad. This is how it looks:
+        \texttt{BitStrings} without keeping track of everything by ourselves,
+        therefore we put it in a monad. This is how it looks:
+
 \begin{figure}[h]
   \begin{center}
         \begin{lstlisting}
@@ -571,17 +577,18 @@ instance (Monad m) => Monad (BitGetT m) where
   \end{center}
 \end{figure}
 
-Much of the design of the BitGet monad was inspired by the existing BitGet
-    monad available in the binary-strict package \cite{binarystrict}. However,
-    it is not as extensive as the existing BitGet library, and it needs to
-    include more handy functions before being released. Currently, we have only
-    included functions that were needed for parsing the MP3 format.
+    Much of the design of the \texttt{BitGet} monad was inspired by the existing
+    \texttt{BitGet} monad available in the binary-strict package
+    \cite{binarystrict}. However, it is not as extensive as the existing
+    \texttt{BitGet} library, and it needs to include more handy functions before
+    being released. Currently, we have only included functions that were needed
+    for parsing the MP3 format.
 
     \subsection{huffman}
     \label{sec:huffman}
         Initially, we wrote a nice (but extremely slow) library for huffman
         encoding and decoding. This library was later subsumed by the huffman
-        code available in HuffArrays.hs. The initial idea was based on the
+        code available in \texttt{HuffArrays.hs}. The initial idea was based on the
         ground theory behind huffman codes, to have a tree with codes, and to
         traverse it when looking for the code for a value. That proved to be
         much too slow, since it did not only had to read one bit at the time,
@@ -593,7 +600,7 @@ Much of the design of the BitGet monad was inspired by the existing BitGet
         but that instantly showed to be impossible, since the maximum code word
         length for some tables are 18 and 19, this led to the tables being 13MB
         large, and could not be compiled. We then had to compromise, so we let
-        the trees have at most $2^10$ entries, and in the cases where there were
+        the trees have at most $2^{10}$ entries, and in the cases where there were
         code words that were larger than 10 bits, the result from a lookup in
         the table was another table. The not-so-intuitive data structure looks
         like this:
@@ -615,8 +622,8 @@ type HuffDeep a  = (Int, Array Int
 \end{figure}
 
         But the complicated structure aside, this works very well, ever though
-        HuffTables.hs still takes more time to compile than any other module.
-        The lookup function looks like this:
+        \texttt{HuffTables.hs} still takes more time to compile than any other
+        module.  The lookup function looks like this:
 \begin{figure}[h]
   \begin{center}
         \begin{lstlisting}
@@ -645,10 +652,43 @@ lookupHuff huff = case huff of
         its poor performance, it never should be.
 
 \section{Future Work}
-    Rewrite the back-end to use a fast mutable structure, optimise further. Add
-    support for all modes that are currently not supported. Also, other
-    implementations of the huffman library may be considered. Also make the
-    bitstring library good enough for a release.
+    There are a number of things that could be done in order to make this
+    decoder work as desired.
+
+    \subsection{Mutable structure}
+        Large parts of the back-end currently uses an approach where data is
+        transformed by functions having lists as arguments and having lists as
+        results. Many parts of the back-end uses extensive list indexing, which
+        becomes extremely slow with the current implementation. An interesting,
+        but also style-breaking approach would be to use a mutable structure
+        such as \texttt{STArray} or \texttt{IOArray}. This would make all code
+        that uses list indexing work a lot faster, but much of the code would
+        have to be rewritten to fit a more imperative style of programming,
+        which would be unfortunate.
+        
+        Much work here could probably be done through more testing and
+        optimisation, which we did not have time to do within the time scope of
+        the project. Doing this both by looking at the existing code, and by
+        examining the meaning of what the standard actually says would be
+        helpful here.
+
+    \subsection{Support for more mp3 modes}
+        Currently, the decoder only has support for mono and stereo modes,
+        whereas the standard also describes joint stereo, which is used in many
+        mp3 encoders. It might be good to know that doing this would have impact
+        on nearly every part of the decoder, since the different modes are both
+        unpacked and decoded in different ways.
+
+    \subsection{Back-end rewrite}
+        The currently used back-end is mostly a rewrite of the back-end that
+        Björns decoder uses. Since it was not written to be neither fast or
+        efficient, we think that looking at other decoders such as madplay or
+        ffmpeg would give good ideas for new algorithms in the decode phase.
+
+    \subsection{Another huffman library}
+    \subsection{The bitstring library}
+    Also, other implementations of the huffman library may be considered. Also
+    make the bitstring library good enough for a release.
 
 \begin{thebibliography}{99}
     \bibitem{bjorn}
