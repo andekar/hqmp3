@@ -425,8 +425,6 @@ readSideInfo mode freq = do
         samples so that it is always of length 576 for simplicity in the further
         steps. \\
 
-%        TODO: Describe Alias Addition here
-
         To further compress the audio, the encoder passes the data through an
         \textit{Inverse Modified Discrete Cosine Transform} (IMDCT). As stated
         in ISO 11172-3, the transformation for each sample is done as
@@ -520,7 +518,33 @@ imdct18 xs = map (\s -> sumZip (*) xs s) lookupIMDCT
         % TODO: Describe Synthethis more, maybe some code?
 
 \section{Results}
-    Beauty, Slowness\ldots
+    The result of this project is an mp3 decoder, written entirely in Haskell,
+    that can decode an mp3 file, and output it to a file containing waveform
+    audio. The decoder is very slow, decoding three minutes of audio takes
+    approximately three minutes. The decoder has support for both Mono and
+    Stereo, as well as Dual Channel, however Joint Stereo is not supported.
+
+    \subsection{Discussion}
+        Apart from the decoder being very slow, there are a number of things
+        that could have been done differently, that may or may not have affected
+        the speed of the decoder.
+
+        Perhaps the first mistake we made was to assume that writing an mp3
+        decoder would be just part of the project, when it in reality
+        \textit{became} the project. If we would have known this from the start,
+        more time could have been spent on working on the synthesis part. In
+        relation to this, we feel that writing the parsing and unpacking parts
+        took disproportionately much time in relation to the time it takes when
+        running the decoder. We have both the mp3 standard and ourselves to
+        blame for this; the mp3 standard for being unclear and fuzzy, and
+        ourselves for not realising where we should have focused our work. 
+        
+        Us not realising focus might be due to us starting with the decoder that
+        Björn had written, which meant that, for each step, we could see if we
+        had done it right, just by jacking in our code in the appropriate parts
+        of Björn's encoder. This had as effect that we went rather far in the
+        project before we realised that we needed to write a back-end as well.
+
     \subsection{bitstring}
     \label{sec:bitstring}
         Initially, we started to parse the format using \texttt{ByteStrings},
