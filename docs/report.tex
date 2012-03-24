@@ -182,7 +182,7 @@ unpackMp3 = runBitGet first . BS.convert
 \end{figure}
 
     What is going on here? The function expects a lazy \texttt{ByteString} as
-    input (this is the contents of the mp3 file), and finally gives us a list of
+    input containing the mp3 file data, and finally gives us a list of
     \texttt{SideInfo} datatypes parametrized by a \texttt{BitString}. There are
     lots of stuff that needs to be explained, clearly!
 
@@ -463,7 +463,7 @@ readSideInfo mode freq = do
 \end{figure}
 
         In the code that we plugged in to, the IMDCT was written as a piece of C
-        code, as was the synthethis filterbank. We thought that it would be much
+        code, as was the synthesis filterbank. We thought that it would be much
         nicer to have that code written in Haskell, so we rewrote both those
         files into Haskell versions. For the IMDCT that went extremely
         smooth:
@@ -526,10 +526,10 @@ imdct18 xs = map (\s -> sumZip (*) xs s) lookupIMDCT
         so they need to be inverted, in the code, this is done by simply
         changing the sign of them. \\
 
-        The last step in the audio decoding is the synthethis filter bank, which
+        The last step in the audio decoding is the synthesis filter bank, which
         when we plugged into the existing codec also was written in C, so it had
         to be rewritten in Haskell. This time however, it was not as neat as the
-        IMDCT code. The synthethis filterbank was written in a far more
+        IMDCT code. The synthesis filterbank was written in a far more
         imperative style, with lots and lots of array indexing, which made
         operations such as \texttt{map} and \texttt{zipWith} infeasible for this
         purpose. So this time we unfortunately had to write it in the same
@@ -537,7 +537,12 @@ imdct18 xs = map (\s -> sumZip (*) xs s) lookupIMDCT
         arrays in the \texttt{ST} monad.  Unlike the C version, we managed to
         separate the filterbank into two functions, one for updating the
         internal codec state, and one for computing the output.
-        % TODO: Describe Synthethis more, maybe some code?
+
+        The synthesis filterbank loops through all samples and does seemingly
+        magical calculations to synthesize the samples back into real sound.
+        Unfortunately we have not had time to investigate too much in this part
+        of the decoder, but rather just rewritten the existing code into
+        Haskell.
 
 \section{Results}
     The result of this project is an mp3 decoder, written entirely in Haskell,
