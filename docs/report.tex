@@ -1,6 +1,7 @@
 \documentclass[a4paper,12pt]{article}
 \usepackage[utf8]{inputenc}
 \usepackage{graphicx}
+\usepackage{float}
 \usepackage[superscript]{cite}
 \usepackage{color}
 
@@ -150,7 +151,8 @@ TODO: Lägg all kod i captions,
     divided the decoder into two main modules: Unpack.hs and Decode.hs.
 
     \subsection{Unpacking}
-
+\begin{figure}[h]
+  \begin{center}
     \begin{lstlisting}
 unpackMp3 :: L.ByteString -> [SideInfo BS.BitString]
 unpackMp3 = runBitGet first . BS.convert
@@ -159,12 +161,18 @@ unpackMp3 = runBitGet first . BS.convert
             init <- lookAhead (runMaybeT readHeader)
             unpackFrames init
     \end{lstlisting}
+    \caption{Unpacking mp3}\label{fig:unpacking_mp3}
+  \end{center}
+\end{figure}
+
     What is going on here? The function expects a lazy bytestring as input (this
     is the contents of the mp3 file), and finally gives us a list of SideInfo
     datatypes parametrized by a BitString. There are lots of stuff that needs to
     be explained, clearly!
 
     First, what is the SideInfo type?
+\begin{figure}[h]
+  \begin{center}
     \begin{lstlisting}
 data SideInfo a
     = Single { sampleRate  :: !Int
@@ -179,12 +187,18 @@ data SideInfo a
              , gran1  :: !(Granule a, Granule a)
              } deriving Show
     \end{lstlisting}
+    \caption{The SideInfo structure.}\label{fig:sideinfo_struct}
+  \end{center}
+\end{figure}
+
     So, it holds some values (sampleRate, dataPointer), some scale data
     information, and two or four Granules. There is a type of headers aswell,
     but that is only used intermediately when unpacking, so it is of rather
     little interest. We might describe it later.
 
     What is a Granule then? This is where the good stuff is!
+\begin{figure}[h]
+  \begin{center}
     \begin{lstlisting}
 data Granule a = Granule {
     bigValues         :: !Int
@@ -217,6 +231,10 @@ data Granule a = Granule {
   , mp3Data          :: a
 } deriving Show
     \end{lstlisting}
+    \caption{A Granule at it's best}\label{fig:granule_type}
+  \end{center}
+\end{figure}
+
     So, it contains lots of information on how to decode, and then it contains
     an \texttt{a}. Recall that the result from unpackMp3 was parametrized by a
     BitString, so the mp3Data in the Granule would be a BitString in this case.
@@ -229,6 +247,8 @@ data Granule a = Granule {
     simply loops and accumulates frames until there are no more frames to read.
     The interesting function here is \texttt{readHeader}, which looks as
     follows:
+\begin{figure}[h]
+  \begin{center}
     \begin{lstlisting}
 readHeader :: MaybeT BitGet (MP3Header Int)
 readHeader = do
@@ -256,6 +276,10 @@ readHeader = do
                 _ -> (False, False)
         return $ MP3Header mode mext size hsize sinfo
     \end{lstlisting}
+    \caption{Reading the mp3 header}\label{fig:read_mp3_header}
+  \end{center}
+\end{figure}
+
     So, comparing it to the description of an mp3 header in section
     \ref{sec:header} we see that the only change is the size variable, which
     calculates the length in bits to the next header. This function however,
@@ -265,6 +289,9 @@ readHeader = do
     reads the data can be found in the source code of Unpack.hs, we do not
     include it here. However, we do include \texttt{readSideInfo}, since it is
     by far more interesting even though it is long.
+
+\begin{figure}[h]
+  \begin{center}
     \begin{lstlisting}
 readSideInfo :: MP3Mode -> Int -> BitGet (SideInfo Int)
 readSideInfo mode freq = do
@@ -283,69 +310,13 @@ readSideInfo mode freq = do
             g2 <- getGranule
             g3 <- getGranule
             return $ Dual freq (dataptr * 8)
-                     scaleFactors (g0, g2) (g1, g3)
-  where
-    skipPrivate = case mode of
-        Mono -> skip 5
-        _    -> skip 3
-    getScaleFactors = case mode of
-        Mono -> replicateM 4 getBit
-        _    -> replicateM 8 getBit
-    getGranule = do
-        part23len        <- getInt 12
-        bigValues        <- getInt 9
-        globalGain       <- getInt 8
-        scaleFacCompress <- getInt 4
-        w  <- getBit -- windowSwitching
-        -- blockType
-        bt <- getInt $ if w then 2 else 0
-        -- mixedBlock
-        mb <- if w then getBit else return False
-        tableSelect0  <- getInt 5
-        tableSelect1  <- getInt 5
-        tableSelect2  <- if w then return 0 else getInt 5
-        subBlockGain0 <- if w then liftM fi (getInt 3)
-                              else return 0
-        subBlockGain1 <- if w then liftM fi (getInt 3)
-                              else return 0
-        subBlockGain2 <- if w then liftM fi (getInt 3)
-                              else return 0
-        region0Count  <- if w then return (reg0 mb bt)
-                              else getInt 4
-        region1Count  <- if w then return 0 else getInt 3
-        let r0count = if w then (if bt == 2 then 8 else 7)
-                           else region0Count
-            r1count = if w then 20 - r0count
-                           else region1Count
-            sbTable = tableScaleBandBoundary freq
-            r1bound = sbTable $ r0count + 1
-            r2bound = sbTable $ r0count + 1 + r1count + 1
-            bv2     = bigValues * 2
-            reg0len = if bt == 2 then min bv2 36
-                                 else min bv2 r1bound
-            reg1len = if bt == 2
-                      then min (bv2 - reg0len) 540
-                      else min (bv2 - reg0len)
-                               (r2bound - reg0len)
-            reg2len = if bt == 2
-                      then 0
-                      else bv2 - (reg0len + reg1len)
-        preFlag           <- getBit
-        scaleFacScale     <- getBit
-        count1TableSelect <- getBit
-        return $ Granule bigValues
-                 (mp3FloatRep1 globalGain)
-                 scaleFacCompress w bt mb
-                 tableSelect0 tableSelect1 tableSelect2
-                 (mp3FloatRep2 subBlockGain0)
-                 (mp3FloatRep2 subBlockGain1)
-                 (mp3FloatRep2 subBlockGain2)
-                 preFlag scaleFacScale count1TableSelect
-                 reg0len reg1len reg2len part23len
-    reg0 False 2 = 8
-    reg0 _ _     = 7
-
+                          scaleFactors (g0, g2) (g1, g3)
+  where ...
     \end{lstlisting}
+    \caption{Reading the side information of an mp3 file}\label{fig:sideinfo}
+  \end{center}
+\end{figure}
+
     So, lots of stuff that is done here are \textit{not} mentioned in the
     standard, but is stuff that one have to magically know (or see in somebody
     else's code, like we did). However, this is what a granule looks like,
@@ -375,7 +346,8 @@ readSideInfo mode freq = do
     were longer a new table was returned. For those code words that were
     shorter, these were padded with all possible combinations to make it of the
     right length. It might be easier to understand with an example!
-
+\begin{figure}[h]
+  \begin{center}
     \begin{tabular}{| l | l |}
         \hline
         Code Word & Value \\ \hline \hline
@@ -386,10 +358,15 @@ readSideInfo mode freq = do
         0111  & 4 \\
         01101 & 1 \\
         01100 & 8 \\ \hline
-    \end{tabular} \\
+    \end{tabular}
+    \caption{A Huffman table}\label{fig:huffmantab}
+  \end{center}
+\end{figure}
+
     In this case, one might choose code word length three, which we will use in
     this example. The lookup table generated from this would look like this:
-
+\begin{figure}[h]
+  \begin{center}
     \begin{tabular}{| l | l |}
         \hline
         Code Word & Value \\ \hline \hline
@@ -406,7 +383,11 @@ readSideInfo mode freq = do
                 01 & 1 \\
                 00 & 8 \\
               \end{tabular} \\ \hline
-    \end{tabular} \\
+    \end{tabular}
+    \caption{Another huffman table}\label{fig:huffmantab2}
+  \end{center}
+\end{figure}
+
     So what happened here was that the one was expanded to fill all code words
     of length three starting with a one. The words that were of length three
     already were left as is, but the ones longer had one common factor of size
@@ -452,16 +433,26 @@ readSideInfo mode freq = do
 
         To further compress the audio, the encoder passes the data through an
         \textit{Inverse Modified Discrete Cosine Transform} (IMDCT). As stated
-        in ISO 11172-3, the transformation for each sample is done as follows:
+        in ISO 11172-3, the transformation for each sample is done as
+        follows:
+\begin{figure}[h]
+  \begin{center}
         \[
             x_i = \sum_{k=0}^{\frac{n}{2} - 1}{X_k * cos(\frac{\pi}{2n}(2i + 1 +
                   \frac{n}{2})(2k + 1))}
             \textit{ for i=0 to n-1}
         \]
+    \caption{The IMDCT algorithm}\label{fig:imdctalgo}
+  \end{center}
+\end{figure}
+
         In the code that we plugged in to, the IMDCT was written as a piece of C
         code, as was the synthethis filterbank. We thought that it would be much
         nicer to have that code written in Haskell, so we rewrote both those
-        files into Haskell versions. For the IMDCT that went extremely smooth:
+        files into Haskell versions. For the IMDCT that went extremely
+        smooth:
+\begin{figure}[h]
+  \begin{center}
         \begin{lstlisting}
 -- Straightforward translation from the C code.
 imdct :: Int -> [Double] -> [Double]
@@ -477,7 +468,14 @@ imdct pts xs = map
                        )
     pipts        = pi / (fi pts)
     nhalf        = (fi pts) / 2.0
+        \end{lstlisting}
+    \caption{IMDCT in haskell!}\label{fig:imdcthaskell}
+  \end{center}
+\end{figure}
 
+\begin{figure}[h]
+  \begin{center}
+        \begin{lstlisting}
 -- Straightforward translation from the C code, elegant!
 imdct18 :: [Double] -> [Double]
 imdct18 xs = map (\s -> sumZip (*) xs s) lookupIMDCT
@@ -495,6 +493,10 @@ imdct18 xs = map (\s -> sumZip (*) xs s) lookupIMDCT
         = let acc = (f a b)
           in acc `seq` acc + sumZip f as bs
         \end{lstlisting}
+    \caption{The specialization for 36 samples IMDCT algorithm}\label{fig:imdctimpl36}
+  \end{center}
+\end{figure}
+
         As you can see, there is a special version when there are only 18
         samples to transform, and we have not investigated in how that code was
         written, but we just translated it to Haskell, which in our opinion went
@@ -528,12 +530,18 @@ imdct18 xs = map (\s -> sumZip (*) xs s) lookupIMDCT
         the MP3 format does not only deal in single bytes, but rather in single
         bits, we found that it would not be feasible to keep track of the bits
         by hand. Therefore, we wrote our own library, BitString.
-    
+
         The BitString structure itself is rather simple:
+\begin{figure}[h]
+  \begin{center}
         \begin{lstlisting}
-data BitString = Empty 
+data BitString = Empty
                | Chunk L.ByteString !Word8 !Word8 BitString
         \end{lstlisting}
+    \caption{A bitstring at it's core}\label{fig:bitstring}
+  \end{center}
+\end{figure}
+
         If you have ever used lazy ByteStrings, you will notice that the data
         definition here is similar, but with two extra Word8's. The first is
         used to keep track of at which bit we are in the first byte, and the
@@ -546,9 +554,11 @@ data BitString = Empty
         To make this library usable, we wanted to be able to operate on these
         BitStrings without keeping track of everything by ourselves, therefore
         we put it in a monad. This is how it looks:
+\begin{figure}[h]
+  \begin{center}
         \begin{lstlisting}
-newtype BitGetT m a = BitGetT { 
-    unGet :: BitString -> m (a, BitString) 
+newtype BitGetT m a = BitGetT {
+    unGet :: BitString -> m (a, BitString)
 }
 type BitGet = BitGetT Identity
 instance (Monad m) => Monad (BitGetT m) where
@@ -557,6 +567,10 @@ instance (Monad m) => Monad (BitGetT m) where
         ~(a,bs') <- unGet bg bs
         unGet (f a) bs'
     \end{lstlisting}
+    \caption{The bitstring monad}\label{fig:bitstringmonad}
+  \end{center}
+\end{figure}
+
 Much of the design of the BitGet monad was inspired by the existing BitGet
     monad available in the binary-strict package \cite{binarystrict}. However,
     it is not as extensive as the existing BitGet library, and it needs to
@@ -583,6 +597,8 @@ Much of the design of the BitGet monad was inspired by the existing BitGet
         code words that were larger than 10 bits, the result from a lookup in
         the table was another table. The not-so-intuitive data structure looks
         like this:
+\begin{figure}[h]
+  \begin{center}
         \begin{lstlisting}
 -- SmallTable / Deep Table
 type MP3Huffman a = Either (HuffArray a) (HuffDeep a)
@@ -590,13 +606,19 @@ type MP3Huffman a = Either (HuffArray a) (HuffDeep a)
 type HuffArray a  = (Int, Array Int (Int, a))
 -- Int is Code Word length
 -- In the array there may be values or arrays
-type HuffDeep a  = (Int, Array Int 
+type HuffDeep a  = (Int, Array Int
                          (Either (Int,a) (HuffArray a))
                    )
         \end{lstlisting}
+    \caption{Huffaray}\label{fig:huffarraycode}
+  \end{center}
+\end{figure}
+
         But the complicated structure aside, this works very well, ever though
         HuffTables.hs still takes more time to compile than any other module.
         The lookup function looks like this:
+\begin{figure}[h]
+  \begin{center}
         \begin{lstlisting}
 -- Lookup a value in the huffman array
 lookupHuff :: Monad m => MP3Huffman a -> BitGetT m (Int,a)
@@ -610,11 +632,15 @@ lookupHuff huff = case huff of
                 (l,a) <- liftM (arr' !) (f cw')
                 return (cw+l,a)
   where
-    f w | w <= 8  = liftM fromIntegral 
+    f w | w <= 8  = liftM fromIntegral
                     (getAsWord8 $ fromIntegral w)
-        | w <= 16 = liftM fromIntegral 
+        | w <= 16 = liftM fromIntegral
                     (getAsWord16 $ fromIntegral w)
         \end{lstlisting}
+    \caption{Looking up huffcodes}\label{fig:lookuphuff}
+  \end{center}
+\end{figure}
+
         The huffman encoder that we wrote has never been used, and judging by
         its poor performance, it never should be.
 
