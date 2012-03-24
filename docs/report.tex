@@ -139,6 +139,21 @@
             beginning. Our decoder ignores id3 tags, however a library for
             parsing these tags was written for future use.
 
+       \subsubsection{Other implementations}
+           As earlier mention there exist several mp3 decoder
+           implementations in various langugages such as C, Java, C++
+           and also in Haskell (lame \cite{lame}, mad \cite{mad},
+           LAMEOnJ \cite{lameonj}, Bjorns haskell mp3
+           decoder \cite{bjorn}). The implementations made for other languages can
+           decode in real time, but no such implementation exist in
+           haskell yet. They all include a number of different
+           optimizations for the heavy operations such as IMDCT,
+           float calculations etc. that should be considered during
+           this project. The existing implementation from Bjorn is
+           only made to show how mp3 decoding is done and did not
+           focus on being usable, which made his decoder easy to read
+           and understand.
+
 \section{Implementation}
     We wanted different parts of the process to be separate in the code, so we
     divided the decoder into two main modules: \texttt{Unpack.hs} and
@@ -559,7 +574,7 @@ imdct18 xs = map (\s -> sumZip (*) xs s) lookupIMDCT
         in single bits, we found that it would not be feasible to keep track of
         the bits by hand. Therefore, we wrote our own library,
         \texttt{BitString}.
-    
+
         The \texttt{BitString} structure itself is rather simple:
 \begin{figure}[h]
   \begin{center}
@@ -690,7 +705,7 @@ lookupHuff huff = case huff of
         that uses list indexing work a lot faster, but much of the code would
         have to be rewritten to fit a more imperative style of programming,
         which would be unfortunate.
-        
+
         Much work here could probably be done through more testing and
         optimisation, which we did not have time to do within the time scope of
         the project. Doing this both by looking at the existing code, and by
@@ -714,7 +729,7 @@ lookupHuff huff = case huff of
         The huffman library we wrote turned out to never be used in the actual
         decoder due to its poor performance. Even though it is not really part
         of the project, it would be nice to create a new library based on the
-        findings we did in this project. 
+        findings we did in this project.
 
     \subsection{The bitstring library}
         Apart from the actual decoder, the \texttt{bitstring} library is likely
@@ -745,6 +760,15 @@ lookupHuff huff = case huff of
     \bibitem{bitstring}
         Bitstring package on hackage:
         http://hackage.haskell.org/package/bitstring
+     \bibitem{lameonj}
+       LAMEOnJ
+       http://openinnowhere.sourceforge.net/lameonj/
+     \bibitem{mad}
+       Mad
+       http://www.underbit.com/products/mad/
+     \bibitem{lame}
+       LAME
+       http://lame.sourceforge.net/
 \end{thebibliography}
 
 \end{document}
