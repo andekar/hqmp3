@@ -5,6 +5,7 @@
 \usepackage[superscript]{cite}
 \usepackage{color}
 
+
 \usepackage{listings}
 \definecolor{light-gray}{gray}{0.95}
 \lstdefinestyle{normal}{
@@ -80,7 +81,11 @@
 
        \subsubsection{Header}
        \label{sec:header}
-            Bild här \\
+\begin{figure}[h!]
+  \centering
+    \includegraphics[width=1.1\textwidth]{1000px-Mp3filestructure}
+  \caption{The mp3 header taken from wikipedia \cite{mike}}
+\end{figure}
             \begin{itemize}
                 \item{12 bits} All ones, sync word.
                 \item{3 bits} 101 for MPEG layer 3.
@@ -769,6 +774,9 @@ lookupHuff huff = case huff of
      \bibitem{lame}
        LAME
        http://lame.sourceforge.net/
+     \bibitem{mike}
+       Kim Meyrick
+       http://en.wikipedia.org/wiki/User:Kim\_Meyrick
 \end{thebibliography}
 
 \end{document}
