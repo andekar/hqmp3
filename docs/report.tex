@@ -48,7 +48,7 @@
     own library for handling of binary formats, a fast huffman decoder and is
     written entirely in Haskell. The project was carried out as a 15hp course at
     the department of computer science and engineering at the University of
-    Gothenburg during the autumn 2009. 
+    Gothenburg during the autumn 2009.
 \end{abstract}
 
 \tableofcontents
@@ -56,7 +56,7 @@
 \section{Motivation}
     MP3 decoders exists today in most languages, however there does not exist
     a fast one written in Haskell. It does exists one written by Björn Edström
-    \cite{bjorn}, but it is very slow, and partly poorly implemented (sorry
+    \cite{bjorn}, but it is very slow (sorry
     Björn).
 
 \section{Background}
@@ -71,7 +71,7 @@
        frames, and logical frames. Physical frames are all data between two
        headers (unsorted), whereas a logical frame is a header and it's
        associated frame data (sorted). The distance in bits between two
-       consecutive physical frames are constant once you know bitrate and sample
+       consecutive physical frames are calculated based on the bitrate and sample
        rate. However, there might not be data to fill all those bits, in which
        case the data for the \textit{next} frame is inserted before its frame.
        This implies that one needs to keep track of two consecutive frames at a
@@ -103,11 +103,11 @@
             \end{itemize}
 
             There are lots of data here that does not matter for the decoding
-            process, and some that does not matter because of limits in our
+            process such as the copyright data and private bit, and
+            some that does not matter because of limits in our
             decoder. We restricted our decoder to files not using Joint Stereo,
             so the Mode Extension bits are not used. All bits are however
-            checked for correctness. The most important bits for decoding are
-            bitrate index (BT) and sample rate index (SR).
+            checked for correctness.
 
             The decoding process can be divided into two parts: unpacking and
             decoding. For the unpacking, the CRC info and padding data are also
@@ -147,8 +147,8 @@
             parsing these tags was written for future use.
 
        \subsubsection{Other implementations}
-           As earlier mention there exist several mp3 decoder
-           implementations in various langugages such as C, Java, C++
+           As earlier mentioned there exist several mp3 decoder
+           implementations in various languages such as C, Java, C++
            and also in Haskell (lame \cite{lame}, mad \cite{mad},
            LAMEOnJ \cite{lameonj}, Bjorns haskell mp3
            decoder \cite{bjorn}). The implementations made for other languages can
@@ -210,7 +210,7 @@ data SideInfo a
     So, it holds some values (\texttt{sampleRate}, \texttt{dataPointer}), some
     scale data information, and two or four \textit{granules}. There is a type
     of headers aswell, but that is only used intermediately when unpacking, so
-    it is of rather little interest. We might describe it later.
+    it is of rather little interest.
 
     What is a \texttt{Granule} then? This is where the good stuff is!
 \begin{figure}[h]
@@ -516,7 +516,7 @@ imdct18 xs = map (\s -> sumZip (*) xs s) lookupIMDCT
         As you can see, there is a special version when there are only 18
         samples to transform, and we have not investigated in how that code was
         written, but we just translated it to Haskell, which in our opinion went
-        very well. For performance reasons we wrote \texttt{sumZip}, which would
+        very well. For performance reasons we wrote the strict \texttt{sumZip}, which would
         not be needed otherwise. This was however quite slow compared to the C
         version, but that was not a big concern when we first wrote it, the goal
         was to have a Haskell version first, and if there were time, to
@@ -559,8 +559,8 @@ imdct18 xs = map (\s -> sumZip (*) xs s) lookupIMDCT
         took disproportionately much time in relation to the time it takes when
         running the decoder. We have both the mp3 standard and ourselves to
         blame for this; the mp3 standard for being unclear and fuzzy, and
-        ourselves for not realising where we should have focused our work. 
-        
+        ourselves for not realising where we should have focused our work.
+
         Us not realising focus might be due to us starting with the decoder that
         Björn had written, which meant that, for each step, we could see if we
         had done it right, just by jacking in our code in the appropriate parts
