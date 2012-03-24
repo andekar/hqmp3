@@ -159,12 +159,12 @@ unpackMp3 = runBitGet first . BS.convert
   \end{center}
 \end{figure}
 
-    What is going on here? The function expects a lazy bytestring as input (this
-    is the contents of the mp3 file), and finally gives us a list of SideInfo
-    datatypes parametrized by a BitString. There are lots of stuff that needs to
-    be explained, clearly!
+    What is going on here? The function expects a lazy \texttt{ByteString} as
+    input (this is the contents of the mp3 file), and finally gives us a list of
+    \texttt{SideInfo} datatypes parametrized by a \texttt{BitString}. There are
+    lots of stuff that needs to be explained, clearly!
 
-    First, what is the SideInfo type?
+    First, what is the \texttt{SideInfo} type?
 \begin{figure}[h]
   \begin{center}
     \begin{lstlisting}
@@ -185,12 +185,12 @@ data SideInfo a
   \end{center}
 \end{figure}
 
-    So, it holds some values (sampleRate, dataPointer), some scale data
-    information, and two or four Granules. There is a type of headers aswell,
-    but that is only used intermediately when unpacking, so it is of rather
-    little interest. We might describe it later.
+    So, it holds some values (\texttt{sampleRate}, \texttt{dataPointer}), some
+    scale data information, and two or four \textit{granules}. There is a type
+    of headers aswell, but that is only used intermediately when unpacking, so
+    it is of rather little interest. We might describe it later.
 
-    What is a Granule then? This is where the good stuff is!
+    What is a \texttt{Granule} then? This is where the good stuff is!
 \begin{figure}[h]
   \begin{center}
     \begin{lstlisting}
@@ -282,9 +282,9 @@ readHeader = do
     does not read in any data, and thus does not produce a logical frame. To do
     that, we need to first read side info and then look ahead to the next
     header in order to determine how long we should read. The function that
-    reads the data can be found in the source code of Unpack.hs, we do not
-    include it here. However, we do include \texttt{readSideInfo}, since it is
-    by far more interesting even though it is long.
+    reads the data can be found in the source code of \texttt{Unpack.hs}, we do
+    not include it here. However, we do include \texttt{readSideInfo}, since it
+    is by far more interesting even though it is long.
 
 \begin{figure}[h]
   \begin{center}
@@ -523,10 +523,11 @@ imdct18 xs = map (\s -> sumZip (*) xs s) lookupIMDCT
     Beauty, Slowness\ldots
     \subsection{bitstring}
     \label{sec:bitstring}
-        Initially, we started to parse the format using ByteStrings, but since
-        the MP3 format does not only deal in single bytes, but rather in single
-        bits, we found that it would not be feasible to keep track of the bits
-        by hand. Therefore, we wrote our own library, BitString.
+        Initially, we started to parse the format using \texttt{ByteStrings},
+        but since the MP3 format does not only deal in single bytes, but rather
+        in single bits, we found that it would not be feasible to keep track of
+        the bits by hand. Therefore, we wrote our own library,
+        \texttt{BitString}.
 
         The BitString structure itself is rather simple:
         Initially, we started to parse the format using \texttt{ByteStrings},
