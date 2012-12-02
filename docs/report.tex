@@ -50,7 +50,7 @@
     at the department of computer science and engineering at the University of
     Gothenburg during the autumn 2009. \\
 
-    Supervisor for this project was Ulf Norell and Koen Claesson was the
+    Supervisor for this project was Ulf Norell and Koen Claessen was the
     examiner.
 \end{abstract}
 
@@ -60,9 +60,8 @@
 
 \section{Motivation}
     MP3 decoders exists today in most languages, however there does not exist
-    a fast one written in Haskell. It does exists one written by Björn Edström
-    \cite{bjorn}, but it is very slow (sorry
-    Björn).
+    a fast one written in Haskell. It does exist one in Haskell, written by 
+    Björn Edström \cite{bjorn}, but it is very slow (sorry Björn).
 
 \section{Background}
     \subsection{The MP3 format}
@@ -86,6 +85,21 @@
        If you feel that there are a lot of details missing, then don't worry --
        we will cover all that in the implementation part.
 
+       \subsubsection{Other implementations}
+           As mentioned there exist several mp3 decoder
+           implementations in various languages such as C, Java, C++
+           and also in Haskell (lame \cite{lame}, mad \cite{mad},
+           LAMEOnJ \cite{lameonj}, Björns haskell mp3
+           decoder \cite{bjorn}). The implementations made for other languages can
+           decode in real time, but no such implementation exist in
+           Haskell yet. They all include a number of different
+           optimizations for the heavy operations such as IMDCT,
+           float calculations etc. that should be considered during
+           this project. The existing implementation from Björn is
+           only made to show how mp3 decoding is done and did not
+           focus on being usable, which made his decoder easy to read
+           and understand.
+
        \subsubsection{Header}
        \label{sec:header}
         \begin{tabular}{l l l}
@@ -101,7 +115,7 @@
             2   &             & Mode extension, only for JointStereo \\
             2   &             & Copyright data \\
             2   &             & Emphasis
-        \end{tabular}
+        \end{tabular} \\
 
             There are lots of data here that does not matter for the decoding
             process such as the copyright data and private bit, and
@@ -116,18 +130,21 @@
 
             One might think that the header would contain all data needed for
             decoding, but that is absolutely not the case. In fact, the only
-            useful data for decoding that is contained in the header are SR and
-            BT. Then some data in the header is of course useful for unpacking,
-            but unpacking is a rather small part of the whole decoding process.
+            useful data for decoding that is contained in the header are the
+            sample rate index and bitrate index. Then some data in the header is
+            of course useful for unpacking, but unpacking is a rather small part
+            of the whole decoding process.
 
        \subsubsection{Side Info}
-            The side info is the part that contains most information on how to
-            unpack the compressed audio and some information on how to decode
-            the data. However, there is some information usable for decoding
-            that is \textit{not} included in the side info, for some unknown
-            reason. Some things to note in this data are:
+            The side info is the part that comes directly after the header, and
+            contains most information on how to unpack the compressed audio and
+            some information on how to decode the data. However, there is some
+            information needed for decoding that is \textit{not} included in the
+            side info, for some unknown reason. Some things to note in this data
+            are:
             \begin{itemize}
-                \item main\_data\_begin - a pointer to the audio data
+                \item main\_data\_begin - a pointer to the audio data in the
+                frame.
                 \item scfsi bands - scale factor information for each data part.
                 \item part2\_3\_length - the amount of audio data for each
                       data part.
@@ -137,30 +154,15 @@
 
        \subsubsection{Main Data}
             The main data is further divided into two granules, which may be
-            divided further, depending on the number of channels (1 or 2). For
-            each of these data parts, the main data contains scale information
-            for decoding, and huffman data.
+            divided further if the number of audio channels are two instead of
+            one. For each of these data parts, the main data contains scale
+            information for decoding, and huffman data.
 
         \subsubsection{ID3}
             ID3 tags may be present within an mp3 file. Technically, it may
             appear anywhere in the file, but is by convention always in the
             beginning. Our decoder ignores id3 tags, however a library for
             parsing these tags was written for future use.
-
-       \subsubsection{Other implementations}
-           As earlier mentioned there exist several mp3 decoder
-           implementations in various languages such as C, Java, C++
-           and also in Haskell (lame \cite{lame}, mad \cite{mad},
-           LAMEOnJ \cite{lameonj}, Bjorns haskell mp3
-           decoder \cite{bjorn}). The implementations made for other languages can
-           decode in real time, but no such implementation exist in
-           haskell yet. They all include a number of different
-           optimizations for the heavy operations such as IMDCT,
-           float calculations etc. that should be considered during
-           this project. The existing implementation from Bjorn is
-           only made to show how mp3 decoding is done and did not
-           focus on being usable, which made his decoder easy to read
-           and understand.
 
 \section{Implementation}
     We wanted different parts of the process to be separate in the code, so we
@@ -253,14 +255,14 @@ data Granule a = Granule {
   \end{center}
 \end{figure}
 
-    The granule contains lots of information on how to decode, and then it
-    contains an \texttt{a}. Recall that the result from \texttt{unpackMp3} was
-    parametrized by a \texttt{BitString}, so the \texttt{mp3Data} in the granule
-    would be a \texttt{BitString} in this case, holding the actual data to be
-    decoded. \texttt{BitString} is a library we wrote during the project. It
-    works like \texttt{ByteString}, but has support for bit-level operations,
-    hence the name. We will cover \texttt{BitString} in section
-    \ref{sec:bitstring}.
+    The granule contains lots of information on how to decode, such as which
+    huffman table to use for this data,  and then it contains an \texttt{a}.
+    Recall that the result from \texttt{unpackMp3} was parametrized by a
+    \texttt{BitString}, so the \texttt{mp3Data} in the granule would be a
+    \texttt{BitString} in this case, holding the actual data to be decoded.
+    \texttt{BitString} is a library we wrote during the project. It works like
+    \texttt{ByteString}, but has support for bit-level operations, hence the
+    name. We will cover \texttt{BitString} in section \ref{sec:bitstring}.
 
     We saw in \texttt{unpackMp3} that it read one frame, and then called
     \texttt{unpackFrames} with that frame as an argument. \texttt{unpackFrames}
@@ -338,7 +340,7 @@ readSideInfo mode freq = do
 \end{figure}
 
     So, lots of stuff that is done here are \textit{not} mentioned in the
-    standard, but is stuff that one have to magically know (or see in somebody
+    standard, but is stuff that one has to magically know (or see in somebody
     else's code, like we did). However, this is what a granule looks like,
     except for the data that is read in as stated above. Most of the stuff here
     is of little interest from a programming point of view, however all of them
@@ -425,29 +427,32 @@ readSideInfo mode freq = do
         All audio is represented as floating-point numbers. Now, representing
         floats in a binary file format is not very space efficient, so the
         huffman decoder decodes integers instead of floats. These integers then
-        has to be \textit{requantized}. \\
+        has to be \textit{requantized}, as stated in the standard. \\
 
         At this point we were starting to get low on time. A lot of time had
         gone to parse the format and to huffman decode, largely due to the
         rather unspecific specification in ISO 11172-3. Therefore, some of the
         parts below will not be very well described, basically because we did
         not have time to investigate in how they work. Also, we will not show
-        much of this code, since we did not write it. \\
+        much of this code, since we did not write it, but mostly borrowed it
+        from Björn's decoder. \\
 
         So, the \textit{requantization} is basically a transformation of all
         integers decoded by the huffman decoder into floats. How this is done
-        depends on blocktype and windowswitching. Depending on those, different
-        tables are for obtaining values that are multiplied by the integer from
-        huffdecoding and also multiplied by different other more or less special
-        values depending on blocktype and windowswitching. \\
+        depends on block type and window switching. Depending on those,
+        different tables are used for obtaining values that are multiplied by
+        the integer obtained from huffman decoding and then also multiplied by
+        different other more or less special values depending on block type and
+        window switching. \\
 
         Next processing step is the reordering. During encoding, some parts of
-        the data may be reordered in order to increase compression. The
+        the data may have been reordered in order to increase compression. The
         reordering basically reverses this process so that the actual audio is
-        correctly ordered. Whenever the granule only has long blocks, this
-        reordering is skipped. In the code, this step also pads the list of
-        samples so that it is always of length 576 for simplicity in the further
-        steps. \\
+        in correct order. Whenever the granule only has long blocks, this
+        reordering is skipped, since that implies no reordering was used in the
+        encoding process. In the code, this step also pads the list of samples
+        so that it is always of length 576 to make further steps less complex.
+        \\
 
         To further compress the audio, the encoder passes the data through an
         \textit{Inverse Modified Discrete Cosine Transform} (IMDCT). As stated
@@ -465,10 +470,10 @@ readSideInfo mode freq = do
 \end{figure}
 
         In the code that we plugged in to, the IMDCT was written as a piece of C
-        code, as was the synthesis filterbank. We thought that it would be much
-        nicer to have that code written in Haskell, so we rewrote both those
-        files into Haskell versions. For the IMDCT that went extremely
-        smooth:
+        code, as was the synthesis filterbank, which we'll talk about later. We
+        thought that it would be much nicer to have that code written in
+        Haskell, so we rewrote both those files into Haskell versions. For the
+        IMDCT that went extremely smooth:
 \begin{figure}[H]
   \begin{center}
         \begin{lstlisting}
@@ -487,7 +492,7 @@ imdct pts xs = map
     pipts        = pi / (fi pts)
     nhalf        = (fi pts) / 2.0
         \end{lstlisting}
-    \caption{IMDCT in haskell!}\label{fig:imdcthaskell}
+    \caption{IMDCT in Haskell!}\label{fig:imdcthaskell}
   \end{center}
 \end{figure}
 
@@ -511,14 +516,14 @@ imdct18 xs = map (\s -> sumZip (*) xs s) lookupIMDCT
         = let acc = (f a b)
           in acc `seq` acc + sumZip f as bs
         \end{lstlisting}
-    \caption{The specialization for 36 samples IMDCT algorithm}\label{fig:imdctimpl36}
+    \caption{The specialization for 18 samples IMDCT algorithm}\label{fig:imdctimpl36}
   \end{center}
 \end{figure}
 
         As you can see, there is a special version when there are only 18
         samples to transform, and we have not investigated in how that code was
         written, but we just translated it to Haskell, which in our opinion went
-        very well. For performance reasons we wrote the strict \texttt{sumZip}, which would
+        very well. For performance reasons we wrote a strict \texttt{sumZip}, which would
         not be needed otherwise. This was however quite slow compared to the C
         version, but that was not a big concern when we first wrote it, the goal
         was to have a Haskell version first, and if there were time, to
@@ -544,14 +549,15 @@ imdct18 xs = map (\s -> sumZip (*) xs s) lookupIMDCT
         magical calculations to synthesize the samples back into real sound.
         Unfortunately we have not had time to investigate too much in this part
         of the decoder, but rather just rewritten the existing code into
-        Haskell.
+        Haskell. 
 
 \section{Results}
     The result of this project is an mp3 decoder, written entirely in Haskell,
     that can decode an mp3 file, and output it to a file containing waveform
-    audio. The decoder is very slow, decoding three minutes of audio takes
-    approximately three minutes. The decoder has support for both Mono and
-    Stereo, as well as Dual Channel, however Joint Stereo is not supported.
+    audio (through some simple IO functions we wrote). The decoder is very slow,
+    decoding three minutes of audio takes approximately three minutes. The
+    decoder has support for both Mono and Stereo, as well as Dual Channel,
+    however Joint Stereo is not supported.
 
     \subsection{Discussion}
         Apart from the decoder being very slow, there are a number of things
@@ -577,14 +583,7 @@ imdct18 xs = map (\s -> sumZip (*) xs s) lookupIMDCT
     \subsection{bitstring}
     \label{sec:bitstring}
         Initially, we started to parse the format using \texttt{ByteStrings},
-        but since the MP3 format does not only deal in single bytes, but rather
-        in single bits, we found that it would not be feasible to keep track of
-        the bits by hand. Therefore, we wrote our own library,
-        \texttt{BitString}.
-
-        The BitString structure itself is rather simple:
-        Initially, we started to parse the format using \texttt{ByteStrings},
-        but since the MP3 format does not only deal in single bytes, but rather
+        but since the MP3 format does not only deal with whole bytes, but rather
         in single bits, we found that it would not be feasible to keep track of
         the bits by hand. Therefore, we wrote our own library,
         \texttt{BitString}.
@@ -640,24 +639,24 @@ instance (Monad m) => Monad (BitGetT m) where
 
     \subsection{huffman}
     \label{sec:huffman}
-        Initially, we wrote a nice (but extremely slow) library for huffman
+        Initially, we wrote a nice, but extremely slow, library for huffman
         encoding and decoding. This library was later subsumed by the huffman
         code available in \texttt{HuffArrays.hs}. The initial idea was based on the
         ground theory behind huffman codes, to have a tree with codes, and to
-        traverse it when looking for the code for a value. That proved to be
-        much too slow, since it did not only had to read one bit at the time,
-        but also carry a large datastructure. Therefore we wrote the new
-        version, which utilizes statically compiled arrays of variable size, but
-        where the lookup in an array is always done with a fixed number of bits
-        for every tree. The initial idea was to have $2^n$ entries in each
-        table, where n would be the maximum size of a code word in that table,
-        but that instantly showed to be impossible, since the maximum code word
-        length for some tables are 18 and 19, this led to the tables being 13MB
-        large, and could not be compiled. We then had to compromise, so we let
-        the trees have at most $2^{10}$ entries, and in the cases where there were
-        code words that were larger than 10 bits, the result from a lookup in
-        the table was another table. The not-so-intuitive data structure looks
-        like this:
+        traverse it when looking for the code until finding a value, or leaf by
+        tree semantics. That proved to be much too slow, since it did not only
+        had to read one bit at the time, but also carry a large datastructure.
+        Therefore we wrote the new version, which utilizes statically compiled
+        arrays of variable size, but where the lookup in an array is always done
+        with a fixed number of bits for every tree. The initial idea was to have
+        $2^n$ entries in each table, where n would be the maximum size of a code
+        word in that table, but that instantly showed to be impossible, since
+        the maximum code word length for some tables are 18 and 19, this led to
+        the tables being 13MB large, and could not be compiled. We then had to
+        compromise, so we let the trees have at most $2^{10}$ entries, and in
+        the cases where there were code words that were larger than 10 bits, the
+        result from a lookup in the table was another table. The
+        not-so-intuitive data structure looks like this:
 \begin{figure}[H]
   \begin{center}
         \begin{lstlisting}
@@ -702,8 +701,8 @@ lookupHuff huff = case huff of
   \end{center}
 \end{figure}
 
-        The huffman encoder that we wrote has never been used, and judging by
-        its poor performance, it never should be.
+        The slow huffman encoder that we wrote has never been used, and judging
+        by its poor performance, it never should be.
 
 \section{Future Work}
     There are a number of things that could be done in order to make this
@@ -724,7 +723,8 @@ lookupHuff huff = case huff of
         optimisation, which we did not have time to do within the time scope of
         the project. Doing this both by looking at the existing code, and by
         examining the meaning of what the standard actually says would be
-        helpful here.
+        helpful here. Perhaps the extensive array indexing can be implemented in
+        a more elegant manner without using mutable arrays?
 
     \subsection{Support for more mp3 modes}
         Currently, the decoder only has support for mono and stereo modes,
