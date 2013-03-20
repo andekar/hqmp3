@@ -1,0 +1,21 @@
+MP3
+0. Main
+1. Unpack                       Bytestring -> Bitstring
+   1.1 unpackHeader
+   1.2 unpackSideInfo
+       1.2.1 unpackScaleFactors
+       1.2.2 unpackGranule
+   1.3 readMp3Data
+
+2. Huffman + scalefactors       BitString -> [Int] -> array UInt Double?
+   2.1 readScaleFactors
+   2.2 tableSelect
+   2.3 decodeHuff
+   2.4
+3. Requantize                   no change
+4. Reorder                      no change
+5. Alias addition               no change
+6. IMDCT                        no change
+7. FrequenceyInversion          no change
+8. Synthesisfilterbank
+9. PCM
