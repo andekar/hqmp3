@@ -1,4 +1,6 @@
 MP3
+
+This first code we want to keep, since it is simple
 0. Main
 1. Unpack                       Bytestring -> Bitstring
    1.1 unpackHeader
@@ -11,7 +13,9 @@ MP3
    2.1 readScaleFactors
    2.2 tableSelect
    2.3 decodeHuff
-   2.4
+
+The following code we don't want to keep anything from
+
 3. Requantize                   no change
 4. Reorder                      no change
 5. Alias addition               no change
